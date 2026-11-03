@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CryptoLedger</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 21V11h3v7h5v3zM18 21V11h3v10z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="#/dashboard">
+        <span class="brand-mark" aria-hidden="true">CL</span>
+        <span>CryptoLedger</span>
+      </a>
+      <nav class="nav" id="nav">
+        <a href="#/dashboard" data-page="dashboard">Dashboard</a>
+        <a href="#/year-end" data-page="year-end">Year-end</a>
+        <a href="#/transactions" data-page="transactions">Transactions</a>
+        <a href="#/wallets" data-page="wallets">Wallets</a>
+        <a href="#/assets" data-page="assets">Assets</a>
+        <a href="#/settings" data-page="settings">Settings</a>
+      </nav>
+      <div class="sidebar-foot" id="sidebar-foot"></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <h1 id="page-title">Dashboard</h1>
+        <div class="topbar-actions">
+          <label class="select-inline">
+            <span class="muted">Portfolio</span>
+            <select id="portfolio"><option value="">All</option></select>
+          </label>
+          <button class="btn primary" id="sync-btn" type="button">Sync now</button>
+        </div>
+      </header>
+      <div id="banner"></div>
+      <section id="page" class="page" aria-live="polite"></section>
+    </main>
+  </div>
+  <div id="job" class="job hidden" role="status">
+    <div class="job-head">
+      <strong id="job-title">Sync</strong>
+      <button class="btn ghost small" id="job-close" type="button">Hide</button>
+    </div>
+    <pre id="job-log"></pre>
+  </div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card" id="modal-card"></div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

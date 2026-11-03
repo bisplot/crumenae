@@ -1,0 +1,40 @@
+{
+  "txlist": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {"blockNumber": "100", "timeStamp": "1704067200", "hash": "0xAAA1", "from": "0x9999999999999999999999999999999999999999",
+       "to": "0x1111111111111111111111111111111111111111", "value": "2000000000000000000", "gas": "21000", "gasPrice": "20000000000",
+       "gasUsed": "21000", "isError": "0", "txreceipt_status": "1", "contractAddress": "", "functionName": ""},
+      {"blockNumber": "200", "timeStamp": "1717200000", "hash": "0xAAA2", "from": "0x1111111111111111111111111111111111111111",
+       "to": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d", "value": "500000000000000000", "gas": "200000", "gasPrice": "10000000000",
+       "gasUsed": "150000", "isError": "0", "txreceipt_status": "1", "contractAddress": "",
+       "functionName": "swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)"},
+      {"blockNumber": "300", "timeStamp": "1730419200", "hash": "0xAAA3", "from": "0x1111111111111111111111111111111111111111",
+       "to": "0x2222222222222222222222222222222222222222", "value": "1000000000000000000", "gas": "21000", "gasPrice": "10000000000",
+       "gasUsed": "21000", "isError": "1", "txreceipt_status": "0", "contractAddress": "", "functionName": ""}
+    ]
+  },
+  "txlistinternal": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {"blockNumber": "250", "timeStamp": "1719792000", "hash": "0xAAA4", "from": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+       "to": "0x1111111111111111111111111111111111111111", "value": "100000000000000000", "contractAddress": "", "type": "call",
+       "traceId": "0_1", "isError": "0"}
+    ]
+  },
+  "tokentx": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {"blockNumber": "200", "timeStamp": "1717200000", "hash": "0xAAA2", "from": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+       "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "to": "0x1111111111111111111111111111111111111111",
+       "value": "1500000000", "tokenName": "USD Coin", "tokenSymbol": "USDC", "tokenDecimal": "6", "transactionIndex": "3"},
+      {"blockNumber": "320", "timeStamp": "1733011200", "hash": "0xAAA5", "from": "0x3333333333333333333333333333333333333333",
+       "contractAddress": "0x4444444444444444444444444444444444444444", "to": "0x1111111111111111111111111111111111111111",
+       "value": "0", "tokenName": "Visit claim.example", "tokenSymbol": "CLAIM", "tokenDecimal": "18", "transactionIndex": "1"}
+    ]
+  },
+  "empty": {"status": "0", "message": "No transactions found", "result": []}
+}

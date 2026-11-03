@@ -1,0 +1,18 @@
+{
+  "_comment": "Ticker -> CoinGecko id, used for exchange and manual balances (where only a ticker is known). Fiat tickers are valued with ECB reference rates.",
+  "fiat": ["EUR", "USD", "GBP", "CHF", "JPY", "AUD", "CAD", "PLN", "CZK", "RON", "HUF", "SEK", "NOK", "DKK", "TRY", "BRL", "ZAR", "MXN"],
+  "coingecko": {
+    "BTC": "bitcoin", "ETH": "ethereum", "BNB": "binancecoin", "SOL": "solana", "XRP": "ripple",
+    "ADA": "cardano", "DOGE": "dogecoin", "TRX": "tron", "DOT": "polkadot", "AVAX": "avalanche-2",
+    "LINK": "chainlink", "MATIC": "matic-network", "POL": "polygon-ecosystem-token", "LTC": "litecoin",
+    "BCH": "bitcoin-cash", "ATOM": "cosmos", "NEAR": "near", "UNI": "uniswap", "SHIB": "shiba-inu",
+    "PEPE": "pepe", "ARB": "arbitrum", "OP": "optimism", "TON": "the-open-network", "SUI": "sui",
+    "APT": "aptos", "XLM": "stellar", "ETC": "ethereum-classic", "FIL": "filecoin",
+    "ICP": "internet-computer", "HBAR": "hedera-hashgraph", "INJ": "injective-protocol",
+    "AAVE": "aave", "CAKE": "pancakeswap-token", "ALGO": "algorand", "TIA": "celestia",
+    "FET": "fetch-ai", "RENDER": "render-token", "WLD": "worldcoin-wld", "SEI": "sei-network",
+    "JUP": "jupiter-exchange-solana", "BONK": "bonk", "BTTC": "bittorrent", "RONIN": "ronin",
+    "USDT": "tether", "USDC": "usd-coin", "FDUSD": "first-digital-usd", "DAI": "dai",
+    "BUSD": "binance-usd", "EURC": "euro-coin", "WBTC": "wrapped-bitcoin", "WETH": "weth"
+  }
+}

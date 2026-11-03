@@ -1,0 +1,146 @@
+{
+  "_comment": "Built-in networks. Override a URL per network from Settings, or add an Etherscan-compatible EVM chain from the UI without touching this file. Fields: adapter = module in cryptoledger/adapters; explorer_key = name of the API-key secret (<explorer_key>_api_key); chainid_param = send chainid (Etherscan V2 multichain).",
+  "ethereum": {
+    "name": "Ethereum",
+    "adapter": "evm",
+    "chain_id": 1,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "tx_url": "https://etherscan.io/tx/{tx}",
+    "address_url": "https://etherscan.io/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "ethereum",
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+  },
+  "bsc": {
+    "name": "BNB Smart Chain",
+    "adapter": "evm",
+    "chain_id": 56,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "tx_url": "https://bscscan.com/tx/{tx}",
+    "address_url": "https://bscscan.com/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "binance-smart-chain",
+    "native": {"symbol": "BNB", "name": "BNB", "decimals": 18, "coingecko": "binancecoin", "binance": "BNB"}
+  },
+  "polygon": {
+    "name": "Polygon PoS",
+    "adapter": "evm",
+    "chain_id": 137,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "tx_url": "https://polygonscan.com/tx/{tx}",
+    "address_url": "https://polygonscan.com/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "polygon-pos",
+    "native": {"symbol": "POL", "name": "POL (ex-MATIC)", "decimals": 18, "coingecko": "polygon-ecosystem-token", "binance": "POL"}
+  },
+  "arbitrum": {
+    "name": "Arbitrum One",
+    "adapter": "evm",
+    "chain_id": 42161,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "l2": true,
+    "tx_url": "https://arbiscan.io/tx/{tx}",
+    "address_url": "https://arbiscan.io/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "arbitrum-one",
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+  },
+  "optimism": {
+    "name": "OP Mainnet",
+    "adapter": "evm",
+    "chain_id": 10,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "l2": true,
+    "tx_url": "https://optimistic.etherscan.io/tx/{tx}",
+    "address_url": "https://optimistic.etherscan.io/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "optimistic-ethereum",
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+  },
+  "base": {
+    "name": "Base",
+    "adapter": "evm",
+    "chain_id": 8453,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "l2": true,
+    "tx_url": "https://basescan.org/tx/{tx}",
+    "address_url": "https://basescan.org/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "base",
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+  },
+  "avalanche": {
+    "name": "Avalanche C-Chain",
+    "adapter": "evm",
+    "chain_id": 43114,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "tx_url": "https://snowscan.xyz/tx/{tx}",
+    "address_url": "https://snowscan.xyz/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "avalanche",
+    "native": {"symbol": "AVAX", "name": "Avalanche", "decimals": 18, "coingecko": "avalanche-2", "binance": "AVAX"}
+  },
+  "ronin": {
+    "name": "Ronin",
+    "adapter": "evm",
+    "chain_id": 2020,
+    "explorer_api": "",
+    "explorer_key": "",
+    "chainid_param": false,
+    "tx_url": "https://app.roninchain.com/tx/{tx}",
+    "address_url": "https://app.roninchain.com/address/{address}",
+    "rpc_url": "https://api.roninchain.com/rpc",
+    "coingecko_platform": "ronin",
+    "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"}
+  },
+  "solana": {
+    "name": "Solana",
+    "adapter": "solana",
+    "rpc_url": "https://api.mainnet-beta.solana.com",
+    "tx_url": "https://solscan.io/tx/{tx}",
+    "address_url": "https://solscan.io/account/{address}",
+    "coingecko_platform": "solana",
+    "native": {"symbol": "SOL", "name": "Solana", "decimals": 9, "coingecko": "solana", "binance": "SOL"}
+  },
+  "tron": {
+    "name": "Tron",
+    "adapter": "tron",
+    "explorer_api": "https://api.trongrid.io",
+    "explorer_key": "trongrid",
+    "tx_url": "https://tronscan.org/#/transaction/{tx}",
+    "address_url": "https://tronscan.org/#/address/{address}",
+    "coingecko_platform": "tron",
+    "native": {"symbol": "TRX", "name": "Tron", "decimals": 6, "coingecko": "tron", "binance": "TRX"}
+  },
+  "bitcoin": {
+    "name": "Bitcoin",
+    "adapter": "bitcoin",
+    "explorer_api": "https://mempool.space/api",
+    "tx_url": "https://mempool.space/tx/{tx}",
+    "address_url": "https://mempool.space/address/{address}",
+    "native": {"symbol": "BTC", "name": "Bitcoin", "decimals": 8, "coingecko": "bitcoin", "binance": "BTC"}
+  },
+  "binance": {
+    "name": "Binance (exchange account)",
+    "adapter": "binance",
+    "explorer_api": "https://api.binance.com"
+  },
+  "manual": {
+    "name": "Manual / other platform",
+    "adapter": "manual"
+  }
+}
