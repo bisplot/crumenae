@@ -49,6 +49,9 @@ class EvmAdapterTest(unittest.TestCase):
         self.assertEqual(by_uid["0xaaa2:out"].amount, Decimal("-0.5"))
         self.assertEqual(by_uid["0xaaa2:fee"].amount, Decimal("-0.0015"))  # 150000 gas * 10 gwei
         self.assertEqual(by_uid["0xaaa2:out"].info, "swapExactETHForTokens")
+        self.assertEqual((by_uid["0xaaa2:out"].from_address, by_uid["0xaaa2:out"].to_address),
+                         (ME, "0x7a250d5630b4cf539739df2c5dacb4c659f2488d"))
+        self.assertEqual(by_uid["0xaaa1:in"].from_address, "0x9999999999999999999999999999999999999999")
         self.assertEqual(by_uid["0xaaa3:fee"].amount, Decimal("-0.00021"))
         self.assertTrue(by_uid["0xaaa3:fee"].failed)
         self.assertNotIn("0xaaa3:out", by_uid)                        # failed: value not sent
@@ -114,6 +117,9 @@ class SolanaAdapterTest(unittest.TestCase):
         by_uid = {m.uid: m for m in res.movements}
         self.assertEqual(by_uid["sigA:sol"].amount, Decimal("3"))
         self.assertEqual(by_uid["sigA:sol"].balance_after, Decimal("3"))
+        sender = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"   # paid the fee, so its change is -3 SOL - fee
+        self.assertEqual((by_uid["sigA:sol"].from_address, by_uid["sigA:sol"].to_address), (sender, self.owner))
+        self.assertEqual((by_uid["sigB:sol"].from_address, by_uid["sigB:sol"].to_address), (self.owner, sender))
         self.assertNotIn("sigA:fee", by_uid)                   # fee paid by the sender
         self.assertEqual(by_uid["sigF:fee"].amount, Decimal("-0.000005"))
         self.assertTrue(by_uid["sigF:fee"].failed)
@@ -282,6 +288,7 @@ class BinanceAdapterTest(unittest.TestCase):
             self.assertEqual(res.snapshots[0].taken_at, 1767225599)  # 2025-12-31 23:59:59 UTC
             dep = res.movements[0]
             self.assertEqual((dep.asset_key, dep.amount, dep.tx_hash), ("binance:ETH", Decimal("0.5"), "0xabc"))
+            self.assertEqual((dep.from_address, dep.to_address, dep.counterparty), ("", "0xdep", ""))
             live, infos = adapter.current_balances(wallet, [], LOG)
             self.assertEqual(live, {"binance:USDC": Decimal("100"), "binance:BTC": Decimal("0.1"),
                                     "binance:EUR": Decimal("20")})  # LDUSDC not double-counted

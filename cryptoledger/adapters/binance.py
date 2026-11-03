@@ -125,7 +125,7 @@ class BinanceAdapter(Adapter):
                 result.movements.append(Movement(
                     uid=f"dep:{ident}", tx_hash=_clean_hash(d.get("txId")), ts=int(d["insertTime"]) // 1000,
                     asset_key=asset(d["coin"]), amount=D(d["amount"]), kind="in",
-                    counterparty=d.get("address", ""), info=f"deposit via {d.get('network', '')}"))
+                    to_address=d.get("address", ""), info=f"deposit via {d.get('network', '')}"))
             for w in self._signed(wallet, "GET", "/sapi/v1/capital/withdraw/history",
                                   {"startTime": cursor, "endTime": window_end, "limit": 1000}) or []:
                 if int(w.get("status", -1)) != 6:  # 6 = completed
@@ -136,11 +136,12 @@ class BinanceAdapter(Adapter):
                 result.movements.append(Movement(
                     uid=f"wd:{w['id']}", tx_hash=_clean_hash(w.get("txId")), ts=ts, asset_key=key,
                     amount=-D(w["amount"]), kind="out", counterparty=w.get("address", ""),
-                    info=f"withdrawal via {w.get('network', '')}"))
+                    to_address=w.get("address", ""), info=f"withdrawal via {w.get('network', '')}"))
                 fee = D(w.get("transactionFee"))
                 if fee:
                     result.movements.append(Movement(uid=f"wd:{w['id']}:fee", tx_hash=_clean_hash(w.get("txId")),
-                                                     ts=ts, asset_key=key, amount=-fee, kind="fee"))
+                                                     ts=ts, asset_key=key, amount=-fee, kind="fee",
+                                                     to_address=w.get("address", "")))
             cursor = window_end
         log(f"{wallet['label']}: {deposits} deposits, {withdrawals} withdrawals")
         result.state["dw_since_ms"] = max(start_ms, end_ms - 2 * DAY_MS)  # re-read the last 2 days

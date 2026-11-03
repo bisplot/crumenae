@@ -242,8 +242,12 @@
         kpi('IC estimate', eur(rep.totals.ic_eur), `${Number(rep.ic_rate) * 100}% × days held, where no bollo applies`)));
 
     const dl = (name, label) => el('a', { class: 'btn small', href: `/api/report/${year}/${name}` + pf(), download: '', text: label });
+    const exp = (name) => el('a', { class: 'btn small primary', href: `/api/exports/${name}` + pf(), download: '', text: name });
+    const exportsCard = card('Exports', el('span', { class: 'muted small', text: `also saved automatically in ${st.exports_dir}` }),
+      el('div', { class: 'actions' }, exp(`balances_${detail.cutoff_local.slice(0, 10)}.csv`), exp(`transactions_${year}.csv`), exp('wallets.csv')),
+      el('p', { class: 'help', text: 'Balances: one row per wallet and asset at the cutoff. Transactions: one row per transaction of the year, valued in EUR at its own time. Rewritten after every sync and at each year-end.' }));
     const rwCard = card(`Report TY${year}`, el('div', { class: 'actions' },
-      dl('rw_crypto.csv', 'rw_crypto.csv'), dl('year_end_balances.csv', 'Balances CSV'), dl('transactions.csv', 'Transactions CSV'),
+      dl('rw_crypto.csv', 'rw_crypto.csv'), dl('year_end_balances.csv', 'Detailed balances'), dl('transactions.csv', 'Detailed movements'),
       dl('evidence.md', 'evidence.md'),
       el('button', { class: 'btn small primary', type: 'button', text: 'Write report folder', onclick: async () => {
         try { const r = await api.post(`/api/report/${year}/write` + pf()); toast('Written to ' + r.folder); } catch (e) { toast(e.message, true); }
@@ -278,7 +282,7 @@
             el('td', { class: 'small muted wrap' }, a.price_source || '—', a.price_ts ? el('div', { text: new Date(a.price_ts * 1000).toISOString().replace('.000', '') }) : null)))))
           : el('p', { class: 'muted small', text: 'No balance at this cutoff.' }));
     });
-    root.replaceChildren(head, rwCard, ...walletCards);
+    root.replaceChildren(head, exportsCard, rwCard, ...walletCards);
   }
 
   function manualModal(w, year) {
@@ -322,6 +326,14 @@
     const body = el('tbody');
     const info = el('span', { class: 'muted small' });
     const more = el('button', { class: 'btn', type: 'button', text: 'Load more' });
+    const exportLink = el('a', { class: 'btn small', download: '' });
+    const refreshExport = () => {
+      const y = ySel.value || String(state.status.last_completed_year);
+      exportLink.href = `/api/exports/transactions_${y}.csv` + pf();
+      exportLink.textContent = `transactions_${y}.csv`;
+    };
+    ySel.addEventListener('change', refreshExport);
+    refreshExport();
     let offset = 0;
     let categories = {};
 
@@ -342,7 +354,7 @@
     qIn.addEventListener('input', () => { clearTimeout(tq); tq = setTimeout(() => load(true), 300); });
     more.addEventListener('click', () => load(false));
     root.replaceChildren(card(null, null,
-      el('div', { class: 'actions', style: 'margin-bottom:12px' }, wSel, ySel, cSel, qIn, el('span', { style: 'flex:1' }), info),
+      el('div', { class: 'actions', style: 'margin-bottom:12px' }, wSel, ySel, cSel, qIn, el('span', { style: 'flex:1' }), info, exportLink),
       el('div', { class: 'table-wrap' }, el('table', {},
         el('thead', {}, el('tr', {}, ['Time (local)', 'Wallet', 'Asset', '#Amount', '#Value €', 'Category', 'Counterparty / tx'].map((h) =>
           el('th', { class: h.startsWith('#') ? 'num' : '', text: h.replace('#', '') })))), body)),
@@ -377,7 +389,8 @@
     const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
     const addr = el('input', { type: 'text', placeholder: '0x… / T… / bc1… / Solana address', autocomplete: 'off', spellcheck: 'false' });
-    const label = el('input', { type: 'text', placeholder: 'e.g. MetaMask, Ledger, Binance' });
+    const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
+    const platform = el('input', { type: 'text', placeholder: 'MetaMask, Ledger, Phantom, Binance…', list: 'platform-list' });
     const portfolios = [...new Set(wallets.map((w) => w.portfolio))];
     const portfolio = el('input', { type: 'text', value: state.portfolio || 'Personal', list: 'portfolio-list' });
     const slot = el('input', { type: 'number', min: 1, placeholder: 'optional' });
@@ -410,7 +423,7 @@
       if (!n) { toast('Choose a network', true); return; }
       const extra = [...evmBox.querySelectorAll('input:checked')].map((i) => i.value);
       const body = { networks: [n.id, ...(n.adapter === 'evm' ? extra : [])], address: addr.value.trim(), label: label.value.trim(),
-        portfolio: portfolio.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked };
+        portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked };
       if ((n.credentials || []).length) { body.api_key = keyIn.value.trim(); body.api_secret = secretIn.value.trim(); }
       try {
         const created = await api.post('/api/wallets', body);
@@ -419,7 +432,8 @@
         if (confirm('Sync the new wallet(s) now?')) startJob('sync', { wallet_ids: created.map((w) => w.id) });
       } catch (err) { toast(err.message, true); }
     } },
-    el('div', { class: 'form-row' }, field('Network', netSel), field('Label', label)),
+    el('div', { class: 'form-row' }, field('Network', netSel), field('Label', label),
+      field('Platform', platform, 'Where it is held: the wallet app, device or exchange.')),
     addrField, evmField, credField,
     el('div', { class: 'form-row' },
       field('Portfolio / owner', portfolio, 'Group wallets per person or client.'),
@@ -427,11 +441,15 @@
       el('label', { class: 'field' }, el('span', { text: 'Stamp duty' }), el('span', { class: 'check' }, bollo, 'Italian bollo already applied'),
         el('span', { class: 'help', text: 'e.g. an Italian-resident exchange: then no IC is estimated.' }))),
     el('datalist', { id: 'portfolio-list' }, portfolios.map((p) => el('option', { value: p }))),
+    el('datalist', { id: 'platform-list' }, ['MetaMask', 'Ledger', 'Trezor', 'Phantom', 'Trust Wallet', 'Exodus', 'Binance', 'Coinbase', 'Kraken']
+      .map((p) => el('option', { value: p }))),
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
 
-    const list = card(`Your wallets (${wallets.length})`, el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') }),
+    const list = card(`Your wallets (${wallets.length})`, el('div', { class: 'actions' },
+      el('a', { class: 'btn', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
+      el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') })),
       wallets.length ? table(['Wallet', 'Address', 'Portfolio', '#Slot', 'Last sync', ''], wallets.map((w) => el('tr', {},
-        el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null), el('div', { class: 'muted small', text: w.network_name })),
+        el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
         el('td', { class: 'mono small' }, w.address ? (w.address_url ? el('a', { href: w.address_url, target: '_blank', rel: 'noopener noreferrer', text: short(w.address, 8, 6), title: w.address }) : short(w.address, 8, 6)) : '—'),
         el('td', { text: w.portfolio }),
         el('td', { class: 'num', text: w.rw_slot ?? '—' }),
@@ -450,6 +468,7 @@
   function editWallet(w, net) {
     const label = el('input', { type: 'text', value: w.label });
     const portfolio = el('input', { type: 'text', value: w.portfolio });
+    const platform = el('input', { type: 'text', value: w.platform || '', placeholder: w.platform_display, list: 'platform-list' });
     const slot = el('input', { type: 'number', min: 1, value: w.rw_slot ?? '' });
     const bollo = el('input', { type: 'checkbox', checked: w.bollo_applied });
     const active = el('input', { type: 'checkbox', checked: w.active });
@@ -461,7 +480,7 @@
     });
     openModal(el('h2', { text: 'Edit wallet' }),
       el('div', { class: 'muted small mono', text: w.address || w.network_name }),
-      el('div', { class: 'form' }, field('Label', label),
+      el('div', { class: 'form' }, el('div', { class: 'form-row' }, field('Label', label), field('Platform', platform)),
         el('div', { class: 'form-row' }, field('Portfolio / owner', portfolio), field('RW slot', slot)),
         el('label', { class: 'check' }, bollo, 'Italian bollo already applied (no IC)'),
         el('label', { class: 'check' }, active, 'Active (included in syncs)'),
@@ -470,7 +489,7 @@
       el('div', { class: 'actions', style: 'justify-content:flex-end' },
         el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }),
         el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: async () => {
-          const body = { label: label.value, portfolio: portfolio.value, rw_slot: slot.value, bollo_applied: bollo.checked, active: active.checked, notes: notes.value };
+          const body = { label: label.value, portfolio: portfolio.value, platform: platform.value, rw_slot: slot.value, bollo_applied: bollo.checked, active: active.checked, notes: notes.value };
           Object.entries(creds).forEach(([k, i]) => { if (i.value.trim()) body[k] = i.value.trim(); });
           try { await api.put(`/api/wallets/${w.id}`, body); closeModal(); toast('Saved'); route(); } catch (e) { toast(e.message, true); }
         } })));
@@ -635,6 +654,7 @@
     const about = card('About this installation', null, el('div', { class: 'small', style: 'display:grid;gap:4px' },
       el('div', {}, 'Version ', el('strong', { text: state.status.version }), ` · Python ${state.status.python}`),
       el('div', {}, 'Data folder: ', el('code', { text: state.status.data_dir })),
+      el('div', {}, 'Exports folder: ', el('code', { text: state.status.exports_dir })),
       el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. Delete it to start over.' })));
     root.replaceChildren(keysCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
   }

@@ -7,7 +7,8 @@ import threading
 import time
 import traceback
 
-from . import sync
+from . import exports, sync, yearend
+from .prices import PriceService
 from .util import now
 
 PRE_WINDOW = (90, 20)     # seconds before the cutoff: start between 90 and 20 s before
@@ -53,4 +54,13 @@ class AutoSnapshot(threading.Thread):
         self.ctx.db.set_meta(marker, str(t))
         self.ctx.log(f"automatic year-end snapshot ({due[1]} cutoff {due[0]})")
         sync.take_snapshot(self.ctx, lambda m: self.ctx.log(m), source="scheduled")
+        if due[1] == "post":
+            # The fiscal year just closed: value it and write balances_YYYY-12-31.csv
+            # and transactions_YYYY.csv right away.
+            yearend.compute_year(self.ctx, PriceService(self.ctx), due[0])
+            try:
+                exports.write_year(self.ctx, due[0])
+                exports.write_wallets(self.ctx)
+            except OSError as e:
+                self.ctx.log(f"exports not written: {e}", "error")
         return True
