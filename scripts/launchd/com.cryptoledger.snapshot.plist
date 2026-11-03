@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Year-end snapshot for CryptoLedger on macOS.
+  1. Replace every /PATH/TO/cryptoledger with the folder where you cloned the repo.
+  2. cp this file to ~/Library/LaunchAgents/ and run:
+       launchctl load ~/Library/LaunchAgents/com.cryptoledger.snapshot.plist
+  Runs at 23:59 on 31 December and 00:01 on 1 January (local time). The Mac must be awake.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cryptoledger.snapshot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-m</string>
+    <string>cryptoledger</string>
+    <string>snapshot</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/PATH/TO/cryptoledger</string>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Month</key><integer>12</integer>
+      <key>Day</key><integer>31</integer>
+      <key>Hour</key><integer>23</integer>
+      <key>Minute</key><integer>59</integer>
+    </dict>
+    <dict>
+      <key>Month</key><integer>1</integer>
+      <key>Day</key><integer>1</integer>
+      <key>Hour</key><integer>0</integer>
+      <key>Minute</key><integer>1</integer>
+    </dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>/PATH/TO/cryptoledger/data/snapshot.log</string>
+  <key>StandardErrorPath</key>
+  <string>/PATH/TO/cryptoledger/data/snapshot.log</string>
+</dict>
+</plist>

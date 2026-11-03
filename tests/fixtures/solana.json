@@ -1,0 +1,71 @@
+{
+  "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+  "token_account": "7UX2i7SucgLMQcfZ75s3VXmZZY4YRUyJN9X1RgfMoDUi",
+  "getTokenAccountsByOwner": {
+    "context": {"slot": 300000000},
+    "value": [
+      {"pubkey": "7UX2i7SucgLMQcfZ75s3VXmZZY4YRUyJN9X1RgfMoDUi",
+       "account": {"data": {"parsed": {"info": {"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                                "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                                                "tokenAmount": {"amount": "25000000", "decimals": 6, "uiAmountString": "25"}},
+                                       "type": "account"}, "program": "spl-token"}, "lamports": 2039280}}
+    ]
+  },
+  "signatures_owner": [
+    {"signature": "sigB", "slot": 200, "blockTime": 1735000000, "err": null},
+    {"signature": "sigA", "slot": 100, "blockTime": 1730000000, "err": null},
+    {"signature": "sigF", "slot": 150, "blockTime": 1732000000, "err": {"InstructionError": [0, "Custom"]}}
+  ],
+  "signatures_token": [
+    {"signature": "sigC", "slot": 250, "blockTime": 1736000000, "err": null},
+    {"signature": "sigB", "slot": 200, "blockTime": 1735000000, "err": null}
+  ],
+  "transactions": {
+    "sigA": {
+      "blockTime": 1730000000, "slot": 100,
+      "meta": {"err": null, "fee": 5000, "preBalances": [5000000000, 0, 1], "postBalances": [1999995000, 3000000000, 1],
+               "preTokenBalances": [], "postTokenBalances": [], "loadedAddresses": {"writable": [], "readonly": []}},
+      "transaction": {"message": {"accountKeys": [
+        {"pubkey": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", "signer": true, "writable": true, "source": "transaction"},
+        {"pubkey": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", "signer": false, "writable": true, "source": "transaction"},
+        {"pubkey": "11111111111111111111111111111111", "signer": false, "writable": false, "source": "transaction"}]}}
+    },
+    "sigF": {
+      "blockTime": 1732000000, "slot": 150,
+      "meta": {"err": {"InstructionError": [0, "Custom"]}, "fee": 5000, "preBalances": [3000000000, 1], "postBalances": [2999995000, 1],
+               "preTokenBalances": [], "postTokenBalances": []},
+      "transaction": {"message": {"accountKeys": [
+        {"pubkey": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", "signer": true, "writable": true},
+        {"pubkey": "11111111111111111111111111111111", "signer": false, "writable": false}]}}
+    },
+    "sigB": {
+      "blockTime": 1735000000, "slot": 200,
+      "meta": {"err": null, "fee": 5000, "preBalances": [2999995000, 2039280, 0, 1], "postBalances": [1999990000, 2039280, 1000000000, 1],
+               "preTokenBalances": [
+                 {"accountIndex": 1, "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                  "uiTokenAmount": {"amount": "0", "decimals": 6, "uiAmountString": "0"}}],
+               "postTokenBalances": [
+                 {"accountIndex": 1, "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                  "uiTokenAmount": {"amount": "150000000", "decimals": 6, "uiAmountString": "150"}}]},
+      "transaction": {"message": {"accountKeys": [
+        {"pubkey": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", "signer": true, "writable": true},
+        {"pubkey": "7UX2i7SucgLMQcfZ75s3VXmZZY4YRUyJN9X1RgfMoDUi", "signer": false, "writable": true},
+        {"pubkey": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", "signer": false, "writable": true},
+        {"pubkey": "11111111111111111111111111111111", "signer": false, "writable": false}]}}
+    },
+    "sigC": {
+      "blockTime": 1736000000, "slot": 250,
+      "meta": {"err": null, "fee": 5000, "preBalances": [1000000000, 2039280, 1], "postBalances": [999995000, 2039280, 1],
+               "preTokenBalances": [
+                 {"accountIndex": 1, "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                  "uiTokenAmount": {"amount": "150000000", "decimals": 6, "uiAmountString": "150"}}],
+               "postTokenBalances": [
+                 {"accountIndex": 1, "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                  "uiTokenAmount": {"amount": "25000000", "decimals": 6, "uiAmountString": "25"}}]},
+      "transaction": {"message": {"accountKeys": [
+        {"pubkey": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", "signer": true, "writable": true},
+        {"pubkey": "7UX2i7SucgLMQcfZ75s3VXmZZY4YRUyJN9X1RgfMoDUi", "signer": false, "writable": true},
+        {"pubkey": "11111111111111111111111111111111", "signer": false, "writable": false}]}}
+    }
+  }
+}
