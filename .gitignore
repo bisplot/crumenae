@@ -1,0 +1,21 @@
+# Personal data: wallets, API keys, ledger database, reports. Never commit.
+data/
+demo-data/
+*.db
+*.db-wal
+*.db-shm
+secrets.json
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
