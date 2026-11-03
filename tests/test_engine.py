@@ -219,8 +219,16 @@ class ServerTest(unittest.TestCase):
             holder["httpd"] = httpd
             ready.set()
 
-        threading.Thread(target=serve, args=(cls.t.ctx, "127.0.0.1", 0, on_ready), daemon=True).start()
-        ready.wait(5)
+        def run():
+            try:
+                serve(cls.t.ctx, "127.0.0.1", 0, on_ready)
+            except BaseException as e:  # surface startup errors instead of a bare timeout
+                holder["error"] = e
+                ready.set()
+
+        threading.Thread(target=run, daemon=True).start()
+        if not ready.wait(30) or "error" in holder:
+            raise RuntimeError(f"server did not start: {holder.get('error', 'timeout after 30 s')}")
         cls.httpd = holder["httpd"]
         cls.base = f"http://127.0.0.1:{cls.httpd.server_address[1]}"
         cls.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

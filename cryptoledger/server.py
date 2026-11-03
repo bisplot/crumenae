@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+import socketserver
 import sys
 import traceback
 import urllib.parse
@@ -536,12 +537,25 @@ def make_handler(app: App, allowed_hosts: List[str]):
     return Handler
 
 
+class LocalHTTPServer(ThreadingHTTPServer):
+    """HTTPServer.server_bind() resolves the host with socket.getfqdn(), a reverse DNS
+    lookup that can stall for seconds on macOS. The name is only cosmetic: skip it."""
+
+    daemon_threads = True
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = port
+
+
 def serve(ctx: Context, host: str = "127.0.0.1", port: int = 8765,
           ready: Optional[Callable[[ThreadingHTTPServer], None]] = None) -> None:
     from .scheduler import AutoSnapshot
 
     app = App(ctx)
-    httpd = ThreadingHTTPServer((host, port), None)  # type: ignore[arg-type]
+    httpd = LocalHTTPServer((host, port), None)  # type: ignore[arg-type]
     real_port = httpd.server_address[1]
     allowed = [f"localhost:{real_port}", f"127.0.0.1:{real_port}", f"[::1]:{real_port}"]
     if host not in ("127.0.0.1", "localhost", "::1"):
