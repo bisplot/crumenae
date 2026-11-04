@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from . import __version__
 from . import assets as assets_mod
-from . import classify, report, sync, views, yearend
+from . import classify, exports, report, sync, views, yearend
 from .adapters import ADAPTERS, get_adapter
 from .context import Context
 from .paths import WEB_DIR
@@ -66,6 +66,8 @@ class App:
         r("GET", r"/api/report/(?P<year>\d{4})", self.report_json)
         r("GET", r"/api/report/(?P<year>\d{4})/(?P<name>[a-z_]+\.(?:csv|md))", self.report_file)
         r("POST", r"/api/report/(?P<year>\d{4})/write", self.report_write)
+        r("GET", r"/api/exports", self.exports_list)
+        r("GET", r"/api/exports/(?P<name>[a-z0-9_-]+\.csv)", self.export_file)
         r("GET", r"/api/transactions", self.transactions)
         r("PUT", r"/api/transactions/(?P<mid>\d+)", self.update_transaction)
         r("GET", r"/api/assets", self.assets)
@@ -96,6 +98,7 @@ class App:
             "fiscal_year_end": self.ctx.settings.get("fiscal_year_end"), "last_completed_year": last,
             "next_cutoff": cal.cutoff(last + 1), "next_cutoff_local": cal.iso_local(cal.cutoff(last + 1)),
             "wallets": self.ctx.db.scalar("SELECT COUNT(*) FROM wallets"),
+            "exports_dir": str(exports.exports_dir(self.ctx)),
             "job": self.jobs.current.public() if self.jobs.current else None,
         }
 
@@ -237,6 +240,7 @@ class App:
             "label": label[:80], "network": network.id, "address": address,
             "portfolio": (str(body.get("portfolio") or (existing or {}).get("portfolio") or "Personal").strip()[:60]
                           or "Personal"),
+            "platform": str(body.get("platform", (existing or {}).get("platform") or "") or "").strip()[:60],
             "rw_slot": slot,
             "bollo_applied": 1 if body.get("bollo_applied", (existing or {}).get("bollo_applied")) else 0,
             "active": 0 if body.get("active", (existing or {}).get("active", 1)) in (False, 0, "0") else 1,
@@ -267,12 +271,13 @@ class App:
             if exists:
                 raise ApiError(409, f"{c['address']} is already tracked on {c['network']}")
             cur = self.ctx.db.execute(
-                "INSERT INTO wallets(label, network, address, portfolio, rw_slot, bollo_applied, active, notes,"
-                " created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-                (c["label"], c["network"], c["address"], c["portfolio"], c["rw_slot"], c["bollo_applied"],
-                 c["active"], c["notes"], now()))
+                "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, active,"
+                " notes, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (c["label"], c["network"], c["address"], c["portfolio"], c["platform"], c["rw_slot"],
+                 c["bollo_applied"], c["active"], c["notes"], now()))
             self._save_credentials(cur.lastrowid, c["network"], body)
             created.append(cur.lastrowid)
+        self._wallets_changed()
         return [w for w in views.wallets(self.ctx) if w["id"] in created]
 
     def update_wallet(self, wid: str, body: Any, **_: Any) -> Dict[str, Any]:
@@ -281,9 +286,12 @@ class App:
         if c["address"] != w["address"]:
             raise ApiError(400, "the address cannot change: add a new wallet instead")
         self.ctx.db.execute(
-            "UPDATE wallets SET label=?, portfolio=?, rw_slot=?, bollo_applied=?, active=?, notes=? WHERE id=?",
-            (c["label"], c["portfolio"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"], w["id"]))
+            "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?"
+            " WHERE id=?",
+            (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
+             w["id"]))
         self._save_credentials(w["id"], w["network"], body or {})
+        self._wallets_changed()
         return next(x for x in views.wallets(self.ctx) if x["id"] == w["id"])
 
     def delete_wallet(self, wid: str, **_: Any) -> Dict[str, Any]:
@@ -292,7 +300,23 @@ class App:
         for cred in (cls.credentials if cls else []):
             self.ctx.secrets.delete(f"wallet:{w['id']}:{cred}")
         self.ctx.db.execute("DELETE FROM wallets WHERE id=?", (w["id"],))
+        self._wallets_changed()
         return {"ok": True}
+
+    def _wallets_changed(self) -> None:
+        """wallets.csv is rewritten whenever the list of wallets changes."""
+        try:
+            exports.write_wallets(self.ctx)
+        except OSError as e:
+            self.ctx.log(f"wallets.csv not written: {e}", "error")
+
+    def _year_changed(self, year: int) -> None:
+        """Refresh the files of a completed fiscal year after an edit."""
+        if year <= self.ctx.calendar.last_completed_year(now()):
+            try:
+                exports.write_year(self.ctx, year)
+            except OSError as e:
+                self.ctx.log(f"exports not written: {e}", "error")
 
     def _wallet(self, wid: Any) -> Dict[str, Any]:
         try:
@@ -314,7 +338,9 @@ class App:
         else:
             def fn(log):
                 classify.run(ctx)
-                return yearend.compute_all(ctx, PriceService(ctx), log)
+                years = yearend.compute_all(ctx, PriceService(ctx), log)
+                sync.write_exports(ctx, log)
+                return years
         try:
             job = self.jobs.start(kind, fn)
         except RuntimeError as e:
@@ -350,6 +376,22 @@ class App:
         folder = report.write_folder(self.ctx, int(year), query.get("portfolio") or None)
         return {"folder": str(folder)}
 
+    def exports_list(self, **_: Any) -> Dict[str, Any]:
+        cal = self.ctx.calendar
+        years = yearend.fiscal_years(self.ctx)
+        current = cal.last_completed_year(now()) + 1
+        return {"folder": str(exports.exports_dir(self.ctx)), "wallets": "wallets.csv",
+                "years": [{"year": y, "balances": exports.balances_name(self.ctx, y),
+                           "transactions": exports.transactions_name(y), "complete": True} for y in years]
+                + [{"year": current, "balances": None, "transactions": exports.transactions_name(current),
+                    "complete": False}]}
+
+    def export_file(self, name: str, query: Dict[str, str], **_: Any) -> "FileResponse":
+        text = exports.build_file(self.ctx, name, query.get("portfolio") or None)
+        if text is None:
+            raise ApiError(404, "unknown export")
+        return FileResponse(text.encode("utf-8"), "text/csv; charset=utf-8", name)
+
     # --- transactions, assets, manual entries -----------------------------------------
     def transactions(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
         def num(k: str) -> Optional[int]:
@@ -366,7 +408,10 @@ class App:
             classify.set_category(self.ctx, int(mid), body.get("category") or "auto", body.get("note"))
         except ValueError as e:
             raise ApiError(400, str(e))
-        return self.ctx.db.query_one("SELECT * FROM movements WHERE id=?", (int(mid),)) or {}
+        row = self.ctx.db.query_one("SELECT * FROM movements WHERE id=?", (int(mid),)) or {}
+        if row:
+            self._year_changed(self.ctx.calendar.year_of(row["ts"]))
+        return row
 
     def assets(self, **_: Any) -> List[Dict[str, Any]]:
         return views.asset_list(self.ctx)
@@ -426,6 +471,7 @@ class App:
             store_current(self.ctx, w["id"], bal, now(), snapshot_source=None)
         if str(body.get("year", "")).isdigit():
             yearend.compute_year(self.ctx, PriceService(self.ctx), int(body["year"]), [w])
+            self._year_changed(int(body["year"]))
         return self.get_manual(wid=str(w["id"]), query={})
 
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:

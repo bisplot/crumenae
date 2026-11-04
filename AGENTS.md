@@ -34,7 +34,8 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
 | `cryptoledger/prices/` | Binance klines, CoinGecko, CoinMarketCap, ECB rates, demo prices |
 | `cryptoledger/ledger.py` | storing sync results, reconstructing balances |
 | `cryptoledger/yearend.py` | balance at each cutoff from the best source + cross-checks |
-| `cryptoledger/report.py` | RW values, days held, CSV/Markdown exports |
+| `cryptoledger/report.py` | RW values, days held, report folder (CSV/Markdown) |
+| `cryptoledger/exports.py` | standard exports: wallets.csv, balances_YYYY-12-31.csv, transactions_YYYY.csv |
 | `cryptoledger/server.py` | JSON API + static UI |
 | `config/*.json` | networks, known tokens, ticker map |
 | `docs/` | methodology, report contract, how to add an adapter |

@@ -6,7 +6,7 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     network       TEXT NOT NULL,
     address       TEXT NOT NULL DEFAULT '',
     portfolio     TEXT NOT NULL DEFAULT 'Personal',
+    platform      TEXT NOT NULL DEFAULT '',   -- MetaMask, Ledger, Binance... (wallets.csv)
     rw_slot       INTEGER,
     bollo_applied INTEGER NOT NULL DEFAULT 0,
     active        INTEGER NOT NULL DEFAULT 1,
@@ -75,6 +76,8 @@ CREATE TABLE IF NOT EXISTS movements (
     amount          TEXT NOT NULL,          -- signed decimal: + received, - sent
     kind            TEXT NOT NULL,          -- in | out | fee
     counterparty    TEXT NOT NULL DEFAULT '',
+    from_address    TEXT NOT NULL DEFAULT '',   -- sender of this leg, when the source tells
+    to_address      TEXT NOT NULL DEFAULT '',   -- recipient of this leg
     failed          INTEGER NOT NULL DEFAULT 0,
     balance_after   TEXT,                   -- absolute balance after the tx, when the chain says it
     info            TEXT NOT NULL DEFAULT '',
@@ -172,8 +175,22 @@ class Database:
             self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
-        if self.get_meta("schema_version") is None:
-            self.set_meta("schema_version", str(SCHEMA_VERSION))
+        self._migrate()
+
+    # Columns added after the first release: (table, column, definition).
+    ADDED_COLUMNS = (
+        ("wallets", "platform", "TEXT NOT NULL DEFAULT ''"),
+        ("movements", "from_address", "TEXT NOT NULL DEFAULT ''"),
+        ("movements", "to_address", "TEXT NOT NULL DEFAULT ''"),
+    )
+
+    def _migrate(self) -> None:
+        """Bring a database created by an older version up to SCHEMA_VERSION."""
+        for table, column, definition in self.ADDED_COLUMNS:
+            existing = {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        self.set_meta("schema_version", str(SCHEMA_VERSION))
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

@@ -120,7 +120,9 @@ class TronAdapter(Adapter):
             fee_sun = int(ret.get("fee") or 0) or (int(tx.get("energy_fee") or 0) + int(tx.get("net_fee") or 0))
             if owner == addr and fee_sun:
                 moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=ts, asset_key=native,
-                                      amount=-scaled(fee_sun, 6), kind="fee", failed=failed, info=typ))
+                                      amount=-scaled(fee_sun, 6), kind="fee", failed=failed, info=typ,
+                                      from_address=owner,
+                                      to_address=hex_to_base58(v.get("to_address") or v.get("contract_address") or "")))
             if failed:
                 continue
             if typ == "TransferContract":
@@ -128,10 +130,12 @@ class TronAdapter(Adapter):
                 amount = scaled(v.get("amount") or 0, 6)
                 if owner == addr and amount:
                     moves.append(Movement(uid=f"{h}:out", tx_hash=h, ts=ts, asset_key=native,
-                                          amount=-amount, kind="out", counterparty=to))
+                                          amount=-amount, kind="out", counterparty=to,
+                                          from_address=owner, to_address=to))
                 if to == addr and amount:
                     moves.append(Movement(uid=f"{h}:in", tx_hash=h, ts=ts, asset_key=native,
-                                          amount=amount, kind="in", counterparty=owner))
+                                          amount=amount, kind="in", counterparty=owner,
+                                          from_address=owner, to_address=to))
             elif typ == "TransferAssetContract":
                 to = hex_to_base58(v.get("to_address", ""))
                 token = _asset_name(str(v.get("asset_name", "")))
@@ -140,16 +144,19 @@ class TronAdapter(Adapter):
                 amount = Decimal(int(v.get("amount") or 0))  # decimals unknown: raw units
                 if owner == addr and amount:
                     moves.append(Movement(uid=f"{h}:trc10:out", tx_hash=h, ts=ts, asset_key=key,
-                                          amount=-amount, kind="out", counterparty=to, info="TRC-10 (raw units)"))
+                                          amount=-amount, kind="out", counterparty=to, info="TRC-10 (raw units)",
+                                          from_address=owner, to_address=to))
                 if to == addr and amount:
                     moves.append(Movement(uid=f"{h}:trc10:in", tx_hash=h, ts=ts, asset_key=key,
-                                          amount=amount, kind="in", counterparty=owner, info="TRC-10 (raw units)"))
+                                          amount=amount, kind="in", counterparty=owner, info="TRC-10 (raw units)",
+                                          from_address=owner, to_address=to))
             elif typ == "TriggerSmartContract":
                 call_value = int(v.get("call_value") or 0)
                 if owner == addr and call_value:
+                    contract = hex_to_base58(v.get("contract_address", ""))
                     moves.append(Movement(uid=f"{h}:call", tx_hash=h, ts=ts, asset_key=native,
-                                          amount=-scaled(call_value, 6), kind="out",
-                                          counterparty=hex_to_base58(v.get("contract_address", ""))))
+                                          amount=-scaled(call_value, 6), kind="out", counterparty=contract,
+                                          from_address=owner, to_address=contract))
             elif typ in NEUTRAL_TYPES:
                 continue
             elif owner == addr:
@@ -180,10 +187,12 @@ class TronAdapter(Adapter):
             info = "zero-value transfer" if not amount else ""
             if frm == addr:
                 moves.append(Movement(uid=f"{uid}:out", tx_hash=h, ts=ts, asset_key=asset.key,
-                                      amount=-amount, kind="out", counterparty=to, info=info))
+                                      amount=-amount, kind="out", counterparty=to, info=info,
+                                      from_address=frm, to_address=to))
             if to == addr:
                 moves.append(Movement(uid=f"{uid}:in", tx_hash=h, ts=ts, asset_key=asset.key,
-                                      amount=amount, kind="in", counterparty=frm, info=info))
+                                      amount=amount, kind="in", counterparty=frm, info=info,
+                                      from_address=frm, to_address=to))
         return moves, infos
 
     # --- sync -------------------------------------------------------------------

@@ -13,7 +13,9 @@ from .util import D, ZERO, dstr
 
 
 def _wallet_public(ctx, w: Dict[str, Any]) -> Dict[str, Any]:
+    from .exports import default_platform
     out = dict(w)
+    out["platform_display"] = default_platform(ctx, w)
     out["bollo_applied"] = bool(w["bollo_applied"])
     out["active"] = bool(w["active"])
     try:

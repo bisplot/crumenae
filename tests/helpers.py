@@ -80,10 +80,10 @@ class TempContext:
 def add_wallet(ctx: Context, network: str, address: str = "", label: str = "W", synced: bool = True,
                **extra: Any) -> Dict[str, Any]:
     cur = ctx.db.execute(
-        "INSERT INTO wallets(label, network, address, portfolio, rw_slot, bollo_applied, created_at, last_sync_at)"
-        " VALUES(?,?,?,?,?,?,?,?)",
-        (label, network, address, extra.get("portfolio", "Personal"), extra.get("rw_slot"),
-         1 if extra.get("bollo") else 0, 0, 1 if synced else None))
+        "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, created_at,"
+        " last_sync_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (label, network, address, extra.get("portfolio", "Personal"), extra.get("platform", ""),
+         extra.get("rw_slot"), 1 if extra.get("bollo") else 0, 0, 1 if synced else None))
     return ctx.wallet(cur.lastrowid)
 
 

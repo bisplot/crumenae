@@ -20,10 +20,11 @@ def _t(text: str) -> int:
 
 
 def _wallet(ctx: Context, label: str, network: str, address: str, portfolio: str = "Personal",
-            rw_slot: Optional[int] = None, bollo: int = 0, created: str = "2022-12-01") -> dict:
+            rw_slot: Optional[int] = None, bollo: int = 0, created: str = "2022-12-01", platform: str = "") -> dict:
     cur = ctx.db.execute(
-        "INSERT INTO wallets(label, network, address, portfolio, rw_slot, bollo_applied, created_at, last_sync_at)"
-        " VALUES(?,?,?,?,?,?,?,?)", (label, network, address, portfolio, rw_slot, bollo, _t(created + "T00:00:00"), now()))
+        "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, created_at,"
+        " last_sync_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (label, network, address, portfolio, platform, rw_slot, bollo, _t(created + "T00:00:00"), now()))
     return ctx.wallet(cur.lastrowid)
 
 
@@ -46,10 +47,12 @@ def seed(ctx: Context) -> None:
     assets_mod.upsert(ctx, [eth_native, usdc, spam, sol_native, btc_native] + list(bn.values()) + list(manual.values()))
 
     binance = _wallet(ctx, "Binance account", "binance", "", rw_slot=1, bollo=1)
-    eth = _wallet(ctx, "MetaMask (demo)", "ethereum", "0x0000000000000000000000000000000000de0001", rw_slot=3)
-    sol = _wallet(ctx, "Phantom (demo)", "solana", b58encode(bytes(range(1, 33))), rw_slot=2, created="2025-03-01")
-    btc = _wallet(ctx, "Bitcoin cold wallet (demo)", "bitcoin", "bc1q" + "q" * 38, rw_slot=4)
-    man = _wallet(ctx, "Ledger Live staking (manual)", "manual", "", rw_slot=5)
+    eth = _wallet(ctx, "MetaMask (demo)", "ethereum", "0x0000000000000000000000000000000000de0001", rw_slot=3,
+                  platform="MetaMask")
+    sol = _wallet(ctx, "Phantom (demo)", "solana", b58encode(bytes(range(1, 33))), rw_slot=2, created="2025-03-01",
+                  platform="Phantom")
+    btc = _wallet(ctx, "Bitcoin cold wallet (demo)", "bitcoin", "bc1q" + "q" * 38, rw_slot=4, platform="Ledger")
+    man = _wallet(ctx, "Ledger Live staking (manual)", "manual", "", rw_slot=5, platform="Ledger Live")
     _wallet(ctx, "Client wallet (demo)", "ethereum", "0x0000000000000000000000000000000000de0002",
             portfolio="Client A")
 
@@ -120,6 +123,7 @@ def seed(ctx: Context) -> None:
     ctx.db.execute("UPDATE movements SET category='payment', category_source='user' WHERE uid='t4:out'")
     prices = PriceService(ctx)
     yearend.compute_all(ctx, prices)
-    from .sync import refresh_prices, value_movements
+    from .sync import refresh_prices, value_movements, write_exports
     refresh_prices(ctx, prices, lambda m: None)
     value_movements(ctx, prices, lambda m: None)
+    write_exports(ctx, lambda m: None)

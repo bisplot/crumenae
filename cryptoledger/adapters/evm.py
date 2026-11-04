@@ -129,13 +129,16 @@ class EvmAdapter(Adapter):
                 fee = scaled(gas_used * gas_price, decimals)
                 if fee:
                     moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=ts, asset_key=native.key,
-                                          amount=-fee, kind="fee", counterparty=to, failed=failed, info=info))
+                                          amount=-fee, kind="fee", counterparty=to, failed=failed, info=info,
+                                          from_address=frm, to_address=to))
                 if value and not failed:
                     moves.append(Movement(uid=f"{h}:out", tx_hash=h, ts=ts, asset_key=native.key,
-                                          amount=-value, kind="out", counterparty=to, info=info))
+                                          amount=-value, kind="out", counterparty=to, info=info,
+                                          from_address=frm, to_address=to))
             if to == addr and value and not failed:
                 moves.append(Movement(uid=f"{h}:in", tx_hash=h, ts=ts, asset_key=native.key,
-                                      amount=value, kind="in", counterparty=frm, info=info))
+                                      amount=value, kind="in", counterparty=frm, info=info,
+                                      from_address=frm, to_address=to))
 
         counter: Dict[str, int] = defaultdict(int)
         for itx in internal:
@@ -153,10 +156,12 @@ class EvmAdapter(Adapter):
                 continue
             if frm == addr:
                 moves.append(Movement(uid=f"{h}:int:{idx}:out", tx_hash=h, ts=ts, asset_key=native.key,
-                                      amount=-value, kind="out", counterparty=to, info="internal"))
+                                      amount=-value, kind="out", counterparty=to, info="internal",
+                                      from_address=frm, to_address=to))
             if to == addr:
                 moves.append(Movement(uid=f"{h}:int:{idx}:in", tx_hash=h, ts=ts, asset_key=native.key,
-                                      amount=value, kind="in", counterparty=frm, info="internal"))
+                                      amount=value, kind="in", counterparty=frm, info="internal",
+                                      from_address=frm, to_address=to))
 
         counter.clear()
         for t in tokens:
@@ -184,10 +189,12 @@ class EvmAdapter(Adapter):
             info = "zero-value transfer" if not amount else ""
             if frm == addr:
                 moves.append(Movement(uid=f"{base_uid}:out", tx_hash=h, ts=ts, asset_key=asset.key,
-                                      amount=-amount, kind="out", counterparty=to, info=info))
+                                      amount=-amount, kind="out", counterparty=to, info=info,
+                                      from_address=frm, to_address=to))
             if to == addr:
                 moves.append(Movement(uid=f"{base_uid}:in", tx_hash=h, ts=ts, asset_key=asset.key,
-                                      amount=amount, kind="in", counterparty=frm, info=info))
+                                      amount=amount, kind="in", counterparty=frm, info=info,
+                                      from_address=frm, to_address=to))
 
         if self.network.l2:
             result.warnings.append(

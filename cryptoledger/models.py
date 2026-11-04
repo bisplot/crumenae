@@ -21,6 +21,8 @@ class Movement:
     kind: str                # "in" | "out" | "fee"
     counterparty: str = ""
     failed: bool = False
+    from_address: str = ""   # sender of this leg, when the source tells
+    to_address: str = ""     # recipient of this leg
     balance_after: Optional[Decimal] = None   # absolute balance after this tx, if the chain says it
     info: str = ""           # method name, contract type...
 

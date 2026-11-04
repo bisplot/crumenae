@@ -5,6 +5,7 @@
     python3 -m cryptoledger sync [--wallet 3] [--full]
     python3 -m cryptoledger snapshot        live balances now (for launchd/cron at 23:59 on 31/12)
     python3 -m cryptoledger report 2025     write data/reports/crypto_report_TY2025/
+    python3 -m cryptoledger export          rewrite data/exports/ (wallets, balances, transactions)
     python3 -m cryptoledger demo            fictional data, offline, in demo-data/
 """
 from __future__ import annotations
@@ -68,6 +69,13 @@ def cmd_report(args) -> None:
     _print(f"Report written to {folder}")
 
 
+def cmd_export(args) -> None:
+    from .exports import exports_dir, write_all
+    ctx = _ctx(args)
+    changed = write_all(ctx)
+    _print(f"{exports_dir(ctx)}: {', '.join(changed) if changed else 'already up to date'}")
+
+
 def cmd_demo(args) -> None:
     from .demo import seed
     if not args.data_dir:
@@ -96,13 +104,14 @@ def main(argv=None) -> None:
     p = sub.add_parser("report", help="write the year-end report folder")
     p.add_argument("year", type=int)
     p.add_argument("--portfolio")
+    sub.add_parser("export", help="rewrite the CSV exports in data/exports/")
     add_server_opts(sub.add_parser("demo", help="explore with fictional data, offline"))
 
     args = parser.parse_args(argv)
     if args.command is None:
         args = parser.parse_args((["--data-dir", args.data_dir] if args.data_dir else []) + ["serve"])
     {"serve": cmd_serve, "sync": cmd_sync, "snapshot": cmd_snapshot, "report": cmd_report,
-     "demo": cmd_demo}[args.command](args)
+     "export": cmd_export, "demo": cmd_demo}[args.command](args)
 
 
 if __name__ == "__main__":

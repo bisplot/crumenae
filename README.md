@@ -17,8 +17,10 @@ leave your machine: only public addresses are sent to block explorers, and only 
   full transaction history), cross-checked, with every value traced to its source.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
   CoinMarketCap; USD prices converted with the official **ECB reference rate** of that day.
+- **Exports kept up to date**: `balances_YYYY-12-31.csv` (every wallet × asset at 31/12),
+  `transactions_YYYY.csv` (one row per transaction, EUR at its time) and `wallets.csv`.
 - **Year-end report** per fiscal year: initial/final values, days held, IC estimate
-  (Italian RW quadro), CSV exports and an evidence file.
+  (Italian RW quadro) and an evidence file.
 - **Easy to extend**: a new EVM chain is a form in Settings; a new blockchain or exchange API is
   one Python class (see [docs/ADDING_AN_ADAPTER.md](docs/ADDING_AN_ADAPTER.md)).
 
@@ -130,6 +132,23 @@ To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot
   ```bash
   schtasks /Create /TN CryptoLedgerSnapshot /SC MONTHLY /MO 12 /D 31 /SD 12/31/2026 /ST 23:59 /TR "py -m cryptoledger --data-dir %CD%\data snapshot"
   ```
+
+## Exports
+
+Kept up to date automatically in `data/exports/`: rewritten after every sync, right after each
+31/12 cutoff, and whenever you edit wallets, categories or manual balances (unchanged files are
+not touched). Download them from the Year-end, Transactions and Wallets pages, or run
+`python3 -m cryptoledger export`.
+
+| File | When | One row per | Columns |
+|---|---|---|---|
+| `balances_YYYY-12-31.csv` | every fiscal year, at 31/12 23:59:59 | wallet × asset | wallet, network, asset, quantity, price_eur, value_eur, price_source |
+| `transactions_YYYY.csv` | every fiscal year | transaction | datetime, wallet, network, tx_hash, type, asset_in, qty_in, asset_out, qty_out, fee_asset, fee_qty, value_eur, from_address, to_address |
+| `wallets.csv` | whenever your wallets change | wallet | wallet, network, address, platform |
+
+`type` is one of `buy`, `sell`, `swap`, `transfer_in`, `transfer_out`, `reward`, `airdrop`, `fee`,
+taken from the transaction's category (editable on the Transactions page). `value_eur` is the
+value at the moment of the transaction. Details: [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 
 ## Reports
 

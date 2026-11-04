@@ -6,7 +6,7 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional
 
 from . import assets as assets_mod
-from . import classify, ledger, yearend
+from . import classify, exports, ledger, yearend
 from .adapters import get_adapter
 from .http import HttpError
 from .models import AdapterError
@@ -61,10 +61,20 @@ def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = 
     refresh_prices(ctx, prices, log)
     if ctx.settings.get("value_transactions"):
         value_movements(ctx, prices, log)
+    write_exports(ctx, log)
     for e in prices.errors[:5]:
         log(f"price provider: {e}")
     log(f"Done. Fiscal years {years[0]}–{years[-1]}; {errors} wallet error(s).")
     return {"errors": errors, "years": years}
+
+
+def write_exports(ctx, log: Callable[[str], None]) -> None:
+    """Rewrite data/exports/ (wallets, balances per year-end, transactions per year)."""
+    try:
+        exports.write_all(ctx, log)
+    except OSError as e:  # a read-only or full disk must not break the sync
+        log(f"Exports not written: {e}")
+        ctx.log(f"exports not written: {e}", "error")
 
 
 def refresh_prices(ctx, prices: PriceService, log: Callable[[str], None]) -> int:

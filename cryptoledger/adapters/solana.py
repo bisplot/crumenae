@@ -110,36 +110,49 @@ class SolanaAdapter(Adapter):
         if owner in keys:
             i = keys.index(owner)
             pre, post = int(meta["preBalances"][i]), int(meta["postBalances"][i])
-            fee = int(meta.get("fee") or 0) if i == 0 else 0
+            tx_fee = int(meta.get("fee") or 0)
+            fee = tx_fee if i == 0 else 0
             transfer = post - pre + fee
             after = scaled(post, 9)
             if fee:
                 moves.append(Movement(uid=f"{signature}:fee", tx_hash=signature, ts=ts, asset_key=native,
-                                      amount=-scaled(fee, 9), kind="fee", failed=failed, balance_after=after))
+                                      amount=-scaled(fee, 9), kind="fee", failed=failed, balance_after=after,
+                                      from_address=owner))
             if transfer and not failed:
+                # The RPC does not name the other party: it is the account whose SOL
+                # changed by exactly the opposite amount (net of the fee if it paid it).
+                cp = next((k for j, k in enumerate(keys) if j != i and j < len(meta["postBalances"])
+                           and int(meta["postBalances"][j]) - int(meta["preBalances"][j])
+                           + (tx_fee if j == 0 else 0) == -transfer), "")
                 moves.append(Movement(uid=f"{signature}:sol", tx_hash=signature, ts=ts, asset_key=native,
                                       amount=scaled(transfer, 9), kind="in" if transfer > 0 else "out",
-                                      balance_after=after))
+                                      balance_after=after, counterparty=cp,
+                                      from_address=cp if transfer > 0 else owner,
+                                      to_address=owner if transfer > 0 else cp))
         if failed:
             return moves, {}
         own = set(own_token_accounts)
-        pre_t: Dict[str, int] = defaultdict(int)
-        post_t: Dict[str, int] = defaultdict(int)
         decs: Dict[str, int] = {}
-        for bucket, target in (("preTokenBalances", pre_t), ("postTokenBalances", post_t)):
+        # Net token change per (holder, mint); the holder is the owner wallet when known.
+        deltas: Dict[Tuple[str, str], int] = defaultdict(int)
+        for bucket, sign in (("preTokenBalances", -1), ("postTokenBalances", 1)):
             for tb in meta.get(bucket) or []:
                 idx = tb.get("accountIndex")
-                acct = keys[idx] if idx is not None and idx < len(keys) else None
-                if tb.get("owner") == owner or (acct is not None and acct in own):
-                    ui = tb.get("uiTokenAmount") or {}
-                    target[tb["mint"]] += int(ui.get("amount") or 0)
+                acct = keys[idx] if idx is not None and idx < len(keys) else ""
+                holder = owner if (tb.get("owner") == owner or acct in own) else (tb.get("owner") or acct)
+                ui = tb.get("uiTokenAmount") or {}
+                deltas[(holder, tb["mint"])] += sign * int(ui.get("amount") or 0)
+                if holder == owner:
                     decs[tb["mint"]] = int(ui.get("decimals") or 0)
-        for mint in sorted(set(pre_t) | set(post_t)):
-            delta = post_t[mint] - pre_t[mint]
+        for mint in sorted(decs):
+            delta = deltas[(owner, mint)]
             if delta:
+                cp = next((h for (h, m), d in deltas.items() if m == mint and h != owner and d == -delta), "")
                 moves.append(Movement(uid=f"{signature}:spl:{mint}", tx_hash=signature, ts=ts,
                                       asset_key=f"{self.network.id}:{mint}", amount=scaled(delta, decs[mint]),
-                                      kind="in" if delta > 0 else "out"))
+                                      kind="in" if delta > 0 else "out", counterparty=cp,
+                                      from_address=cp if delta > 0 else owner,
+                                      to_address=owner if delta > 0 else cp))
         return moves, decs
 
     # --- sync -------------------------------------------------------------------

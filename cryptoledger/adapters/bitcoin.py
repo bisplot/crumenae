@@ -56,7 +56,7 @@ class BitcoinAdapter(Adapter):
         moves: List[Movement] = []
         if fee:
             moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=ts, asset_key=key,
-                                  amount=-scaled(fee, 8), kind="fee"))
+                                  amount=-scaled(fee, 8), kind="fee", from_address=addr))
         transfer = delta + fee
         if transfer:
             others = [o.get("scriptpubkey_address") for o in tx.get("vout") or []
@@ -64,9 +64,11 @@ class BitcoinAdapter(Adapter):
             senders = [(i.get("prevout") or {}).get("scriptpubkey_address") for i in inputs]
             counterparty = (others[0] if transfer < 0 and others else
                             next((s for s in senders if s and s != addr), ""))
+            cp = counterparty or ""
             moves.append(Movement(uid=f"{h}:btc", tx_hash=h, ts=ts, asset_key=key,
                                   amount=scaled(transfer, 8), kind="in" if transfer > 0 else "out",
-                                  counterparty=counterparty or ""))
+                                  counterparty=cp, from_address=cp if transfer > 0 else addr,
+                                  to_address=addr if transfer > 0 else cp))
         return moves
 
     def sync(self, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:

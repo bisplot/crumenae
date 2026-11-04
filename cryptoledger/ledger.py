@@ -17,10 +17,17 @@ def store_sync_result(ctx, wallet: Dict[str, Any], res: SyncResult) -> int:
         for m in res.movements:
             cur = ctx.db.execute(
                 "INSERT OR IGNORE INTO movements(wallet_id, uid, tx_hash, ts, asset_key, amount, kind,"
-                " counterparty, failed, balance_after, info) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                " counterparty, from_address, to_address, failed, balance_after, info)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (wallet["id"], m.uid, m.tx_hash or "", int(m.ts), m.asset_key, dstr(m.amount), m.kind,
-                 m.counterparty or "", 1 if m.failed else 0, dstr(m.balance_after), m.info or ""))
+                 m.counterparty or "", m.from_address or "", m.to_address or "", 1 if m.failed else 0,
+                 dstr(m.balance_after), m.info or ""))
             inserted += cur.rowcount
+            if not cur.rowcount and (m.from_address or m.to_address):
+                ctx.db.execute(
+                    "UPDATE movements SET from_address=?, to_address=? WHERE wallet_id=? AND uid=?"
+                    " AND from_address='' AND to_address=''",
+                    (m.from_address or "", m.to_address or "", wallet["id"], m.uid))
         for s in res.snapshots:
             ctx.db.execute(
                 "INSERT OR REPLACE INTO snapshots(wallet_id, taken_at, asset_key, amount, source, note)"
