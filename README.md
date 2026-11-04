@@ -104,6 +104,38 @@ python3 -m pip install -r requirements-optional.txt
 5. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
    API cannot help, then download the report.
 
+### Solana with Solscan
+
+Solscan's API needs a paid plan (Lite or higher). Helius is the free alternative; you only
+need one of the two.
+
+1. **Get a key.** Subscribe to a Solscan Pro API plan at [solscan.io/apis](https://solscan.io/apis),
+   then open your Solscan account → **API Management** and create an API key.
+2. **Add it to the app.** Settings → API keys → **Solscan API key** → paste the key → **Save keys**.
+   It is stored in your OS keychain if `keyring` is installed, otherwise in `data/secrets.json`.
+3. **Set your plan's limits.** Settings → API call limits → **Solscan (Solana)** row:
+   - *Calls / second*: Lite allows 1,000 calls per minute, about 16 per second (default 15).
+   - *Calls / day*: each call costs 100 compute units. Lite includes 20 million a month, i.e.
+     200,000 calls a month, about **6,600 a day**. Enter that (or your plan's figure) so the
+     app never runs your plan dry.
+   - Press **Save limits**.
+4. **Add your Solana wallets and sync.** Wallets → network **Solana** → paste the address →
+   **Add wallet** → **Sync now**. With a Solscan key set, Solana always reads from Solscan.
+   The order of preference is: Solscan key → Solana RPC URL → Helius key → public endpoint.
+5. **Check the first sync.** Compare the SOL and token balances on the Dashboard with the
+   wallet's page on [solscan.io](https://solscan.io).
+
+Good to know:
+
+- A sync reads the wallet's balance changes, its transactions (40 per call) and its transfers,
+  plus two calls for the live balances. A wallet with a long history costs more calls on the
+  first sync; later syncs only read what is new.
+- Switching between Solscan and Helius is safe: both produce the same entries, so nothing is
+  duplicated. To go back to Helius, remove the Solscan key in Settings → API keys.
+- *"Solscan: key refused or endpoint not in your plan"*: check that the key is copied in full
+  and that your plan includes the account endpoints (`/account/balance_change`,
+  `/account/transactions`, `/account/transfer`, `/account/detail`, `/account/token-accounts`).
+
 ## How year-end values are computed
 
 The cutoff for fiscal year *Y* is 23:59:59 local time on the last day of *Y* (Settings → Fiscal
