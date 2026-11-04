@@ -25,7 +25,9 @@ KNOWN = {
     "coingecko_api_key": "CoinGecko API key (Demo or Pro)",
     "coinmarketcap_api_key": "CoinMarketCap API key",
     "trongrid_api_key": "TronGrid API key",
-    "solana_rpc_url": "Solana RPC URL (e.g. Helius/QuickNode, may contain a key)",
+    "helius_api_key": "Helius API key (Solana)",
+    "moralis_api_key": "Moralis API key (Ronin)",
+    "solana_rpc_url": "Solana RPC URL (advanced: only if you use another provider than Helius)",
 }
 
 

@@ -45,7 +45,7 @@ def _redact(url: str) -> str:
     """Hide API keys in error messages and logs."""
     parts = urllib.parse.urlsplit(url)
     q = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
-    q = [(k, "***" if k.lower() in ("apikey", "api_key", "key", "signature", "x_cg_demo_api_key") else v)
+    q = [(k, "***" if k.lower() in ("apikey", "api_key", "api-key", "key", "signature", "x_cg_demo_api_key") else v)
          for k, v in q]
     return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(q)))
 
@@ -69,6 +69,8 @@ class HttpClient:
         )
         self._last: Dict[str, float] = {}
         self._lock = threading.Lock()
+        # Set by the Context: per-service calls/second and calls/day (ratelimit.RateLimiter).
+        self.limiter = None
 
     def _throttle(self, host: str) -> None:
         interval = HOST_INTERVALS.get(host, DEFAULT_INTERVAL)
@@ -88,7 +90,10 @@ class HttpClient:
         host = urllib.parse.urlsplit(url).hostname or ""
         last_error: Optional[Exception] = None
         for attempt in range(self.retries + 1):
-            self._throttle(host)
+            if self.limiter is not None:
+                self.limiter.acquire(host, url)  # may raise DailyLimitReached: never retried
+            else:
+                self._throttle(host)
             req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
             try:
                 with self._opener.open(req, timeout=self.timeout) as resp:

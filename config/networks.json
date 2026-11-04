@@ -96,14 +96,13 @@
   },
   "ronin": {
     "name": "Ronin",
-    "adapter": "evm",
+    "adapter": "moralis",
     "chain_id": 2020,
-    "explorer_api": "",
-    "explorer_key": "",
-    "chainid_param": false,
+    "moralis_chain": "0x7e4",
+    "explorer_api": "https://deep-index.moralis.io/api/v2.2",
+    "explorer_key": "moralis",
     "tx_url": "https://app.roninchain.com/tx/{tx}",
     "address_url": "https://app.roninchain.com/address/{address}",
-    "rpc_url": "https://api.roninchain.com/rpc",
     "coingecko_platform": "ronin",
     "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"}
   },
@@ -125,6 +124,14 @@
     "address_url": "https://tronscan.org/#/address/{address}",
     "coingecko_platform": "tron",
     "native": {"symbol": "TRX", "name": "Tron", "decimals": 6, "coingecko": "tron", "binance": "TRX"}
+  },
+  "solar": {
+    "name": "Solar (SXP)",
+    "adapter": "solar",
+    "explorer_api": "https://sxp.mainnet.sh/api",
+    "tx_url": "https://solarscan.com/transaction/{tx}",
+    "address_url": "https://solarscan.com/wallet/{address}",
+    "native": {"symbol": "SXP", "name": "Solar", "decimals": 8, "coingecko": "swipe", "binance": "SXP"}
   },
   "bitcoin": {
     "name": "Bitcoin",

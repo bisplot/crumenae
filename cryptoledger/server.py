@@ -75,6 +75,7 @@ class App:
         r("GET", r"/api/manual/(?P<wid>\d+)", self.get_manual)
         r("PUT", r"/api/manual/(?P<wid>\d+)", self.put_manual)
         r("GET", r"/api/log", self.log)
+        r("GET", r"/api/limits", self.limits)
 
     def _route(self, method: str, pattern: str, fn: Callable[..., Any]) -> None:
         self.routes.append((method, re.compile("^" + pattern + "$"), fn))
@@ -155,6 +156,8 @@ class App:
                 value = int(value)
             elif key in ("value_transactions", "auto_snapshot"):
                 value = bool(value)
+            elif key == "rate_limits":
+                value = _clean_rate_limits(value)
             elif key == "network_overrides":
                 if not isinstance(value, dict):
                     raise ApiError(400, "network_overrides must be an object")
@@ -477,8 +480,39 @@ class App:
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
         return views.dashboard(self.ctx, query.get("portfolio") or None)
 
+    def limits(self, **_: Any) -> List[Dict[str, Any]]:
+        return self.ctx.limiter.overview()
+
     def log(self, **_: Any) -> List[Dict[str, Any]]:
         return self.ctx.db.query("SELECT * FROM sync_log ORDER BY id DESC LIMIT 200")
+
+
+def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
+    """{service: {per_second: number|null, per_day: int|null}}; empty/0 means no limit."""
+    from .ratelimit import SERVICES
+    if not isinstance(value, dict):
+        raise ApiError(400, "rate_limits must be an object")
+    out: Dict[str, Dict[str, Any]] = {}
+    for sid, lim in value.items():
+        if sid not in SERVICES or not isinstance(lim, dict):
+            raise ApiError(400, f"unknown service '{sid}'")
+        clean: Dict[str, Any] = {}
+        for k in ("per_second", "per_day"):
+            if k not in lim:
+                continue
+            v = lim[k]
+            if v in ("", None, 0, "0"):
+                clean[k] = None
+                continue
+            try:
+                num = float(str(v).replace(",", "."))
+            except ValueError:
+                raise ApiError(400, f"{sid}.{k} must be a number")
+            if num <= 0 or (k == "per_day" and num != int(num)):
+                raise ApiError(400, f"{sid}.{k} must be a positive {'whole ' if k == 'per_day' else ''}number")
+            clean[k] = int(num) if k == "per_day" else num
+        out[sid] = clean
+    return out
 
 
 STATIC_TYPES = {

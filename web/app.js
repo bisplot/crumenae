@@ -388,7 +388,7 @@
     const byId = Object.fromEntries(nets.map((n) => [n.id, n]));
     const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
-    const addr = el('input', { type: 'text', placeholder: '0x… / T… / bc1… / Solana address', autocomplete: 'off', spellcheck: 'false' });
+    const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / S… / Solana address', autocomplete: 'off', spellcheck: 'false' });
     const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
     const platform = el('input', { type: 'text', placeholder: 'MetaMask, Ledger, Phantom, Binance…', list: 'platform-list' });
     const portfolios = [...new Set(wallets.map((w) => w.portfolio))];
@@ -531,7 +531,7 @@
   }
 
   async function pageSettings(root) {
-    const [cfg, nets] = await Promise.all([api.get('/api/settings'), api.get('/api/networks')]);
+    const [cfg, nets, limits] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits')]);
     const s = cfg.settings;
     const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); route(); } catch (e) { toast(e.message, true); } };
 
@@ -540,7 +540,8 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      solana_rpc_url: 'https://www.helius.dev/',
+      solana_rpc_url: 'https://www.helius.dev/', helius_api_key: 'https://dashboard.helius.dev/',
+      moralis_api_key: 'https://admin.moralis.com/',
     };
     const keyRows = Object.entries(cfg.secrets).filter(([name]) => !name.startsWith('rpc_url:')).map(([name, info]) => {
       secretInputs[name] = el('input', { type: 'password', autocomplete: 'off', placeholder: info.source ? `saved (${info.source}) — type to replace` : 'not set', style: 'width:100%' });
@@ -565,6 +566,30 @@
             toast('Saved'); route();
           } catch (e) { toast(e.message, true); }
         } })));
+
+    // API call limits
+    const limitInputs = {};
+    const fmtInt = (n) => new Intl.NumberFormat(locale).format(n);
+    const limitsCard = card('API call limits', el('span', { class: 'muted small', text: 'daily counters reset at 00:00 UTC' }),
+      el('p', { class: 'help', text: 'Free plans cap calls per second and per day. Set your plan\'s numbers: the app spaces its calls accordingly and stops calling a service once its daily cap is used, until the next day. Empty = no limit. 30 calls/minute = 0.5 per second.' }),
+      table(['Service', 'Calls / second', 'Calls / day', 'Used today', ''], limits.map((l) => {
+        const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.per_second ?? '', placeholder: 'no limit', style: 'width:100px' });
+        const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:120px' });
+        limitInputs[l.id] = { ps, pd };
+        const full = l.per_day && l.used_today >= l.per_day;
+        return el('tr', {},
+          el('td', {}, el('div', { text: l.label }), el('div', { class: 'help', text: l.hint })),
+          el('td', {}, ps), el('td', {}, pd),
+          el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
+            : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
+          el('td', {}, el('button', { class: 'btn small ghost', type: 'button', text: 'Default', title: `${l.default_per_second ?? '—'}/s, ${l.default_per_day ?? '—'}/day`,
+            onclick: () => { ps.value = l.default_per_second ?? ''; pd.value = l.default_per_day ?? ''; } })));
+      })),
+      el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save limits', onclick: () => {
+        const body = {};
+        Object.entries(limitInputs).forEach(([id, i]) => { body[id] = { per_second: i.ps.value.trim(), per_day: i.pd.value.trim() }; });
+        saveSettings({ rate_limits: body });
+      } })));
 
     // Fiscal year
     const tz = el('input', { type: 'text', value: s.timezone });
@@ -610,8 +635,8 @@
 
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
-    const netRows = nets.filter((n) => ['evm', 'tron', 'bitcoin', 'solana'].includes(n.adapter)).map((n) => {
-      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(uses RPC URL)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
+    const netRows = nets.filter((n) => ['evm', 'moralis', 'tron', 'bitcoin', 'solana', 'solar'].includes(n.adapter)).map((n) => {
+      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(Helius API key, in API keys)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;
       const rpc = n.adapter === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
@@ -656,7 +681,7 @@
       el('div', {}, 'Data folder: ', el('code', { text: state.status.data_dir })),
       el('div', {}, 'Exports folder: ', el('code', { text: state.status.exports_dir })),
       el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. Delete it to start over.' })));
-    root.replaceChildren(keysCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
+    root.replaceChildren(keysCard, limitsCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
   }
 
   // ---------------------------------------------------------------- jobs

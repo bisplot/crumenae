@@ -25,6 +25,10 @@ class Context:
         self.secrets = SecretStore(self.data_dir, backend=secrets_backend)
         self.networks = NetworkRegistry(self.db, self.settings)
         self.http = http or HttpClient()
+        from .ratelimit import RateLimiter
+        self.limiter = RateLimiter(self.db, self.settings)
+        if isinstance(self.http, HttpClient):
+            self.http.limiter = self.limiter
         # offline: never call external APIs (demo mode, tests).
         self.offline = offline or self.db.get_meta("demo") == "1"
         self.tokens = load_json("tokens.json")

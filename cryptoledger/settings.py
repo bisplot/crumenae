@@ -30,6 +30,9 @@ DEFAULTS: Dict[str, Any] = {
     "ic_rate": "0.002",
     # Per-network overrides: {"bsc": {"explorer_api": "https://...", "explorer_key": ""}}
     "network_overrides": {},
+    # API call limits per service: {"etherscan": {"per_second": 3, "per_day": 100000}}.
+    # Missing values use the defaults in ratelimit.SERVICES; null or 0 = no limit.
+    "rate_limits": {},
 }
 
 

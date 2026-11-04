@@ -1,5 +1,6 @@
-"""Solana via JSON-RPC (public endpoint by default; a Helius/QuickNode URL is
-much faster: Settings → API keys → Solana RPC URL).
+"""Solana. With a Helius API key (Settings → API keys, free plan available) the
+app calls Helius; without one, the public Solana endpoint (slow, rate-limited).
+Another provider can be used by setting a full "Solana RPC URL" instead.
 
 Every transaction carries the balances before and after it, so SOL and SPL
 token changes are exact, and the SOL balance after each transaction is stored:
@@ -7,6 +8,7 @@ the year-end SOL balance is the chain's own number, not a sum.
 """
 from __future__ import annotations
 
+import urllib.parse
 from collections import defaultdict
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -23,6 +25,7 @@ TOKEN_PROGRAMS = (
     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",   # Token-2022
 )
 SIG_PAGE = 1000
+HELIUS_URL = "https://mainnet.helius-rpc.com/?api-key="
 
 
 @register
@@ -40,7 +43,14 @@ class SolanaAdapter(Adapter):
 
     # --- RPC --------------------------------------------------------------------
     def _url(self) -> str:
-        return self.secret("solana_rpc_url") or self.network.rpc_url
+        """Explicit RPC URL > Helius API key > public endpoint."""
+        explicit = self.secret("solana_rpc_url")
+        if explicit:
+            return explicit
+        key = self.secret("helius_api_key")
+        if key:
+            return HELIUS_URL + urllib.parse.quote(key, safe="")
+        return self.network.rpc_url
 
     def _rpc(self, method: str, params: List[Any]) -> Any:
         for attempt in range(4):
