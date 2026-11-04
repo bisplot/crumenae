@@ -12,7 +12,10 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), Solana, Tron, Bitcoin, Binance; manual accounts for anything else.
+  Etherscan-compatible explorer), Ronin (Moralis), Solana (Helius), Tron, Bitcoin, Solar (SXP),
+  Binance; manual accounts for anything else.
+- **API call limits you control**: calls per second and per day for each service, so a free plan
+  is never exceeded (Settings → API call limits).
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
@@ -78,10 +81,21 @@ python3 -m pip install -r requirements-optional.txt
    | CoinGecko | Optional: higher limits, tokens not listed on Binance | Demo key free (last 365 days of history); Pro for full history |
    | CoinMarketCap | Optional: current prices | Free plan: current prices only |
    | TronGrid | Optional: higher Tron limits | Yes |
-   | Solana RPC URL | Optional: the public endpoint is slow; Helius/QuickNode free tiers are faster | Yes |
+   | Helius | Recommended for Solana: the public endpoint is slow | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
+   | Moralis | Ronin transactions and balances | Yes, [admin.moralis.com](https://admin.moralis.com/) |
+   | Solana RPC URL | Optional, instead of Helius: any other Solana provider | Varies |
    | Archive RPC URL (per EVM chain) | Optional: reads balances at the cutoff block to verify the history | Several free tiers |
 
-   Bitcoin, Solana, Tron, Binance public prices and ECB rates need no key.
+   Bitcoin, Solar, Tron, Binance public prices and ECB rates need no key (Solana works without
+   one, slowly).
+
+   **Settings → API call limits**: enter your plan's calls per second and per day for each
+   service (defaults are conservative free-plan values; empty = no limit). The app spaces its
+   calls, shows the calls used today, and stops calling a service once its daily cap is reached,
+   until 00:00 UTC.
+
+   Solar (SXP) is winding down and its public API may move: if syncs fail, put the current URL
+   in Settings → Networks.
 3. Press **Sync now**. The first sync reads the whole history and can take a few minutes;
    later syncs only read what is new.
 4. **Assets**: tokens the app does not know are listed here. Map them to a CoinGecko id or a

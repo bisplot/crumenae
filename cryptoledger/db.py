@@ -6,7 +6,7 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -150,6 +150,14 @@ CREATE TABLE IF NOT EXISTS fx_rates (
     day      TEXT NOT NULL,
     rate     TEXT NOT NULL,
     PRIMARY KEY (currency, day)
+);
+
+-- API calls made per service and UTC day (daily caps, Settings → API call limits).
+CREATE TABLE IF NOT EXISTS api_usage (
+    service TEXT NOT NULL,
+    day     TEXT NOT NULL,
+    calls   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (service, day)
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (

@@ -11,7 +11,7 @@
     "ICP": "internet-computer", "HBAR": "hedera-hashgraph", "INJ": "injective-protocol",
     "AAVE": "aave", "CAKE": "pancakeswap-token", "ALGO": "algorand", "TIA": "celestia",
     "FET": "fetch-ai", "RENDER": "render-token", "WLD": "worldcoin-wld", "SEI": "sei-network",
-    "JUP": "jupiter-exchange-solana", "BONK": "bonk", "BTTC": "bittorrent", "RONIN": "ronin",
+    "JUP": "jupiter-exchange-solana", "BONK": "bonk", "BTTC": "bittorrent", "RONIN": "ronin", "SXP": "swipe",
     "USDT": "tether", "USDC": "usd-coin", "FDUSD": "first-digital-usd", "DAI": "dai",
     "BUSD": "binance-usd", "EURC": "euro-coin", "WBTC": "wrapped-bitcoin", "WETH": "weth"
   }

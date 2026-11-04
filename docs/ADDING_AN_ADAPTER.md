@@ -15,6 +15,12 @@ Examples of compatible APIs:
 
 To move a built-in chain to another explorer, edit its Explorer API URL in the same table.
 
+## 1b. Any EVM chain supported by Moralis: config only
+
+Add an entry to `config/networks.json` with `"adapter": "moralis"`, `"moralis_chain": "<hex chain id>"`,
+`"explorer_api": "https://deep-index.moralis.io/api/v2.2"` and `"explorer_key": "moralis"` (Ronin is
+set up this way). The same Moralis key covers every chain.
+
 ## 2. A token the app does not know: no code
 
 Assets page → enter the CoinGecko id or the Binance ticker. To ship it for everyone, add it to
@@ -85,6 +91,8 @@ Rules that keep the ledger correct:
   balance is then the chain's own number.
 - If the chain can be read at a past block, implement `balance_at()`: it is used as a cross-check.
 - Raise `AdapterError("readable message")` for problems the user can fix (missing key, bad address).
+- Add the API's host to `cryptoledger/ratelimit.py` (`SERVICES`) so the user can set its calls per
+  second and per day; unknown hosts fall under "Other".
 - Exchange or account APIs: set `needs_address = False`, `has_history = False` unless you import
   every trade, and `credentials = ["api_key", "api_secret"]`; read them with `self.wallet_secret()`.
   Store snapshots the API offers (`Snapshot(..., source="exchange_daily")`).
