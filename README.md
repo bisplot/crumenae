@@ -14,8 +14,8 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
   Etherscan-compatible explorer), Ronin (Moralis), Solana (Solscan or Helius), Tron, Bitcoin, Solar (SXP),
   Binance; manual accounts for anything else.
-- **API call limits you control**: calls per second and per day for each service, so a free plan
-  is never exceeded (Settings → API call limits).
+- **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
+  is never exceeded (Settings → API keys & call limits).
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
@@ -72,7 +72,7 @@ python3 -m pip install -r requirements-optional.txt
    - **Portfolio / owner** groups wallets (yours, a family member's, a client's); the dashboard filters by it.
    - **RW slot** fixes the row order in the Italian RW form.
    - **Bollo already applied**: tick it for accounts at an Italian intermediary, so no IC is estimated.
-2. **Settings → API keys**. Only what you use:
+2. **Settings → API keys & call limits**: one row per service. Only the keys you use:
 
    | Key | Needed for | Free? |
    |---|---|---|
@@ -90,19 +90,58 @@ python3 -m pip install -r requirements-optional.txt
    Bitcoin, Solar, Tron, Binance public prices and ECB rates need no key (Solana works without
    one, slowly).
 
-   **Settings → API call limits**: enter your plan's calls per second and per day for each
-   service (defaults are conservative free-plan values; empty = no limit). The app spaces its
-   calls, shows the calls used today, and stops calling a service once its daily cap is reached,
-   until 00:00 UTC.
+   In the same row, enter your plan's speed limit (per second or per minute, as your provider
+   states it) and calls per day (defaults are conservative free-plan values; empty = no limit),
+   then **Save keys & limits**. The app spaces its calls, shows the calls used today, and stops
+   calling a service once its daily cap is reached, until 00:00 UTC. Each row's **Sync** button
+   updates only the wallets that use that service (price services have **Refresh prices**).
 
    Solar (SXP) is winding down and its public API may move: if syncs fail, put the current URL
    in Settings → Networks.
 3. Press **Sync now**. The first sync reads the whole history and can take a few minutes;
    later syncs only read what is new.
-4. **Assets**: tokens the app does not know are listed here. Map them to a CoinGecko id or a
+4. Press **Recompute year-end** (top bar) to compute balances and EUR values at every
+   fiscal-year end. This never happens by itself: after a sync, a manual entry, a price mapping
+   or a settings change the button lights up and the Year-end page says the values are out of
+   date, until you press it. Recomputing also rewrites the exports.
+5. **Assets**: tokens the app does not know are listed here. Map them to a CoinGecko id or a
    Binance ticker, or mark them as spam (airdropped scam tokens are common).
-5. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
+6. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
    API cannot help, then download the report.
+
+### Solana with Solscan
+
+Solscan's API needs a paid plan (Lite or higher). Helius is the free alternative; you only
+need one of the two.
+
+1. **Get a key.** Subscribe to a Solscan Pro API plan at [solscan.io/apis](https://solscan.io/apis),
+   then open your Solscan account → **API Management** and create an API key.
+2. **Add it to the app.** Settings → API keys & call limits → **Solscan (Solana)** row → paste the key.
+   It is stored in your OS keychain if `keyring` is installed, otherwise in `data/secrets.json`.
+3. **Set your plan's limits** in the same row:
+   - *Speed limit*: Lite allows 1,000 calls **per minute** (the default): enter 1000 and choose
+     "per minute".
+   - *Calls / day*: each call costs 100 compute units. Lite includes 20 million a month, i.e.
+     200,000 calls a month, about **6,600 a day**. Enter that (or your plan's figure) so the
+     app never runs your plan dry.
+   - Press **Save keys & limits**.
+4. **Add your Solana wallets and sync.** Wallets → network **Solana** → paste the address →
+   **Add wallet** → **Sync now** → **Recompute year-end**. With a Solscan key set, Solana always
+   reads from Solscan.
+   The order of preference is: Solscan key → Solana RPC URL → Helius key → public endpoint.
+5. **Check the first sync.** Compare the SOL and token balances on the Dashboard with the
+   wallet's page on [solscan.io](https://solscan.io).
+
+Good to know:
+
+- A sync reads the wallet's balance changes, its transactions (40 per call) and its transfers,
+  plus two calls for the live balances. A wallet with a long history costs more calls on the
+  first sync; later syncs only read what is new.
+- Switching between Solscan and Helius is safe: both produce the same entries, so nothing is
+  duplicated. To go back to Helius, remove the Solscan key in Settings → API keys & call limits.
+- *"Solscan: key refused or endpoint not in your plan"*: check that the key is copied in full
+  and that your plan includes the account endpoints (`/account/balance_change`,
+  `/account/transactions`, `/account/transfer`, `/account/detail`, `/account/token-accounts`).
 
 ## How year-end values are computed
 
@@ -150,9 +189,9 @@ To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot
 
 ## Exports
 
-Kept up to date automatically in `data/exports/`: rewritten after every sync, right after each
-31/12 cutoff, and whenever you edit wallets, categories or manual balances (unchanged files are
-not touched). Download them from the Year-end, Transactions and Wallets pages, or run
+Kept in `data/exports/`. `wallets.csv` and `transactions_YYYY.csv` are rewritten after every
+sync and when you edit wallets or categories; `balances_YYYY-12-31.csv` when you press
+**Recompute year-end** and right after each 31/12 cutoff (unchanged files are not touched). Download them from the Year-end, Transactions and Wallets pages, or run
 `python3 -m cryptoledger export`.
 
 | File | When | One row per | Columns |

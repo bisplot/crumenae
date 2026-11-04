@@ -51,9 +51,13 @@ class RateLimiterTest(unittest.TestCase):
 
     def test_defaults_and_removing_a_cap(self):
         lim = RateLimiter(self.ctx.db, self.ctx.settings)
-        self.assertEqual(lim.limits("etherscan"), {"per_second": 3.0, "per_day": 100000})
+        self.assertEqual(lim.limits("etherscan"),
+                         {"rate": 3.0, "unit": "second", "per_second": 3.0, "per_day": 100000})
         self.ctx.settings.set("rate_limits", {"etherscan": {"per_day": None}})
-        self.assertEqual(lim.limits("etherscan"), {"per_second": 3.0, "per_day": None})
+        self.assertEqual(lim.limits("etherscan")["per_day"], None)
+        # Per-minute plans: CoinGecko 30/min = one call every 2 s.
+        self.assertEqual(lim.limits("coingecko"), {"rate": 30.0, "unit": "minute", "per_second": 0.5,
+                                                   "per_day": None})
         self.assertEqual(lim.service_for("mainnet.helius-rpc.com"), "helius")
 
     def test_http_client_stops_before_calling(self):
@@ -76,6 +80,20 @@ class RateLimiterTest(unittest.TestCase):
         app.dispatch("PUT", "/api/settings", {}, {"rate_limits": {"etherscan": {"per_second": "0,5", "per_day": ""}}})
         row = [r for r in app.dispatch("GET", "/api/limits", {}, None) if r["id"] == "etherscan"][0]
         self.assertEqual((row["per_second"], row["per_day"], row["default_per_day"]), (0.5, None, 100000))
+        # Per-minute unit.
+        app.dispatch("PUT", "/api/settings", {}, {"rate_limits": {"etherscan": {"rate": "120", "unit": "minute"}}})
+        row = [r for r in app.dispatch("GET", "/api/limits", {}, None) if r["id"] == "etherscan"][0]
+        self.assertEqual((row["rate"], row["unit"], row["per_second"]), (120.0, "minute", 2.0))
+        with self.assertRaises(ApiError):
+            app.dispatch("PUT", "/api/settings", {}, {"rate_limits": {"etherscan": {"rate": 1, "unit": "hour"}}})
+
+    def test_per_minute_spacing(self):
+        clock = FakeClock()
+        lim = RateLimiter(self.ctx.db, self.ctx.settings, clock=clock.clock, sleep=clock.sleep)
+        self.ctx.settings.set("rate_limits", {"solscan": {"rate": 30, "unit": "minute"}})
+        for _ in range(3):
+            lim.acquire("pro-api.solscan.io")
+        self.assertEqual(clock.slept, [2.0, 2.0])     # 30 per minute -> one every 2 s
 
     def test_keys_are_redacted_in_errors(self):
         self.assertNotIn("SECRET", _redact("https://mainnet.helius-rpc.com/?api-key=SECRET"))
@@ -229,3 +247,37 @@ class SolarTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServiceSyncTest(unittest.TestCase):
+    def test_wallets_by_service_and_sync_one_service(self):
+        from cryptoledger import sync
+        from cryptoledger.server import ApiError, App
+        t = TempContext(offline=True)
+        try:
+            ctx = t.ctx
+            eth = add_wallet(ctx, "ethereum", "0x" + "a" * 40)
+            base = add_wallet(ctx, "base", "0x" + "a" * 40)
+            sol = add_wallet(ctx, "solana", "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T")
+            add_wallet(ctx, "manual", "", label="Cold")
+            by = sync.wallets_by_service(ctx)
+            self.assertEqual(sorted(by["etherscan"]), sorted([eth["id"], base["id"]]))
+            self.assertEqual(by["solana_public"], [sol["id"]])
+            ctx.secrets.set("solscan_api_key", "K")          # Solana now goes through Solscan
+            self.assertEqual(sync.wallets_by_service(ctx)["solscan"], [sol["id"]])
+            app = App(ctx)
+            rows = {r["id"]: r for r in app.dispatch("GET", "/api/limits", {}, None)}
+            self.assertEqual((rows["etherscan"]["wallets"], rows["etherscan"]["secret"]), (2, "etherscan_api_key"))
+            self.assertEqual(rows["solscan"]["secret_source"], "file")
+            self.assertTrue(rows["coingecko"]["price_service"])
+            job = app.dispatch("POST", "/api/jobs/sync", {}, {"service": "etherscan"})
+            self.assertEqual(job["kind"], "sync")
+            for _ in range(100):
+                if not app.jobs.current.public()["running"]:
+                    break
+                import time
+                time.sleep(0.02)
+            with self.assertRaises(ApiError):
+                app.dispatch("POST", "/api/jobs/sync", {}, {"service": "trongrid"})   # no Tron wallet
+        finally:
+            t.close()

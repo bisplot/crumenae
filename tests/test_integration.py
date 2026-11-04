@@ -4,7 +4,7 @@ import unittest
 from decimal import Decimal
 
 from cryptoledger import report, views
-from cryptoledger.sync import run_sync
+from cryptoledger.sync import recompute, run_sync
 
 from helpers import FakeHttp, TempContext, add_wallet, fixture
 from test_adapters import ME, BTC_ME, btc_handler, etherscan_handler, solana_handler
@@ -35,7 +35,11 @@ class FullSyncTest(unittest.TestCase):
             lines = []
             result = run_sync(ctx, lines.append)
             self.assertEqual(result["errors"], 0, "\n".join(lines))
-            self.assertEqual(result["years"], [2024, 2025])
+            # Sync does not compute year-end values: it marks them out of date.
+            self.assertEqual(ctx.db.scalar("SELECT COUNT(*) FROM year_end"), 0)
+            self.assertTrue(ctx.yearend_stale())
+            self.assertEqual(recompute(ctx, lines.append), [2024, 2025])     # the "Recompute" button
+            self.assertIsNone(ctx.yearend_stale())
 
             # Year-end 2025: every wallet has a source and a value.
             detail = views.year_detail(ctx, 2025)

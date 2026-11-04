@@ -94,6 +94,11 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
         wallet_list.append(item)
 
     flags = []
+    if wallets and not years:
+        flags.append({"level": "warn", "text": "Year-end values not computed yet: press \"Recompute year-end\""})
+    elif ctx.yearend_stale():
+        flags.append({"level": "warn", "text": f"Year-end values out of date ({ctx.yearend_stale()}): "
+                                               "press \"Recompute year-end\""})
     for w in wallets:
         if w["last_error"]:
             flags.append({"level": "error", "text": f"{w['label']}: {w['last_error']}"})

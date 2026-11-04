@@ -56,6 +56,14 @@ class Context:
             raise KeyError(f"wallet {wallet_id} not found")
         return w
 
+    # --- year-end values are computed only on request (Recompute year-end) -----------
+    def mark_yearend_stale(self, reason: str) -> None:
+        """Data that year-end values depend on changed since the last computation."""
+        self.db.set_meta("yearend_stale", reason[:200])
+
+    def yearend_stale(self) -> Optional[str]:
+        return self.db.get_meta("yearend_stale") or None
+
     def log(self, message: str, level: str = "info", wallet_id: Optional[int] = None) -> None:
         self.db.execute("INSERT INTO sync_log(ts, wallet_id, level, message) VALUES(?,?,?,?)",
                         (now(), wallet_id, level, message))
