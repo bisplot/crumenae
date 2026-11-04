@@ -15,7 +15,7 @@ Sources in priority order. The wallet's year-end row records which one was used.
 | 1 | Manual entry | you typed it for that cutoff | as good as your statement |
 | 2 | Live snapshot | taken by the app within ±300 s (configurable) of the cutoff | exact |
 | 3 | Chain state | archive RPC `eth_getBalance` / `balanceOf` at the last block before the cutoff (EVM) | exact |
-| 4 | Transaction history | sum of every movement up to the cutoff; SOL uses the post-transaction balance reported by the chain | exact if the history is complete |
+| 4 | Transaction history | sum of every movement up to the cutoff; SOL uses the post-transaction balance reported by the chain (RPC) or by Solscan | exact if the history is complete |
 | 5 | Exchange daily snapshot | Binance Spot snapshot at 23:59:59 UTC (1 h after a CET cutoff), kept 30 days | approximate, Spot only |
 
 Cross-checks: when a snapshot or chain state exists together with the history, each asset is

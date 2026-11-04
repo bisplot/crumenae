@@ -541,6 +541,7 @@
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
       solana_rpc_url: 'https://www.helius.dev/', helius_api_key: 'https://dashboard.helius.dev/',
+      solscan_api_key: 'https://solscan.io/apis',
       moralis_api_key: 'https://admin.moralis.com/',
     };
     const keyRows = Object.entries(cfg.secrets).filter(([name]) => !name.startsWith('rpc_url:')).map(([name, info]) => {
@@ -636,7 +637,7 @@
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
     const netRows = nets.filter((n) => ['evm', 'moralis', 'tron', 'bitcoin', 'solana', 'solar'].includes(n.adapter)).map((n) => {
-      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(Helius API key, in API keys)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
+      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(Solscan or Helius key, in API keys)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;
       const rpc = n.adapter === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;

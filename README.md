@@ -12,7 +12,7 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), Ronin (Moralis), Solana (Helius), Tron, Bitcoin, Solar (SXP),
+  Etherscan-compatible explorer), Ronin (Moralis), Solana (Solscan or Helius), Tron, Bitcoin, Solar (SXP),
   Binance; manual accounts for anything else.
 - **API call limits you control**: calls per second and per day for each service, so a free plan
   is never exceeded (Settings → API call limits).
@@ -81,7 +81,8 @@ python3 -m pip install -r requirements-optional.txt
    | CoinGecko | Optional: higher limits, tokens not listed on Binance | Demo key free (last 365 days of history); Pro for full history |
    | CoinMarketCap | Optional: current prices | Free plan: current prices only |
    | TronGrid | Optional: higher Tron limits | Yes |
-   | Helius | Recommended for Solana: the public endpoint is slow | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
+   | Solscan | Solana, if you have a Solscan Pro API plan (used first when set) | No: from Lite plan, [solscan.io/apis](https://solscan.io/apis) |
+   | Helius | Solana, free alternative to Solscan: the public endpoint is slow | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Moralis | Ronin transactions and balances | Yes, [admin.moralis.com](https://admin.moralis.com/) |
    | Solana RPC URL | Optional, instead of Helius: any other Solana provider | Varies |
    | Archive RPC URL (per EVM chain) | Optional: reads balances at the cutoff block to verify the history | Several free tiers |
