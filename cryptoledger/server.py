@@ -334,6 +334,12 @@ class App:
     def start_job(self, kind: str, body: Any, **_: Any) -> Dict[str, Any]:
         body = body if isinstance(body, dict) else {}
         ctx = self.ctx
+        if kind == "sync" and body.get("service"):
+            # "Sync" on one API row: only the wallets that use that service.
+            ids = sync.wallets_by_service(ctx).get(str(body["service"]), [])
+            if not ids:
+                raise ApiError(400, "no active wallet uses this service")
+            body = dict(body, wallet_ids=ids)
         if kind == "sync":
             ids = [int(x) for x in body.get("wallet_ids") or []]
             fn = lambda log: sync.run_sync(ctx, log, ids or None, bool(body.get("full")))  # noqa: E731
@@ -480,7 +486,17 @@ class App:
         return views.dashboard(self.ctx, query.get("portfolio") or None)
 
     def limits(self, **_: Any) -> List[Dict[str, Any]]:
-        return self.ctx.limiter.overview()
+        """One row per API service: its key, limits, usage today and wallets that use it."""
+        from .ratelimit import PRICE_SERVICES, SECRET_OF
+        users = sync.wallets_by_service(self.ctx)
+        rows = self.ctx.limiter.overview()
+        for r in rows:
+            secret = SECRET_OF.get(r["id"])
+            r["secret"] = secret
+            r["secret_source"] = self.ctx.secrets.source(secret) if secret else None
+            r["price_service"] = r["id"] in PRICE_SERVICES
+            r["wallets"] = len(users.get(r["id"], []))
+        return rows
 
     def log(self, **_: Any) -> List[Dict[str, Any]]:
         return self.ctx.db.query("SELECT * FROM sync_log ORDER BY id DESC LIMIT 200")

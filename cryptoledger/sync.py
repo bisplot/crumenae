@@ -82,6 +82,34 @@ def recompute(ctx, log: Callable[[str], None]) -> List[int]:
     return years
 
 
+def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:
+    """The API service (ratelimit.SERVICES id) a wallet's sync calls, or None (manual)."""
+    import urllib.parse
+    from .adapters import solscan
+    try:
+        net = ctx.networks.get(wallet["network"])
+    except KeyError:
+        return None
+    if net.adapter == "manual":
+        return None
+    if net.adapter == "solana":
+        url = solscan.BASE if ctx.secrets.get("solscan_api_key") else get_adapter(ctx, net)._url()
+    elif net.adapter == "binance":
+        url = net.explorer_api or "https://api.binance.com"
+    else:
+        url = net.explorer_api or ctx.secrets.get(f"rpc_url:{net.id}") or net.rpc_url or ""
+    return ctx.limiter.service_for(urllib.parse.urlsplit(url).hostname or "")
+
+
+def wallets_by_service(ctx) -> Dict[str, List[int]]:
+    out: Dict[str, List[int]] = {}
+    for w in ctx.wallets(active_only=True):
+        sid = wallet_service(ctx, w)
+        if sid:
+            out.setdefault(sid, []).append(w["id"])
+    return out
+
+
 def write_exports(ctx, log: Callable[[str], None]) -> None:
     """Rewrite data/exports/ (wallets, balances per year-end, transactions per year)."""
     try:

@@ -247,3 +247,37 @@ class SolarTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServiceSyncTest(unittest.TestCase):
+    def test_wallets_by_service_and_sync_one_service(self):
+        from cryptoledger import sync
+        from cryptoledger.server import ApiError, App
+        t = TempContext(offline=True)
+        try:
+            ctx = t.ctx
+            eth = add_wallet(ctx, "ethereum", "0x" + "a" * 40)
+            base = add_wallet(ctx, "base", "0x" + "a" * 40)
+            sol = add_wallet(ctx, "solana", "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T")
+            add_wallet(ctx, "manual", "", label="Cold")
+            by = sync.wallets_by_service(ctx)
+            self.assertEqual(sorted(by["etherscan"]), sorted([eth["id"], base["id"]]))
+            self.assertEqual(by["solana_public"], [sol["id"]])
+            ctx.secrets.set("solscan_api_key", "K")          # Solana now goes through Solscan
+            self.assertEqual(sync.wallets_by_service(ctx)["solscan"], [sol["id"]])
+            app = App(ctx)
+            rows = {r["id"]: r for r in app.dispatch("GET", "/api/limits", {}, None)}
+            self.assertEqual((rows["etherscan"]["wallets"], rows["etherscan"]["secret"]), (2, "etherscan_api_key"))
+            self.assertEqual(rows["solscan"]["secret_source"], "file")
+            self.assertTrue(rows["coingecko"]["price_service"])
+            job = app.dispatch("POST", "/api/jobs/sync", {}, {"service": "etherscan"})
+            self.assertEqual(job["kind"], "sync")
+            for _ in range(100):
+                if not app.jobs.current.public()["running"]:
+                    break
+                import time
+                time.sleep(0.02)
+            with self.assertRaises(ApiError):
+                app.dispatch("POST", "/api/jobs/sync", {}, {"service": "trongrid"})   # no Tron wallet
+        finally:
+            t.close()

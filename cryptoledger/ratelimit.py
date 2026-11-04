@@ -1,7 +1,7 @@
 """Per-service API call limits: calls per second (or per minute) and calls per day.
 
 Free plans usually cap both. The defaults below are conservative; set your own
-plan's numbers in Settings → API call limits. When a daily cap is reached the
+plan's numbers in Settings → API keys & call limits. When a daily cap is reached the
 app stops calling that service until the next UTC day (when most providers
 reset) and says so, instead of being blocked by the provider.
 """
@@ -55,13 +55,20 @@ SERVICES: Dict[str, Dict[str, Any]] = {
 UNITS = {"second": 1, "minute": 60}   # seconds per unit
 
 
+# API key (secret name) of each service, and services that provide prices rather than wallet data.
+SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "solscan": "solscan_api_key",
+             "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
+             "coinmarketcap": "coinmarketcap_api_key"}
+PRICE_SERVICES = ("binance_data", "coingecko", "coinmarketcap", "ecb")
+
+
 class DailyLimitReached(HttpError):
     """Raised before calling a service whose daily cap is used up. Not retried."""
 
     def __init__(self, service: str, limit: int, url: str):
         label = SERVICES.get(service, {}).get("label", service)
         super().__init__(429, f"daily limit of {limit:,} calls reached for {label} "
-                              "(Settings → API call limits); it resets at 00:00 UTC", url)
+                              "(Settings → API keys & call limits); it resets at 00:00 UTC", url)
         self.service = service
 
 

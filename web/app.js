@@ -537,66 +537,75 @@
     const s = cfg.settings;
     const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); await refreshStatus(); route(); } catch (e) { toast(e.message, true); } };
 
-    // API keys
+    // API keys and call limits: one row per service
     const secretInputs = {};
+    const limitInputs = {};
+    const fmtInt = (n) => new Intl.NumberFormat(locale).format(n);
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
       solana_rpc_url: 'https://www.helius.dev/', helius_api_key: 'https://dashboard.helius.dev/',
-      solscan_api_key: 'https://solscan.io/apis',
-      moralis_api_key: 'https://admin.moralis.com/',
+      solscan_api_key: 'https://solscan.io/apis', moralis_api_key: 'https://admin.moralis.com/',
     };
-    const keyRows = Object.entries(cfg.secrets).filter(([name]) => !name.startsWith('rpc_url:')).map(([name, info]) => {
-      secretInputs[name] = el('input', { type: 'password', autocomplete: 'off', placeholder: info.source ? `saved (${info.source}) — type to replace` : 'not set', style: 'width:100%' });
+    const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
+    const keyCell = (name) => {
+      const info = cfg.secrets[name] || {};
+      secretInputs[name] = el('input', { type: 'password', autocomplete: 'off', placeholder: info.source ? `saved (${info.source}) — type to replace` : 'paste key', style: 'width:100%;min-width:180px' });
+      return el('div', { style: 'display:grid;gap:4px' },
+        el('div', { class: 'actions' }, info.source ? badge(info.source === 'keychain' ? 'saved · keychain' : `saved · ${info.source}`, 'ok') : badge('not set'),
+          keyLinks[name] ? el('a', { class: 'small', href: keyLinks[name], target: '_blank', rel: 'noopener noreferrer', text: 'get one →' }) : null,
+          info.source && info.source !== 'env' ? el('button', { class: 'btn small ghost danger', type: 'button', text: 'Remove', onclick: async () => {
+            try { await api.put('/api/secrets', { [name]: '' }); toast('Removed'); route(); } catch (e) { toast(e.message, true); } } }) : null),
+        secretInputs[name]);
+    };
+    const serviceRows = limits.map((l) => {
+      const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:80px', 'aria-label': 'Calls' });
+      const unit = el('select', { 'aria-label': 'Per' },
+        el('option', { value: 'second', text: '/ second', selected: l.unit === 'second' }),
+        el('option', { value: 'minute', text: '/ minute', selected: l.unit === 'minute' }));
+      const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:100px', 'aria-label': 'Calls per day' });
+      limitInputs[l.id] = { ps, unit, pd };
+      const full = l.per_day && l.used_today >= l.per_day;
+      let key;
+      if (l.secret) key = el('div', {}, keyCell(l.secret), l.id === 'coingecko' ? el('div', { style: 'margin-top:4px' }, cgPlan) : null);
+      else if (l.id === 'binance_api') key = el('span', { class: 'muted small', text: 'one read-only key per account: Wallets page' });
+      else key = el('span', { class: 'muted small', text: 'no key needed' });
+      const syncBtn = l.price_service
+        ? el('button', { class: 'btn small', type: 'button', text: 'Refresh prices', onclick: () => startJob('prices') })
+        : el('button', { class: 'btn small', type: 'button', disabled: !l.wallets, title: l.wallets ? `Sync the ${l.wallets} wallet(s) that use ${l.label}` : 'No active wallet uses this service',
+          text: l.wallets ? `Sync (${l.wallets})` : 'Sync', onclick: () => startJob('sync', { service: l.id }) });
       return el('tr', {},
-        el('td', {}, el('div', { text: info.label }), keyLinks[name] ? el('a', { class: 'small', href: keyLinks[name], target: '_blank', rel: 'noopener noreferrer', text: 'get one →' }) : null),
-        el('td', {}, info.source ? badge(info.source, 'ok') : badge('not set')),
-        el('td', { style: 'min-width:240px' }, secretInputs[name]),
-        el('td', {}, info.source && info.source !== 'env' ? el('button', { class: 'btn small danger', type: 'button', text: 'Remove', onclick: async () => {
-          try { await api.put('/api/secrets', { [name]: '' }); toast('Removed'); route(); } catch (e) { toast(e.message, true); } } }) : null));
+        el('td', {}, el('strong', { text: l.label }), el('div', { class: 'help', text: l.hint })),
+        el('td', { style: 'min-width:220px' }, key),
+        el('td', {}, el('div', { class: 'actions', style: 'flex-wrap:nowrap' }, ps, unit)),
+        el('td', {}, pd),
+        el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
+          : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
+        el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' }, syncBtn,
+          el('button', { class: 'btn small ghost', type: 'button', text: 'Default', title: `Limits: ${l.default_rate ?? '—'} per ${l.default_unit}, ${l.default_per_day ?? '—'}/day`,
+            onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } }))));
     });
-    const cgPlan = el('select', {}, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo (free)' : 'Pro (paid)', selected: s.coingecko_plan === p })));
-    const keysCard = card('API keys', badge(`stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
-      el('p', { class: 'help', text: 'Everything works without keys except Etherscan (EVM chains) and exchange accounts. Keys stay on this computer; only public addresses are sent to explorers.' }),
-      table(['Service', 'Status', 'Value', ''], keyRows),
-      el('div', { class: 'actions', style: 'margin-top:12px' }, field('CoinGecko plan', cgPlan), el('span', { style: 'flex:1' }),
-        el('button', { class: 'btn primary', type: 'button', text: 'Save keys', onclick: async () => {
-          const body = {};
-          Object.entries(secretInputs).forEach(([k, i]) => { if (i.value.trim()) body[k] = i.value.trim(); });
+    // Solana RPC URL: an alternative to the Solscan/Helius keys, without its own limit row.
+    serviceRows.splice(limits.findIndex((l) => l.id === 'solana_public') + 1, 0, el('tr', {},
+      el('td', {}, el('strong', { text: 'Solana RPC URL (advanced)' }), el('div', { class: 'help', text: 'Only for another Solana provider; counted under "Other"' })),
+      el('td', {}, keyCell('solana_rpc_url')), el('td', { class: 'muted', text: '—' }), el('td', { class: 'muted', text: '—' }), el('td'), el('td')));
+    const keysCard = card('API keys & call limits', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
+      el('p', { class: 'help', text: 'Everything works without keys except Etherscan (EVM chains), Moralis (Ronin), Solscan and exchange accounts. Keys stay on this computer; only public addresses are sent to explorers. Free plans cap calls per second or per minute, and per day: enter your plan\'s numbers in the unit it uses, and the app stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Sync" updates only the wallets that use that service.' }),
+      table(['Service', 'API key', 'Speed limit', 'Calls / day', '#Used today', ''], serviceRows),
+      el('div', { class: 'actions', style: 'margin-top:12px;justify-content:flex-end' },
+        el('button', { class: 'btn primary', type: 'button', text: 'Save keys & limits', onclick: async () => {
+          const secrets = {};
+          Object.entries(secretInputs).forEach(([k, i]) => { if (i.value.trim()) secrets[k] = i.value.trim(); });
+          const rate_limits = {};
+          Object.entries(limitInputs).forEach(([id, i]) => { rate_limits[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
           try {
-            if (Object.keys(body).length) await api.put('/api/secrets', body);
-            if (cgPlan.value !== s.coingecko_plan) await api.put('/api/settings', { coingecko_plan: cgPlan.value });
-            toast('Saved'); route();
+            if (Object.keys(secrets).length) await api.put('/api/secrets', secrets);
+            const body = { rate_limits };
+            if (cgPlan.value !== s.coingecko_plan) body.coingecko_plan = cgPlan.value;
+            await api.put('/api/settings', body);
+            toast('Keys and limits saved'); await refreshStatus(); route();
           } catch (e) { toast(e.message, true); }
         } })));
-
-    // API call limits
-    const limitInputs = {};
-    const fmtInt = (n) => new Intl.NumberFormat(locale).format(n);
-    const limitsCard = card('API call limits', el('span', { class: 'muted small', text: 'daily counters reset at 00:00 UTC' }),
-      el('p', { class: 'help', text: 'Free plans cap calls per second or per minute, and per day. Enter your plan\'s numbers in the unit it uses: the app spaces its calls accordingly and stops calling a service once its daily cap is used, until the next day. Empty = no limit.' }),
-      table(['Service', 'Speed limit', 'Calls / day', 'Used today', ''], limits.map((l) => {
-        const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:90px', 'aria-label': 'Calls' });
-        const unit = el('select', { 'aria-label': 'Per' },
-          el('option', { value: 'second', text: 'per second', selected: l.unit === 'second' }),
-          el('option', { value: 'minute', text: 'per minute', selected: l.unit === 'minute' }));
-        const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:120px' });
-        limitInputs[l.id] = { ps, unit, pd };
-        const full = l.per_day && l.used_today >= l.per_day;
-        return el('tr', {},
-          el('td', {}, el('div', { text: l.label }), el('div', { class: 'help', text: l.hint })),
-          el('td', {}, el('div', { class: 'actions' }, ps, unit)), el('td', {}, pd),
-          el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
-            : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
-          el('td', {}, el('button', { class: 'btn small ghost', type: 'button', text: 'Default',
-            title: `${l.default_rate ?? '—'} per ${l.default_unit}, ${l.default_per_day ?? '—'}/day`,
-            onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } })));
-      })),
-      el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save limits', onclick: () => {
-        const body = {};
-        Object.entries(limitInputs).forEach(([id, i]) => { body[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
-        saveSettings({ rate_limits: body });
-      } })));
 
     // Fiscal year
     const tz = el('input', { type: 'text', value: s.timezone });
@@ -688,7 +697,7 @@
       el('div', {}, 'Data folder: ', el('code', { text: state.status.data_dir })),
       el('div', {}, 'Exports folder: ', el('code', { text: state.status.exports_dir })),
       el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. Delete it to start over.' })));
-    root.replaceChildren(keysCard, limitsCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
+    root.replaceChildren(keysCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
   }
 
   // ---------------------------------------------------------------- jobs
