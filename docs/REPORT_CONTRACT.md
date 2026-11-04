@@ -10,9 +10,10 @@ files and nothing else. Columns are stable; new columns are only appended.
 
 ## Standard exports: `<data>/exports/`
 
-Rewritten after every sync, right after each fiscal-year cutoff (while the app or the scheduled
-snapshot job runs), after edits to wallets, categories and manual balances, and by
-`python3 -m cryptoledger export`. A file whose content did not change is not rewritten.
+`wallets.csv` and `transactions_YYYY.csv` are rewritten after every sync and after edits to
+wallets and categories. `balances_YYYY-MM-DD.csv` follows the year-end values, which are only
+computed on request (Recompute year-end) and right after each fiscal-year cutoff while the app
+runs. All files are also rewritten by `python3 -m cryptoledger export`. A file whose content did not change is not rewritten.
 Files exist for every completed fiscal year; the current year's transactions can be downloaded
 from the Transactions page (year-to-date).
 

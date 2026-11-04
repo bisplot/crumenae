@@ -198,6 +198,8 @@ def compute_all(ctx, prices: PriceService, log=lambda m: None) -> List[int]:
     for year in [opening] + years:
         log(f"Year-end {year}: computing balances at {ctx.calendar.iso_local(ctx.calendar.cutoff(year))}")
         compute_year(ctx, prices, year, log=log)
+    ctx.db.set_meta("yearend_stale", "")
+    ctx.db.set_meta("yearend_computed_at", str(now()))
     return years
 
 

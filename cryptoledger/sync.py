@@ -17,7 +17,7 @@ MAX_VALUATIONS_PER_RUN = 3000
 MAX_CONTRACT_LOOKUPS_PER_RUN = 25
 
 
-def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: bool = False) -> None:
+def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: bool = False) -> int:
     network = ctx.networks.get(wallet["network"])
     adapter = get_adapter(ctx, network)
     state = {} if full else ctx.sync_state(wallet["id"])
@@ -31,6 +31,9 @@ def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: b
     ledger.store_current(ctx, wallet["id"], balances, now())
     ctx.db.execute("UPDATE wallets SET last_sync_at=?, last_error=NULL WHERE id=?", (now(), wallet["id"]))
     log(f"{wallet['label']}: {added} new movements, {sum(1 for v in balances.values() if v)} assets held now")
+    if added or res.snapshots:
+        ctx.mark_yearend_stale(f"new data from {wallet['label']}")
+    return added
 
 
 def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = None,
@@ -57,15 +60,26 @@ def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = 
         lookup_unknown_tokens(ctx, prices, log)
     changed = classify.run(ctx)
     log(f"Classification: {changed} movements updated")
-    years = yearend.compute_all(ctx, prices, log)
     refresh_prices(ctx, prices, log)
     if ctx.settings.get("value_transactions"):
         value_movements(ctx, prices, log)
     write_exports(ctx, log)
     for e in prices.errors[:5]:
         log(f"price provider: {e}")
-    log(f"Done. Fiscal years {years[0]}–{years[-1]}; {errors} wallet error(s).")
-    return {"errors": errors, "years": years}
+    log(f"Done: {errors} wallet error(s).")
+    if ctx.yearend_stale():
+        log("Year-end values were not recomputed: press \"Recompute year-end\" when you are ready.")
+    return {"errors": errors}
+
+
+def recompute(ctx, log: Callable[[str], None]) -> List[int]:
+    """The "Recompute year-end" button: classification, balances and EUR values at every
+    fiscal-year cutoff, then the exports."""
+    classify.run(ctx)
+    years = yearend.compute_all(ctx, PriceService(ctx), log)
+    write_exports(ctx, log)
+    log(f"Year-end values recomputed for {years[0] - 1}–{years[-1]}.")
+    return years
 
 
 def write_exports(ctx, log: Callable[[str], None]) -> None:
@@ -115,6 +129,7 @@ def lookup_unknown_tokens(ctx, prices: PriceService, log: Callable[[str], None])
             ctx.db.execute("UPDATE assets SET coingecko_id=?, symbol=?, name=?, status='known', updated_at=?"
                            " WHERE key=? AND status='unmapped'",
                            (found["id"], found["symbol"] or a["symbol"], found["name"] or a["name"], now(), a["key"]))
+            ctx.mark_yearend_stale(f"token {found['symbol'] or a['symbol']} mapped to a price")
             log(f"Mapped token {found['symbol']} → CoinGecko '{found['id']}'")
 
 

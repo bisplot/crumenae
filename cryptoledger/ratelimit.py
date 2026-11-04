@@ -1,4 +1,4 @@
-"""Per-service API call limits: calls per second and calls per day.
+"""Per-service API call limits: calls per second (or per minute) and calls per day.
 
 Free plans usually cap both. The defaults below are conservative; set your own
 plan's numbers in Settings → API call limits. When a daily cap is reached the
@@ -14,41 +14,45 @@ from typing import Any, Dict, List, Optional
 
 from .http import HttpError
 
-# id -> label, hosts, default calls/second, default calls/day (None = no cap), hint about free plans.
+# id -> label, hosts, default rate + unit ("second" or "minute"), default calls/day (None = no cap),
+# hint about free plans.
 SERVICES: Dict[str, Dict[str, Any]] = {
     "etherscan": {"label": "Etherscan (EVM chains)", "hosts": ["api.etherscan.io"],
-                  "per_second": 3, "per_day": 100000, "hint": "Free: 3 calls/s, 100,000 calls/day"},
+                  "rate": 3, "unit": "second", "per_day": 100000, "hint": "Free: 3 calls/s, 100,000 calls/day"},
     "moralis": {"label": "Moralis (Ronin)", "hosts": ["deep-index.moralis.io"],
-                "per_second": 5, "per_day": None,
+                "rate": 5, "unit": "second", "per_day": None,
                 "hint": "Free plan is metered in compute units per day: see your Moralis dashboard"},
     "solscan": {"label": "Solscan (Solana)", "hosts": ["pro-api.solscan.io"],
-                "per_second": 15, "per_day": None,
+                "rate": 1000, "unit": "minute", "per_day": None,
                 "hint": "Lite: 1,000 calls/min, 20M compute units/month (100 per call ≈ 6,600/day)"},
     "helius": {"label": "Helius (Solana)", "hosts": ["mainnet.helius-rpc.com", "api.helius.xyz"],
-               "per_second": 10, "per_day": None, "hint": "Free: about 10 RPC calls/s; monthly credits"},
+               "rate": 10, "unit": "second", "per_day": None, "hint": "Free: about 10 RPC calls/s; monthly credits"},
     "solana_public": {"label": "Solana public RPC", "hosts": ["api.mainnet-beta.solana.com"],
-                      "per_second": 4, "per_day": None, "hint": "Public endpoint, heavily rate-limited"},
+                      "rate": 4, "unit": "second", "per_day": None, "hint": "Public endpoint, heavily rate-limited"},
     "trongrid": {"label": "TronGrid (Tron)", "hosts": ["api.trongrid.io"],
-                 "per_second": 10, "per_day": 100000, "hint": "Free with key: ~15 calls/s, 100,000/day"},
+                 "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free with key: ~15 calls/s, 100,000/day"},
     "esplora": {"label": "mempool.space / Blockstream (Bitcoin)", "hosts": ["mempool.space", "blockstream.info"],
-                "per_second": 3, "per_day": None, "hint": "Public, no key"},
+                "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "solar": {"label": "Solar API (SXP)", "hosts": ["sxp.mainnet.sh"],
-              "per_second": 2, "per_day": None, "hint": "Public, no key"},
+              "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "binance_api": {"label": "Binance account API", "hosts": ["api.binance.com"],
-                    "per_second": 5, "per_day": None, "hint": "Weight-based: 6,000/min per IP"},
+                    "rate": 5, "unit": "second", "per_day": None, "hint": "Weight-based: 6,000/min per IP"},
     "binance_data": {"label": "Binance public prices", "hosts": ["data-api.binance.vision"],
-                     "per_second": 10, "per_day": None, "hint": "Weight-based: 6,000/min per IP"},
+                     "rate": 10, "unit": "second", "per_day": None, "hint": "Weight-based: 6,000/min per IP"},
     "coingecko": {"label": "CoinGecko", "hosts": ["api.coingecko.com", "pro-api.coingecko.com"],
-                  "per_second": 0.5, "per_day": None,
+                  "rate": 30, "unit": "minute", "per_day": None,
                   "hint": "Demo: 30-100 calls/min, 10,000/month (≈330/day)"},
     "coinmarketcap": {"label": "CoinMarketCap", "hosts": ["pro-api.coinmarketcap.com"],
-                      "per_second": 0.5, "per_day": None,
+                      "rate": 30, "unit": "minute", "per_day": None,
                       "hint": "Basic: 30 calls/min, 10,000 credits/month (≈330/day)"},
     "ecb": {"label": "ECB exchange rates", "hosts": ["data-api.ecb.europa.eu"],
-            "per_second": 2, "per_day": None, "hint": "Public, no key"},
+            "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "other": {"label": "Other (custom networks, RPC URLs)", "hosts": [],
-              "per_second": 5, "per_day": None, "hint": "Any host not listed above"},
+              "rate": 5, "unit": "second", "per_day": None, "hint": "Any host not listed above"},
 }
+
+
+UNITS = {"second": 1, "minute": 60}   # seconds per unit
 
 
 class DailyLimitReached(HttpError):
@@ -79,12 +83,20 @@ class RateLimiter:
         return self._host_map.get((host or "").lower(), "other")
 
     def limits(self, service: str) -> Dict[str, Any]:
-        """Effective limits: user settings over defaults. per_second/per_day None = no limit."""
+        """Effective limits: user settings over defaults. rate/per_day None = no limit.
+        per_second is the rate converted to calls per second."""
         base = SERVICES.get(service, SERVICES["other"])
         user = (self.settings.get("rate_limits") or {}).get(service) or {}
-        per_second = user.get("per_second", base["per_second"])
+        if "rate" in user or "unit" in user:
+            rate, unit = user.get("rate", base["rate"]), user.get("unit", base["unit"])
+        elif "per_second" in user:                      # settings saved by v0.1
+            rate, unit = user["per_second"], "second"
+        else:
+            rate, unit = base["rate"], base["unit"]
+        unit = unit if unit in UNITS else "second"
         per_day = user.get("per_day", base["per_day"])
-        return {"per_second": float(per_second) if per_second else None,
+        rate = float(rate) if rate else None
+        return {"rate": rate, "unit": unit, "per_second": rate / UNITS[unit] if rate else None,
                 "per_day": int(per_day) if per_day else None}
 
     def used_today(self, service: str) -> int:
@@ -115,7 +127,7 @@ class RateLimiter:
         for sid, s in SERVICES.items():
             lim = self.limits(sid)
             out.append({"id": sid, "label": s["label"], "hint": s["hint"], "hosts": s["hosts"],
-                        "per_second": lim["per_second"], "per_day": lim["per_day"],
-                        "default_per_second": s["per_second"], "default_per_day": s["per_day"],
-                        "used_today": self.used_today(sid)})
+                        "rate": lim["rate"], "unit": lim["unit"], "per_second": lim["per_second"],
+                        "per_day": lim["per_day"], "default_rate": s["rate"], "default_unit": s["unit"],
+                        "default_per_day": s["per_day"], "used_today": self.used_today(sid)})
         return out

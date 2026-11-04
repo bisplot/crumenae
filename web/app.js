@@ -234,7 +234,9 @@
         el('div', {}, el('h2', { text: `Balances at ${isoLocal(detail.cutoff_local)}` }),
           el('div', { class: 'muted small', text: `${detail.timezone} · fiscal year ${year} · opening balances are the ${year - 1} year-end` })),
         el('div', { class: 'actions' }, tabs,
-          el('button', { class: 'btn', type: 'button', text: 'Recompute', onclick: () => startJob('recompute') }))),
+          el('button', { class: 'btn' + (st.yearend_stale ? ' attention' : ''), type: 'button', text: 'Recompute year-end', onclick: () => startJob('recompute') }))),
+      st.yearend_stale ? el('div', { class: 'flag', style: 'margin-bottom:12px',
+        text: `Out of date: ${st.yearend_stale}. Values below were computed ${st.yearend_computed_at ? 'on ' + when(st.yearend_computed_at) : 'earlier'}; press "Recompute year-end" to update them.` }) : null,
       el('div', { class: 'grid kpis' },
         kpi('Total at year-end', eur(total), incomplete ? `⚠ ${incomplete} wallet(s) incomplete` : 'all wallets valued'),
         kpi('Initial values (RW col. 7)', eur(rep.totals.initial_value_eur), 'start of year or first day held'),
@@ -300,7 +302,7 @@
     const save = async (entries) => {
       try {
         await api.put(`/api/manual/${w.wallet.id}`, { year, entries });
-        closeModal(); toast('Saved'); route();
+        closeModal(); toast('Saved. Press "Recompute year-end" to update the values'); await refreshStatus(); route();
       } catch (e) { toast(e.message, true); }
     };
     openModal(
@@ -510,8 +512,8 @@
         const upd = async (body) => {
           try {
             await api.put(`/api/assets/${encodeURIComponent(a.key)}`, body);
-            toast('Saved: recomputing year-end values');
-            await startJob('recompute');
+            toast('Saved. Press "Recompute year-end" to update year-end values');
+            await refreshStatus(); route();
           } catch (e) { toast(e.message, true); }
         };
         return el('tr', {},
@@ -533,7 +535,7 @@
   async function pageSettings(root) {
     const [cfg, nets, limits] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits')]);
     const s = cfg.settings;
-    const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); route(); } catch (e) { toast(e.message, true); } };
+    const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); await refreshStatus(); route(); } catch (e) { toast(e.message, true); } };
 
     // API keys
     const secretInputs = {};
@@ -572,23 +574,27 @@
     const limitInputs = {};
     const fmtInt = (n) => new Intl.NumberFormat(locale).format(n);
     const limitsCard = card('API call limits', el('span', { class: 'muted small', text: 'daily counters reset at 00:00 UTC' }),
-      el('p', { class: 'help', text: 'Free plans cap calls per second and per day. Set your plan\'s numbers: the app spaces its calls accordingly and stops calling a service once its daily cap is used, until the next day. Empty = no limit. 30 calls/minute = 0.5 per second.' }),
-      table(['Service', 'Calls / second', 'Calls / day', 'Used today', ''], limits.map((l) => {
-        const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.per_second ?? '', placeholder: 'no limit', style: 'width:100px' });
+      el('p', { class: 'help', text: 'Free plans cap calls per second or per minute, and per day. Enter your plan\'s numbers in the unit it uses: the app spaces its calls accordingly and stops calling a service once its daily cap is used, until the next day. Empty = no limit.' }),
+      table(['Service', 'Speed limit', 'Calls / day', 'Used today', ''], limits.map((l) => {
+        const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:90px', 'aria-label': 'Calls' });
+        const unit = el('select', { 'aria-label': 'Per' },
+          el('option', { value: 'second', text: 'per second', selected: l.unit === 'second' }),
+          el('option', { value: 'minute', text: 'per minute', selected: l.unit === 'minute' }));
         const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:120px' });
-        limitInputs[l.id] = { ps, pd };
+        limitInputs[l.id] = { ps, unit, pd };
         const full = l.per_day && l.used_today >= l.per_day;
         return el('tr', {},
           el('td', {}, el('div', { text: l.label }), el('div', { class: 'help', text: l.hint })),
-          el('td', {}, ps), el('td', {}, pd),
+          el('td', {}, el('div', { class: 'actions' }, ps, unit)), el('td', {}, pd),
           el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
             : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
-          el('td', {}, el('button', { class: 'btn small ghost', type: 'button', text: 'Default', title: `${l.default_per_second ?? '—'}/s, ${l.default_per_day ?? '—'}/day`,
-            onclick: () => { ps.value = l.default_per_second ?? ''; pd.value = l.default_per_day ?? ''; } })));
+          el('td', {}, el('button', { class: 'btn small ghost', type: 'button', text: 'Default',
+            title: `${l.default_rate ?? '—'} per ${l.default_unit}, ${l.default_per_day ?? '—'}/day`,
+            onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } })));
       })),
       el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save limits', onclick: () => {
         const body = {};
-        Object.entries(limitInputs).forEach(([id, i]) => { body[id] = { per_second: i.ps.value.trim(), per_day: i.pd.value.trim() }; });
+        Object.entries(limitInputs).forEach(([id, i]) => { body[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
         saveSettings({ rate_limits: body });
       } })));
 
@@ -695,7 +701,9 @@
     pre.textContent = job.log.join('\n');
     pre.scrollTop = pre.scrollHeight;
     $('#sync-btn').disabled = job.running;
-    $('#sync-btn').textContent = job.running ? 'Syncing…' : 'Sync now';
+    $('#recompute-btn').disabled = job.running;
+    $('#sync-btn').textContent = job.running && job.kind === 'sync' ? 'Syncing…' : 'Sync now';
+    $('#recompute-btn').textContent = job.running && job.kind === 'recompute' ? 'Recomputing…' : 'Recompute year-end';
   }
   async function startJob(kind, body) {
     try { showJob(await api.post(`/api/jobs/${kind}`, body || {})); pollJob(); } catch (e) { toast(e.message, true); }
@@ -713,6 +721,7 @@
   }
   $('#job-close').addEventListener('click', () => $('#job').classList.add('hidden'));
   $('#sync-btn').addEventListener('click', () => startJob('sync'));
+  $('#recompute-btn').addEventListener('click', () => startJob('recompute'));
 
   // ---------------------------------------------------------------- router & init
   const PAGES = {
@@ -753,6 +762,10 @@
       el('div', { text: `v${st.version} · ${st.timezone}` }),
       el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }));
     $('#banner').replaceChildren(st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
+    const rb = $('#recompute-btn');
+    rb.classList.toggle('attention', Boolean(st.yearend_stale) || !st.yearend_computed_at);
+    rb.title = st.yearend_stale ? `Out of date: ${st.yearend_stale}` : st.yearend_computed_at
+      ? `Year-end values computed ${when(st.yearend_computed_at)}` : 'Year-end values not computed yet';
     return st;
   }
 

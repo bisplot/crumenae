@@ -117,9 +117,9 @@ def update_mapping(ctx, key: str, data: Dict[str, Any]) -> Dict[str, Any]:
     if status in ("spam", "ignored"):
         ctx.db.execute("UPDATE movements SET category='spam' WHERE asset_key=? AND category_source='auto'",
                        (key,))
-    # Mapping changed: cached year-end values for this asset must be recomputed.
-    ctx.db.execute("UPDATE year_end SET price_eur=NULL, value_eur=NULL, price_source=NULL WHERE asset_key=?",
-                   (key,))
+    # Mapping changed: year-end values must be recomputed (on request) and movement
+    # values are refreshed at the next sync.
+    ctx.mark_yearend_stale(f"price mapping of {symbol} changed")
     ctx.db.execute("UPDATE movements SET price_eur=NULL, value_eur=NULL, price_source=NULL WHERE asset_key=?",
                    (key,))
     return get(ctx, key)

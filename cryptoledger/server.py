@@ -100,6 +100,8 @@ class App:
             "next_cutoff": cal.cutoff(last + 1), "next_cutoff_local": cal.iso_local(cal.cutoff(last + 1)),
             "wallets": self.ctx.db.scalar("SELECT COUNT(*) FROM wallets"),
             "exports_dir": str(exports.exports_dir(self.ctx)),
+            "yearend_stale": self.ctx.yearend_stale(),
+            "yearend_computed_at": int(self.ctx.db.get_meta("yearend_computed_at") or 0) or None,
             "job": self.jobs.current.public() if self.jobs.current else None,
         }
 
@@ -117,7 +119,7 @@ class App:
         if not isinstance(body, dict):
             raise ApiError(400, "expected an object")
         s = self.ctx.settings
-        calendar_changed = False
+        affects_yearend = []
         for key, value in body.items():
             if key not in DEFAULTS:
                 raise ApiError(400, f"unknown setting '{key}'")
@@ -128,7 +130,6 @@ class App:
                     FiscalCalendar(str(tz), str(fy))
                 except ValueError as e:
                     raise ApiError(400, str(e))
-                calendar_changed = calendar_changed or value != s.get(key)
             elif key in ("historical_price_providers", "current_price_providers"):
                 if not isinstance(value, list) or any(v not in ("binance", "coingecko", "coinmarketcap") for v in value):
                     raise ApiError(400, f"{key}: list of binance / coingecko / coinmarketcap")
@@ -169,9 +170,11 @@ class App:
                             raise ApiError(400, f"cannot override '{k}'")
                         if k in ("explorer_api", "rpc_url") and v and not str(v).startswith(("https://", "http://")):
                             raise ApiError(400, f"{nid}.{k} must be a URL")
+            if key in YEAREND_SETTINGS and value != s.get(key):
+                affects_yearend.append(key.replace("_", " "))
             s.set(key, value)
-        if calendar_changed:
-            self.ctx.db.execute("DELETE FROM year_end")
+        if affects_yearend:
+            self.ctx.mark_yearend_stale("settings changed: " + ", ".join(affects_yearend))
         return self.get_settings()
 
     def put_secrets(self, body: Any, **_: Any) -> Dict[str, Any]:
@@ -340,10 +343,7 @@ class App:
             fn = lambda log: sync.refresh_prices(ctx, PriceService(ctx), log)  # noqa: E731
         else:
             def fn(log):
-                classify.run(ctx)
-                years = yearend.compute_all(ctx, PriceService(ctx), log)
-                sync.write_exports(ctx, log)
-                return years
+                return sync.recompute(ctx, log)
         try:
             job = self.jobs.start(kind, fn)
         except RuntimeError as e:
@@ -473,8 +473,7 @@ class App:
             from .ledger import store_current
             store_current(self.ctx, w["id"], bal, now(), snapshot_source=None)
         if str(body.get("year", "")).isdigit():
-            yearend.compute_year(self.ctx, PriceService(self.ctx), int(body["year"]), [w])
-            self._year_changed(int(body["year"]))
+            self.ctx.mark_yearend_stale(f"manual balances of {w['label']} for {body['year']}")
         return self.get_manual(wid=str(w["id"]), query={})
 
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
@@ -487,8 +486,14 @@ class App:
         return self.ctx.db.query("SELECT * FROM sync_log ORDER BY id DESC LIMIT 200")
 
 
+# Settings whose change alters year-end values (they then need a recompute).
+YEAREND_SETTINGS = ("timezone", "fiscal_year_end", "first_fiscal_year", "historical_price_providers",
+                    "usd_to_eur", "snapshot_tolerance_seconds")
+
+
 def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
-    """{service: {per_second: number|null, per_day: int|null}}; empty/0 means no limit."""
+    """{service: {rate: number|null, unit: "second"|"minute", per_day: int|null}};
+    empty/0 means no limit. The v0.1 form {per_second: n} is still accepted."""
     from .ratelimit import SERVICES
     if not isinstance(value, dict):
         raise ApiError(400, "rate_limits must be an object")
@@ -497,7 +502,14 @@ def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
         if sid not in SERVICES or not isinstance(lim, dict):
             raise ApiError(400, f"unknown service '{sid}'")
         clean: Dict[str, Any] = {}
-        for k in ("per_second", "per_day"):
+        if "unit" in lim:
+            if lim["unit"] not in ("second", "minute"):
+                raise ApiError(400, f"{sid}.unit must be 'second' or 'minute'")
+            clean["unit"] = lim["unit"]
+        if "per_second" in lim and "rate" not in lim:   # v0.1 form
+            lim = dict(lim, rate=lim["per_second"])
+            clean.setdefault("unit", "second")
+        for k in ("rate", "per_day"):
             if k not in lim:
                 continue
             v = lim[k]

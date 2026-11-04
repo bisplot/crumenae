@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -296,8 +297,23 @@ class ServerTest(unittest.TestCase):
         status, body = self.call("PUT", f"/api/manual/{wid}", {"year": "2025", "entries": [{"symbol": "dot", "amount": "12,5".replace(",", ".")}]})
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["entries"][0]["asset_key"], "manual:DOT")
+        # Saving does not recompute: values are marked out of date until the button is pressed.
+        status, body = self.call("GET", "/api/status")
+        self.assertIn("Cold storage", json.loads(body)["yearend_stale"])
+        rows = yearend.rows_for_year(self.t.ctx, 2025)
+        self.assertEqual([r for r in rows if r["wallet_id"] == wid], [])
+        status, _ = self.call("POST", "/api/jobs/recompute")
+        self.assertEqual(status, 200)
+        for _ in range(100):
+            job = json.loads(self.call("GET", "/api/jobs/current")[1])
+            if not job["running"]:
+                break
+            time.sleep(0.05)
+        self.assertIsNone(job["error"])
         rows = yearend.rows_for_year(self.t.ctx, 2025)
         self.assertEqual([r["amount"] for r in rows if r["wallet_id"] == wid and r["asset_key"] == "manual:DOT"], ["12.5"])
+        status, body = self.call("GET", "/api/status")
+        self.assertIsNone(json.loads(body)["yearend_stale"])
 
 
 if __name__ == "__main__":
