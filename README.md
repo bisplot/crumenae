@@ -87,9 +87,9 @@ python3 -m pip install -r requirements-optional.txt
    |---|---|---|
    | Etherscan | Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). If your plan does not cover a chain, point it to Blockscout/Routescan in Blockchain endpoints |
    | Solana (Helius) | Solana wallets; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
+   | Tron (TronGrid) | Tron wallets (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/): about 15 calls/s, 100,000/day |
 
-   Ronin (Moralis) and Tron (TronGrid) rows appear only once you add a wallet on those
-   networks; Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
+   The Ronin (Moralis) row appears only once you add a Ronin wallet; Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
    account on the Wallets page.
 
    **Price sources** (market prices, they never read your wallets): Binance public prices and
@@ -151,6 +151,21 @@ Good to know:
   are exact, not a sum.
 - *"Helius refused the API key (401)"*: the key is wrong or was revoked. Copy it again from the
   Helius dashboard and press **Test**.
+
+### Tron with TronGrid
+
+TronGrid is the public Tron API run by the TRON network; its key is free.
+
+1. Sign up at [trongrid.io](https://www.trongrid.io/) (email, no card) and open the dashboard.
+2. Create an API key and copy it.
+3. In CryptoLedger: **Settings → Blockchain APIs → Tron (TronGrid)**, paste the key, **Save**,
+   then **Test**.
+4. Add your Tron address (starts with `T`) on the **Wallets** page and press **Sync now**.
+
+Free plan: about 15 calls per second and 100,000 per day (the defaults in the row; the
+dashboard shows your account's real limits). Without a key TronGrid may slow down or refuse
+calls. The key is sent in the `TRON-PRO-API-KEY` header; if you restrict it in the TronGrid
+dashboard, do not limit it by Origin (CryptoLedger calls from your computer, not a website).
 
 ## How year-end values are computed
 

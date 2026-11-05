@@ -569,7 +569,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/',
+      moralis_api_key: 'https://admin.moralis.com/', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra) => {
@@ -626,13 +626,13 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan and Solana; Ronin/Tron rows only once such a wallet exists.
+    // Blockchain APIs: Etherscan, Solana and Tron; the Ronin row only once such a wallet exists.
     const chainRows = [
       serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key). Free: 3 calls/s, 100,000/day.', secret: 'etherscan_api_key', testId: 'etherscan' }),
       serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
+    chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
     if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
-    if (byId.trongrid && byId.trongrid.wallets) chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', secret: 'trongrid_api_key', testId: 'trongrid' }));
     const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
       el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
       table(serviceHead, chainRows),
@@ -692,9 +692,9 @@
 
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
-    // Etherscan chains and Solana always; other blockchains only once you track a wallet on them.
-    const netRows = nets.filter((n) => ['evm', 'solana'].includes(n.adapter)
-      || (['moralis', 'tron', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
+    // Etherscan chains, Solana and Tron always; other blockchains only once you track a wallet on them.
+    const netRows = nets.filter((n) => ['evm', 'solana', 'tron'].includes(n.adapter)
+      || (['moralis', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
       const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;

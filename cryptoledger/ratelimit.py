@@ -28,7 +28,7 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     "solana_public": {"label": "Solana public RPC", "hosts": ["api.mainnet-beta.solana.com"],
                       "rate": 4, "unit": "second", "per_day": None, "hint": "Public endpoint, heavily rate-limited"},
     "trongrid": {"label": "TronGrid (Tron)", "hosts": ["api.trongrid.io"],
-                 "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free with key: ~15 calls/s, 100,000/day"},
+                 "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free key at trongrid.io: ~15 calls/s, 100,000/day; without a key calls may be refused"},
     "esplora": {"label": "mempool.space / Blockstream (Bitcoin)", "hosts": ["mempool.space", "blockstream.info"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "solar": {"label": "Solar API (SXP)", "hosts": ["sxp.mainnet.sh"],
