@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS fx_rates (
     PRIMARY KEY (currency, day)
 );
 
--- API calls made per service and UTC day (daily caps, Settings → API keys & call limits).
+-- API calls made per service and UTC day (daily caps, Settings → Blockchain APIs or Price sources).
 CREATE TABLE IF NOT EXISTS api_usage (
     service TEXT NOT NULL,
     day     TEXT NOT NULL,

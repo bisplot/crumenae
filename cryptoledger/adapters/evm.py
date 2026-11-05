@@ -44,7 +44,7 @@ class EvmAdapter(Adapter):
     def _api(self, params: Dict[str, Any]) -> Any:
         base = self.network.explorer_api
         if not base:
-            raise AdapterError(f"{self.network.name}: no explorer API configured (Settings → Networks)")
+            raise AdapterError(f"{self.network.name}: no explorer API configured (Settings → Blockchain endpoints)")
         p = dict(params)
         if self.network.chainid_param:
             p["chainid"] = self.network.chain_id

@@ -4,7 +4,7 @@ There are three levels, from no code to a new module.
 
 ## 1. An EVM chain with an Etherscan-compatible explorer: no code
 
-Settings → Networks → **Add an EVM network**: id, chain id, native symbol, explorer API URL.
+Settings → Blockchain endpoints (advanced) → **Add another EVM blockchain**: id, chain id, native symbol, explorer API URL.
 Examples of compatible APIs:
 
 | Provider | URL pattern | Notes |

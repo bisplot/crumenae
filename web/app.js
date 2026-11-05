@@ -533,22 +533,23 @@
   }
 
   async function pageSettings(root) {
-    const [cfg, nets, limits] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits')]);
+    const [cfg, nets, limits, myWallets] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits'), api.get('/api/wallets')]);
+    const usedNetworks = new Set(myWallets.map((w) => w.network));
     const s = cfg.settings;
     const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); await refreshStatus(); route(); } catch (e) { toast(e.message, true); } };
 
-    // API keys and call limits: one row per service
+    // Service rows (key + limits + Test), shared by "Blockchain APIs" and "Price sources"
     const secretInputs = {};
     const limitInputs = {};
     const fmtInt = (n) => new Intl.NumberFormat(locale).format(n);
+    const byId = Object.fromEntries(limits.map((l) => [l.id, l]));
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      solana_rpc_url: 'https://www.helius.dev/', helius_api_key: 'https://dashboard.helius.dev/',
       solscan_api_key: 'https://solscan.io/apis', moralis_api_key: 'https://admin.moralis.com/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
-    const keyCell = (name) => {
+    const keyCell = (name, extra) => {
       const info = cfg.secrets[name] || {};
       secretInputs[name] = el('input', { type: 'password', autocomplete: 'off', placeholder: info.source ? `saved (${info.source}) — type to replace` : 'paste key', style: 'width:100%;min-width:180px' });
       return el('div', { style: 'display:grid;gap:4px' },
@@ -556,9 +557,10 @@
           keyLinks[name] ? el('a', { class: 'small', href: keyLinks[name], target: '_blank', rel: 'noopener noreferrer', text: 'get one →' }) : null,
           info.source && info.source !== 'env' ? el('button', { class: 'btn small ghost danger', type: 'button', text: 'Remove', onclick: async () => {
             try { await api.put('/api/secrets', { [name]: '' }); toast('Removed'); route(); } catch (e) { toast(e.message, true); } } }) : null),
-        secretInputs[name]);
+        secretInputs[name], extra || null);
     };
-    const serviceRows = limits.map((l) => {
+    const serviceRow = ({ limitId, label, hint, secret, testId, keyNote, extra }) => {
+      const l = byId[limitId];
       const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:80px', 'aria-label': 'Calls' });
       const unit = el('select', { 'aria-label': 'Per' },
         el('option', { value: 'second', text: '/ second', selected: l.unit === 'second' }),
@@ -566,46 +568,52 @@
       const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:100px', 'aria-label': 'Calls per day' });
       limitInputs[l.id] = { ps, unit, pd };
       const full = l.per_day && l.used_today >= l.per_day;
-      let key;
-      if (l.secret) key = el('div', {}, keyCell(l.secret), l.id === 'coingecko' ? el('div', { style: 'margin-top:4px' }, cgPlan) : null);
-      else if (l.id === 'binance_api') key = el('span', { class: 'muted small', text: 'one read-only key per account: Wallets page' });
-      else key = el('span', { class: 'muted small', text: 'no key needed' });
-      const syncBtn = l.price_service
-        ? el('button', { class: 'btn small', type: 'button', text: 'Refresh prices', onclick: () => startJob('prices') })
-        : el('button', { class: 'btn small', type: 'button', disabled: !l.wallets, title: l.wallets ? `Sync the ${l.wallets} wallet(s) that use ${l.label}` : 'No active wallet uses this service',
-          text: l.wallets ? `Sync (${l.wallets})` : 'Sync', onclick: () => startJob('sync', { service: l.id }) });
+      const result = el('div', { class: 'small', style: 'max-width:260px;white-space:normal' });
+      const testBtn = el('button', { class: 'btn small', type: 'button', text: 'Test', title: 'One call to check the service and your key', onclick: async () => {
+        testBtn.disabled = true; testBtn.textContent = 'Testing…';
+        try {
+          const r = await api.post(`/api/test/${testId}`);
+          result.className = 'small ' + (r.ok ? 'pos' : 'neg');
+          result.textContent = `${r.ok ? '✓' : '✖'} ${r.message.replace(/\*\*/g, '')} (cost: ${r.cost})`;
+        } catch (e) { result.className = 'small neg'; result.textContent = '✖ ' + e.message; }
+        testBtn.disabled = false; testBtn.textContent = 'Test';
+      } });
       return el('tr', {},
-        el('td', {}, el('strong', { text: l.label }), el('div', { class: 'help', text: l.hint })),
-        el('td', { style: 'min-width:220px' }, key),
+        el('td', {}, el('strong', { text: label || l.label }), el('div', { class: 'help', text: hint || l.hint })),
+        el('td', { style: 'min-width:220px' }, secret ? keyCell(secret, extra) : el('span', { class: 'muted small', text: keyNote || 'no key needed' })),
         el('td', {}, el('div', { class: 'actions', style: 'flex-wrap:nowrap' }, ps, unit)),
         el('td', {}, pd),
         el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
           : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
-        el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' }, syncBtn,
+        el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' }, testBtn,
           el('button', { class: 'btn small ghost', type: 'button', text: 'Default', title: `Limits: ${l.default_rate ?? '—'} per ${l.default_unit}, ${l.default_per_day ?? '—'}/day`,
-            onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } }))));
-    });
-    // Solana RPC URL: an alternative to the Solscan/Helius keys, without its own limit row.
-    serviceRows.splice(limits.findIndex((l) => l.id === 'solana_public') + 1, 0, el('tr', {},
-      el('td', {}, el('strong', { text: 'Solana RPC URL (advanced)' }), el('div', { class: 'help', text: 'Only for another Solana provider; counted under "Other"' })),
-      el('td', {}, keyCell('solana_rpc_url')), el('td', { class: 'muted', text: '—' }), el('td', { class: 'muted', text: '—' }), el('td'), el('td')));
-    const keysCard = card('API keys & call limits', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
-      el('p', { class: 'help', text: 'Everything works without keys except Etherscan (EVM chains), Moralis (Ronin), Solscan and exchange accounts. Keys stay on this computer; only public addresses are sent to explorers. Free plans cap calls per second or per minute, and per day: enter your plan\'s numbers in the unit it uses, and the app stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Sync" updates only the wallets that use that service.' }),
-      table(['Service', 'API key', 'Speed limit', 'Calls / day', '#Used today', ''], serviceRows),
+            onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } })), result));
+    };
+    const serviceHead = ['Service', 'API key', 'Speed limit', 'Calls / day', '#Used today', ''];
+    const saveKeysAndLimits = async (extraSettings) => {
+      const secrets = {};
+      Object.entries(secretInputs).forEach(([k, i]) => { if (i.value.trim()) secrets[k] = i.value.trim(); });
+      const rate_limits = {};
+      Object.entries(limitInputs).forEach(([id, i]) => { rate_limits[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
+      try {
+        if (Object.keys(secrets).length) await api.put('/api/secrets', secrets);
+        await api.put('/api/settings', Object.assign({ rate_limits }, extraSettings || {}));
+        toast('Saved'); await refreshStatus(); route();
+      } catch (e) { toast(e.message, true); }
+    };
+
+    // Blockchain APIs: Etherscan and Solana; Ronin/Tron rows only once such a wallet exists.
+    const chainRows = [
+      serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key). Free: 3 calls/s, 100,000/day.', secret: 'etherscan_api_key', testId: 'etherscan' }),
+      serviceRow({ limitId: 'solscan', label: 'Solana (Solscan)', hint: 'Solscan Pro API, V2 key. Lite: 1,000 calls/min; 100 compute units per call. Without a key the slow public endpoint is used.', secret: 'solscan_api_key', testId: 'solana' }),
+    ];
+    if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
+    if (byId.trongrid && byId.trongrid.wallets) chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', secret: 'trongrid_api_key', testId: 'trongrid' }));
+    const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
+      el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
+      table(serviceHead, chainRows),
       el('div', { class: 'actions', style: 'margin-top:12px;justify-content:flex-end' },
-        el('button', { class: 'btn primary', type: 'button', text: 'Save keys & limits', onclick: async () => {
-          const secrets = {};
-          Object.entries(secretInputs).forEach(([k, i]) => { if (i.value.trim()) secrets[k] = i.value.trim(); });
-          const rate_limits = {};
-          Object.entries(limitInputs).forEach(([id, i]) => { rate_limits[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
-          try {
-            if (Object.keys(secrets).length) await api.put('/api/secrets', secrets);
-            const body = { rate_limits };
-            if (cgPlan.value !== s.coingecko_plan) body.coingecko_plan = cgPlan.value;
-            await api.put('/api/settings', body);
-            toast('Keys and limits saved'); await refreshStatus(); route();
-          } catch (e) { toast(e.message, true); }
-        } })));
+        el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveKeysAndLimits() })));
 
     // Fiscal year
     const tz = el('input', { type: 'text', value: s.timezone });
@@ -618,7 +626,7 @@
         field('First fiscal year', firstFy, 'Empty = year of your oldest transaction.')),
       el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveSettings({ timezone: tz.value.trim(), fiscal_year_end: fyEnd.value.trim(), first_fiscal_year: firstFy.value }) }))));
 
-    // Prices
+    // Price sources: market-price APIs (keys, limits, Test) and how prices are chosen
     const providers = cfg.providers;
     const orderSelects = (key) => [0, 1, 2].map((i) => el('select', {}, el('option', { value: '', text: '—' }),
       providers.map((p) => el('option', { value: p, text: p, selected: (s[key] || [])[i] === p }))));
@@ -627,15 +635,24 @@
     const fx = el('select', {}, el('option', { value: 'ecb', text: 'ECB reference rate of that day (official)', selected: s.usd_to_eur === 'ecb' }),
       el('option', { value: 'binance', text: 'Binance EUR/USDT at the same minute', selected: s.usd_to_eur === 'binance' }));
     const valueTx = el('input', { type: 'checkbox', checked: s.value_transactions });
-    const pricesCard = card('Prices in EUR', null, el('div', { class: 'form' },
-      field('Historical prices — order of providers', el('div', { class: 'actions' }, hist), 'Binance public data needs no key and has 1-minute history; CoinGecko Demo only covers the last 365 days; CoinMarketCap free has no history.'),
-      field('Current prices — order of providers', el('div', { class: 'actions' }, curr)),
-      field('USD-quoted prices to EUR', fx),
-      el('label', { class: 'check' }, valueTx, 'Value every transaction in EUR at its own time'),
-      el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveSettings({
-        historical_price_providers: [...new Set(hist.map((x) => x.value).filter(Boolean))],
-        current_price_providers: [...new Set(curr.map((x) => x.value).filter(Boolean))],
-        usd_to_eur: fx.value, value_transactions: valueTx.checked }) }))));
+    const priceRows = [
+      serviceRow({ limitId: 'binance_data', label: 'Binance public prices', hint: 'No key. 1-minute history since listing: the main source.', testId: 'binance_data' }),
+      serviceRow({ limitId: 'coingecko', label: 'CoinGecko', hint: 'Optional key. Demo: 30-100 calls/min, 10,000/month, last 365 days of history.', secret: 'coingecko_api_key', testId: 'coingecko', extra: cgPlan }),
+      serviceRow({ limitId: 'coinmarketcap', label: 'CoinMarketCap', hint: 'Optional key. Free plan: current prices only. Test is free.', secret: 'coinmarketcap_api_key', testId: 'coinmarketcap' }),
+      serviceRow({ limitId: 'ecb', label: 'ECB exchange rates', hint: 'No key. Official USD→EUR reference rate of each day.', testId: 'ecb' }),
+    ];
+    const pricesCard = card('Price sources', null,
+      el('p', { class: 'help', text: 'Market-price APIs used to value everything in EUR at the right moment. They do not read your wallets.' }),
+      table(serviceHead, priceRows),
+      el('div', { class: 'form', style: 'margin-top:14px' },
+        field('Historical prices — order of providers', el('div', { class: 'actions' }, hist), 'Binance public data needs no key and has 1-minute history; CoinGecko Demo only covers the last 365 days; CoinMarketCap free has no history.'),
+        field('Current prices — order of providers', el('div', { class: 'actions' }, curr)),
+        field('USD-quoted prices to EUR', fx),
+        el('label', { class: 'check' }, valueTx, 'Value every transaction in EUR at its own time'),
+        el('div', { class: 'actions', style: 'justify-content:flex-end' }, el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveKeysAndLimits({
+          historical_price_providers: [...new Set(hist.map((x) => x.value).filter(Boolean))],
+          current_price_providers: [...new Set(curr.map((x) => x.value).filter(Boolean))],
+          usd_to_eur: fx.value, value_transactions: valueTx.checked, coingecko_plan: cgPlan.value }) }))));
 
     // Snapshots & tax
     const auto = el('input', { type: 'checkbox', checked: s.auto_snapshot });
@@ -651,8 +668,10 @@
 
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
-    const netRows = nets.filter((n) => ['evm', 'moralis', 'tron', 'bitcoin', 'solana', 'solar'].includes(n.adapter)).map((n) => {
-      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(Solscan or Helius key, in API keys)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
+    // Etherscan chains and Solana always; other blockchains only once you track a wallet on them.
+    const netRows = nets.filter((n) => ['evm', 'solana'].includes(n.adapter)
+      || (['moralis', 'tron', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
+      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;
       const rpc = n.adapter === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
@@ -660,29 +679,29 @@
       return el('tr', {},
         el('td', {}, el('strong', { text: n.name }), el('div', { class: 'muted small', text: `${n.id} · ${n.adapter}${n.chain_id ? ' · chain ' + n.chain_id : ''}${n.builtin ? '' : ' · custom'}` })),
         el('td', { style: 'min-width:260px' }, api_),
-        el('td', { style: 'min-width:200px' }, rpc || el('span', { class: 'muted small', text: n.adapter === 'solana' ? 'set in API keys' : '—' })),
+        el('td', { style: 'min-width:200px' }, rpc || el('span', { class: 'muted small', text: '—' })),
         el('td', {}, n.builtin ? null : el('button', { class: 'btn small danger', type: 'button', text: 'Delete', onclick: async () => {
           try { await api.del(`/api/networks/${n.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); } } })));
     });
-    const netTable = table(['Network', 'Explorer API', 'Archive RPC URL', ''], netRows);
+    const netTable = table(['Blockchain', 'API address', 'Archive node URL (optional)', ''], netRows);
     const nf = {};
     ['id', 'name', 'chain_id', 'native_symbol', 'explorer_api', 'explorer_key', 'native_coingecko', 'native_binance', 'coingecko_platform', 'tx_url'].forEach((k) => { nf[k] = el('input', { type: 'text', style: 'width:100%' }); });
     nf.id.placeholder = 'gnosis'; nf.chain_id.placeholder = '100'; nf.native_symbol.placeholder = 'XDAI';
     nf.explorer_api.placeholder = 'https://api.etherscan.io/v2/api'; nf.explorer_key.placeholder = 'etherscan (secret name prefix) or empty';
     nf.tx_url.placeholder = 'https://gnosisscan.io/tx/{tx}';
-    const networksCard = card('Networks', null,
-      el('p', { class: 'help', text: 'Point any chain to another Etherscan-compatible explorer (Blockscout, Routescan…) if your Etherscan plan does not cover it. An archive RPC URL lets the app read balances at the cutoff block and cross-check the transaction history.' }),
+    const networksCard = card('Blockchain endpoints (advanced)', null,
+      el('p', { class: 'help', text: 'The address each blockchain is read from. Leave them as they are: change one only if a provider moves its address, or if your Etherscan plan does not cover a chain (then put an Etherscan-compatible explorer such as Blockscout or Routescan for that chain). Archive node URL: optional, lets the app read each balance directly at the 31/12 block to double-check the transaction history.' }),
       netTable,
-      el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save networks', onclick: async () => {
+      el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save endpoints', onclick: async () => {
         try {
           await api.put('/api/settings', { network_overrides: overrides });
           const sec = {};
           netTable.querySelectorAll('input[data-secret]').forEach((i) => { if (i.value.trim()) sec[i.dataset.secret] = i.value.trim(); });
           if (Object.keys(sec).length) await api.put('/api/secrets', sec);
-          toast('Networks saved'); route();
+          toast('Endpoints saved'); route();
         } catch (e) { toast(e.message, true); }
       } })),
-      el('h3', { style: 'margin-top:18px', text: 'Add an EVM network (no code needed)' }),
+      el('h3', { style: 'margin-top:18px', text: 'Add another EVM blockchain (no code needed)' }),
       el('div', { class: 'form', style: 'margin-top:8px' },
         el('div', { class: 'form-row' }, field('Id', nf.id), field('Name', nf.name), field('Chain id', nf.chain_id), field('Native symbol', nf.native_symbol)),
         el('div', { class: 'form-row' }, field('Explorer API URL', nf.explorer_api), field('API key name', nf.explorer_key), field('Tx link template', nf.tx_url)),
@@ -697,7 +716,7 @@
       el('div', {}, 'Data folder: ', el('code', { text: state.status.data_dir })),
       el('div', {}, 'Exports folder: ', el('code', { text: state.status.exports_dir })),
       el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. Delete it to start over.' })));
-    root.replaceChildren(keysCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), pricesCard, networksCard, about);
+    root.replaceChildren(keysCard, pricesCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), networksCard, about);
   }
 
   // ---------------------------------------------------------------- jobs

@@ -46,7 +46,9 @@ class SolscanClient:
             data = self.ctx.http.get_json(BASE + path, params, {"token": self.key})
         except HttpError as e:
             if e.status in (401, 403):
-                raise AdapterError(f"Solscan {path}: key refused or endpoint not in your plan ({e.status})")
+                raise AdapterError(f"Solscan {path}: key refused ({e.status}). Use the V2 key from Solscan → "
+                                   "API Management (not the V1 key) and check that the Pro API plan is active; "
+                                   "the Test button in Settings checks it")
             raise AdapterError(f"Solscan {path}: {e}")
         if isinstance(data, dict) and data.get("success") is False:
             err = data.get("errors") or data.get("error") or data

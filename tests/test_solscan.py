@@ -108,7 +108,7 @@ class SolscanTest(unittest.TestCase):
         self.t.http.handlers.insert(0, ("https://pro-api.solscan.io", refuse))
         with self.assertRaises(AdapterError) as cm:
             self.adapter.sync(wallet, {}, lambda m: None)
-        self.assertIn("not in your plan", str(cm.exception))
+        self.assertIn("V2 key", str(cm.exception))
 
 
 if __name__ == "__main__":
