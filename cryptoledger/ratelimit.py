@@ -19,9 +19,12 @@ from .http import HttpError
 SERVICES: Dict[str, Dict[str, Any]] = {
     "etherscan": {"label": "Etherscan (EVM chains)", "hosts": ["api.etherscan.io"],
                   "rate": 3, "unit": "second", "per_day": 100000, "hint": "Free: 3 calls/s, 100,000 calls/day"},
-    "moralis": {"label": "Moralis (BNB Smart Chain, Ronin)", "hosts": ["deep-index.moralis.io"],
+    "moralis": {"label": "Moralis (Ronin)", "hosts": ["deep-index.moralis.io"],
                 "rate": 5, "unit": "second", "per_day": None,
                 "hint": "Free plan is metered in compute units per day: see your Moralis dashboard"},
+    "nodereal": {"label": "NodeReal MegaNode (BNB Smart Chain)", "hosts": ["bsc-mainnet.nodereal.io"],
+                 "rate": 5, "unit": "second", "per_day": None,
+                 "hint": "Free key: 10M compute units/month, 150 CU/s; see your NodeReal dashboard"},
     "helius": {"label": "Helius (Solana)", "hosts": ["mainnet.helius-rpc.com", "api.helius.xyz"],
                "rate": 10, "unit": "second", "per_day": None,
                "hint": "Free: 10 RPC calls/s, monthly credits (1 credit per standard call)"},
@@ -54,7 +57,7 @@ UNITS = {"second": 1, "minute": 60}   # seconds per unit
 
 
 # API key (secret name) of each service, and services that provide prices rather than wallet data.
-SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
+SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "nodereal": "nodereal_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
              "coinmarketcap": "coinmarketcap_api_key"}
 PRICE_SERVICES = ("binance_data", "coingecko", "coinmarketcap", "ecb")
 

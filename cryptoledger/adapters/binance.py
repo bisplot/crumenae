@@ -4,9 +4,11 @@ What the API gives:
   * live balances: Spot + Funding + Simple Earn (flexible and locked);
   * daily Spot snapshots taken by Binance at 23:59:59 UTC, for the last 30 days
     only: sync in January and the 31/12 snapshot is stored;
-  * deposits and withdrawals (linked to your own on-chain wallets by tx hash).
-Trades, Convert and Earn rewards are not imported yet, so past year-end balances
-come from snapshots (scheduled, daily or manual), never from a reconstruction.
+  * deposits and withdrawals (linked to your own on-chain wallets by tx hash);
+  * Simple Earn rewards (flexible and locked), imported as movements with the
+    category "reward" and valued in EUR on the day received.
+Trades and Convert are not imported yet, so past year-end balances come from
+snapshots (scheduled, daily or manual), never from a reconstruction.
 """
 from __future__ import annotations
 
@@ -27,6 +29,8 @@ from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, Snapshot, 
 DAY_MS = 86_400_000
 WINDOW_MS = 89 * DAY_MS
 EARLIEST_MS = 1_498_867_200_000  # 2017-07-01, Binance launch
+SIMPLE_EARN_START_MS = 1_669_852_800_000  # 2022-12-01: Simple Earn (ex Savings/Staking) history
+EARN_TYPES = ("REALTIME", "BONUS", "REWARDS")   # flexible reward types
 
 
 def sign(secret: str, query: str) -> str:
@@ -36,6 +40,7 @@ def sign(secret: str, query: str) -> str:
 @register
 class BinanceAdapter(Adapter):
     id = "binance"
+    earn_pause = 0.8   # Earn history calls weigh 150 of Binance's 12,000/min: about 1 call/s
     kind = "exchange"
     needs_address = False
     has_history = False
@@ -145,8 +150,65 @@ class BinanceAdapter(Adapter):
             cursor = window_end
         log(f"{wallet['label']}: {deposits} deposits, {withdrawals} withdrawals")
         result.state["dw_since_ms"] = max(start_ms, end_ms - 2 * DAY_MS)  # re-read the last 2 days
+
+        # Simple Earn rewards (flexible and locked), in windows of at most 3 months.
+        try:
+            n = self._earn_rewards(wallet, state, result, asset, end_ms, log)
+            log(f"{wallet['label']}: {n} Simple Earn rewards")
+        except AdapterError as e:
+            result.warnings.append(f"Simple Earn rewards not read: {e}")
         result.assets = list(assets.values())
         return result
+
+    def _earn_rewards(self, wallet: Dict[str, Any], state: Dict[str, Any], result: SyncResult,
+                      asset, end_ms: int, log: Logger) -> int:
+        start_ms = int(state.get("earn_since_ms") or max(self._history_start_ms(), SIMPLE_EARN_START_MS))
+        count = 0
+        calls = 0
+
+        def pages(path: str, params: Dict[str, Any]):
+            nonlocal calls
+            current = 1
+            while True:
+                if calls and self.earn_pause:
+                    time.sleep(self.earn_pause)
+                calls += 1
+                data = self._signed(wallet, "GET", path, dict(params, current=current, size=100)) or {}
+                rows = data.get("rows") or []
+                yield from rows
+                if len(rows) < 100 or current * 100 >= int(data.get("total") or 0):
+                    return
+                current += 1
+
+        cursor = start_ms
+        while cursor < end_ms:
+            window_end = min(cursor + WINDOW_MS, end_ms)
+            for kind in EARN_TYPES:
+                for r in pages("/sapi/v1/simple-earn/flexible/history/rewardsRecord",
+                               {"type": kind, "startTime": cursor, "endTime": window_end}):
+                    amount = D(r.get("rewards"))
+                    if not amount or not r.get("asset"):
+                        continue
+                    t = int(r["time"])
+                    result.movements.append(Movement(
+                        uid=f"earn:flex:{kind}:{r['asset']}:{t}:{r.get('projectId', '')}", tx_hash="",
+                        ts=t // 1000, asset_key=asset(r["asset"]), amount=amount, kind="in",
+                        info=f"reward: Simple Earn flexible ({kind.lower()})"))
+                    count += 1
+            for r in pages("/sapi/v1/simple-earn/locked/history/rewardsRecord",
+                           {"startTime": cursor, "endTime": window_end}):
+                amount = D(r.get("amount"))
+                if not amount or not r.get("asset"):
+                    continue
+                t = int(r["time"])
+                result.movements.append(Movement(
+                    uid=f"earn:locked:{r.get('positionId', '')}:{r['asset']}:{t}", tx_hash="",
+                    ts=t // 1000, asset_key=asset(r["asset"]), amount=amount, kind="in",
+                    info=f"reward: Simple Earn locked{' ' + str(r['lockPeriod']) + ' days' if r.get('lockPeriod') else ''}"))
+                count += 1
+            cursor = window_end
+        result.state["earn_since_ms"] = max(start_ms, end_ms - 2 * DAY_MS)
+        return count
 
     def _history_start_ms(self) -> int:
         first = self.ctx.settings.get("first_fiscal_year")

@@ -25,12 +25,16 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
 - **Local-only server:** keep the Host-header check and the `X-CryptoLedger` header requirement
   on state-changing requests. Secrets are never returned by the API.
 - **No long transactions around network calls:** the DB lock is shared with the UI threads.
+- **Brand in one place:** colours, font and radii are CSS variables in `web/brand.css`; never
+  hard-code them in `web/style.css` or `web/app.js`. Logo and icons are files in `web/`. Follow
+  [docs/BRAND.md](docs/BRAND.md) (primary actions `.btn.primary`, exports `.btn.highlight`).
+  The UI makes no external requests: fonts and images are bundled.
 
 ## Layout
 
 | Path | Role |
 |---|---|
-| `cryptoledger/adapters/` | one module per API (evm, solana, tron, bitcoin, binance, manual) |
+| `cryptoledger/adapters/` | one module per API (evm, nodereal, moralis, solana, solar, tron, bitcoin, binance, manual) |
 | `cryptoledger/prices/` | Binance klines, CoinGecko, CoinMarketCap, ECB rates, demo prices |
 | `cryptoledger/ledger.py` | storing sync results, reconstructing balances |
 | `cryptoledger/yearend.py` | balance at each cutoff from the best source + cross-checks |
@@ -38,7 +42,8 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
 | `cryptoledger/exports.py` | standard exports: wallets.csv, balances_YYYY-12-31.csv, transactions_YYYY.csv |
 | `cryptoledger/server.py` | JSON API + static UI |
 | `config/*.json` | networks, known tokens, ticker map |
-| `docs/` | methodology, report contract, how to add an adapter |
+| `web/` | UI: `index.html`, `app.js`, `style.css` (layout), `brand.css` (colours, font), logo, favicons, `fonts/` |
+| `docs/` | methodology, report contract, how to add an adapter, brand guideline (`BRAND.md`, `brand/`) |
 
 ## Workflow
 

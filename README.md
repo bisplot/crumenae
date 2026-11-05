@@ -12,8 +12,8 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), Solana (Helius), Ronin (Moralis), Tron, Bitcoin, Solar (SXP),
-  Binance; manual accounts for anything else.
+  Etherscan-compatible explorer), BNB Smart Chain (NodeReal), Solana (Helius), Ronin (Moralis),
+  Tron, Bitcoin, Solar (SXP), Binance (with Simple Earn rewards); manual accounts for anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → Blockchain APIs and Price sources).
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
@@ -88,8 +88,9 @@ python3 -m pip install -r requirements-optional.txt
    | Etherscan | Ethereum, Polygon, Arbitrum (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). Base, OP and Avalanche need a paid Etherscan plan: or point them to a free explorer (Blockscout/Routescan) in Blockchain endpoints |
    | Solana (Helius) | Solana wallets; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron wallets (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/): about 15 calls/s, 100,000/day |
-   | Moralis | BNB Smart Chain (BSC) and Ronin | Yes, [moralis.com](https://moralis.com/) Starter plan (daily compute units). Etherscan's free plan no longer covers BSC |
+   | BNB Smart Chain (NodeReal) | BSC wallets (BNB and BEP-20 tokens) | Yes, [nodereal.io/meganode](https://nodereal.io/meganode): free plan, 10M compute units/month. BNB Chain's replacement for the BscScan API; Etherscan's free plan does not cover BSC |
 
+   The Ronin (Moralis) row appears only once you add a Ronin wallet (Moralis is now paid).
    Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
    account on the Wallets page.
 
@@ -132,8 +133,10 @@ rewards are income at their EUR value on the day received (which becomes their c
   Staking position. Positions are valued at the cutoff like every wallet, so they are already in
   the year-end balances, the RW and the IC.
 - **Rewards**: every movement with the category `reward`, per fiscal year, with quantity and EUR
-  value on receipt, totals per asset. On-chain rewards come from the synced history (set the
-  category on the Transactions page; **Open in Transactions** lists them). Rewards credited
+  value on receipt, totals per asset. **Binance Simple Earn** rewards (flexible and locked) are
+  imported automatically by each sync of a Binance account (history from December 2022, the
+  start of Simple Earn). On-chain rewards come from the synced history (set the category on the
+  Transactions page; **Open in Transactions** lists them). Rewards credited
   without a transaction can be typed on manual accounts (date, asset, quantity): they are
   valued in EUR at that moment and appear in `transactions_YYYY.csv` with type `reward`.
   Typed rewards do not change a manual balance: keep entering the year-end quantity.
@@ -171,6 +174,22 @@ Good to know:
   are exact, not a sum.
 - *"Helius refused the API key (401)"*: the key is wrong or was revoked. Copy it again from the
   Helius dashboard and press **Test**.
+
+### BNB Smart Chain with NodeReal
+
+The BscScan API closed in December 2025 and Etherscan's free plan does not cover BSC, so BSC is
+read through NodeReal MegaNode, the replacement recommended by BNB Chain.
+
+1. Sign up at [nodereal.io/meganode](https://nodereal.io/meganode) (free plan) and create an
+   API key for BNB Smart Chain mainnet in the dashboard.
+2. **Settings → Blockchain APIs → BNB Smart Chain (NodeReal)**: paste the key, **Save**, **Test**.
+3. Add your BSC address (0x…, the same as on Ethereum) on the **Wallets** page and **Sync now**.
+
+The app reads BNB, internal and BEP-20 transfers (`nr_getAssetTransfers`), the gas of the
+transactions you sent (one receipt each) and live balances. The free plan has 10M compute units
+per month and 150 per second; the row's speed limit defaults to 5 calls/s. Year-end balances are
+also read from chain state at the cutoff block when your plan allows archive reads, and any
+difference with the history is flagged ⛔.
 
 ### Tron with TronGrid
 
@@ -262,6 +281,13 @@ Year-end → **Write report folder** (or `python3 -m cryptoledger report 2025`) 
 
 The format is described in [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 
+## Look and brand
+
+Dark-first design in the CryptoLedger brand (Night, purples, gold; Inter), with a light theme
+from the sidebar. The whole look lives in `web/brand.css` (colours, font, radii), `web/logo.svg`
+and the favicon files: to make it your own, follow [docs/BRAND.md](docs/BRAND.md), which also
+holds the brand guideline. No code change is needed.
+
 ## Privacy and security
 
 - Everything personal lives in `data/` (git-ignored): the SQLite ledger, `secrets.json` if no
@@ -283,7 +309,8 @@ python3 -m cryptoledger --help
 
 - Tax computation (capital gains with weighted-average cost, RT quadro): the ledger and the
   categories are ready for it.
-- Binance trades/Convert/Earn import (balances come from snapshots meanwhile).
+- Binance trades/Convert import (balances come from snapshots meanwhile); rewards of ETH and
+  SOL staking (WBETH, BNSOL) accrue in the token's rate, so they are not imported as rewards.
 - Bitcoin xpub wallets, DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
 
 ## Development
@@ -293,4 +320,5 @@ python3 -m unittest discover -s tests
 ```
 
 No dependencies, no build step: Python standard library on the server, plain JavaScript in
-`web/`. Contribution notes for humans and coding agents: [AGENTS.md](AGENTS.md).
+`web/`. Contribution notes for humans and coding agents: [AGENTS.md](AGENTS.md); look and brand
+rules: [docs/BRAND.md](docs/BRAND.md).

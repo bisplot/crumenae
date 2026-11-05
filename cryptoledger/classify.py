@@ -64,6 +64,8 @@ def _category(r, own, linked, legs) -> str:
         return "fee"
     if r["status"] in ("spam", "ignored") or D(r["amount"]) == 0:
         return "spam"
+    if r["kind"] == "in" and (r["info"] or "").startswith("reward:"):
+        return "reward"   # e.g. Binance Simple Earn rewards
     cp = (r["counterparty"] or "").lower()
     if cp and cp in own.get(r["network"], ()):
         return "internal_transfer"

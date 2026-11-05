@@ -105,6 +105,17 @@ def test_moralis(ctx) -> Dict[str, Any]:
     return _result(True, f"Key accepted (API {data.get('version', '?')}).", "1 call")
 
 
+def test_nodereal(ctx) -> Dict[str, Any]:
+    key = ctx.secrets.get("nodereal_api_key")
+    if not key:
+        return _result(False, "No NodeReal key saved.", "none")
+    data = ctx.http.post_json(f"https://bsc-mainnet.nodereal.io/v1/{key}",
+                              {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
+    if not isinstance(data, dict) or data.get("error") or not data.get("result"):
+        return _result(False, f"NodeReal answered with an error: {(data or {}).get('error')}", "1 call")
+    return _result(True, f"Key accepted: BSC block {int(data['result'], 16):,}.", "1 call")
+
+
 def test_trongrid(ctx) -> Dict[str, Any]:
     key = ctx.secrets.get("trongrid_api_key")
     headers = {"TRON-PRO-API-KEY": key} if key else {}
@@ -114,7 +125,7 @@ def test_trongrid(ctx) -> Dict[str, Any]:
 
 TESTS = {"etherscan": test_etherscan, "solana": test_solana, "coingecko": test_coingecko,
          "coinmarketcap": test_coinmarketcap, "binance_data": test_binance_data, "ecb": test_ecb,
-         "moralis": test_moralis, "trongrid": test_trongrid}
+         "moralis": test_moralis, "nodereal": test_nodereal, "trongrid": test_trongrid}
 
 
 def run(ctx, service: str) -> Dict[str, Any]:

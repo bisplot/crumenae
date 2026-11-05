@@ -244,7 +244,7 @@
         kpi('IC estimate', eur(rep.totals.ic_eur), `${Number(rep.ic_rate) * 100}% × days held, where no bollo applies`)));
 
     const dl = (name, label) => el('a', { class: 'btn small', href: `/api/report/${year}/${name}` + pf(), download: '', text: label });
-    const exp = (name) => el('a', { class: 'btn small primary', href: `/api/exports/${name}` + pf(), download: '', text: name });
+    const exp = (name) => el('a', { class: 'btn small highlight', href: `/api/exports/${name}` + pf(), download: '', text: name });
     const exportsCard = card('Exports', el('span', { class: 'muted small', text: `also saved automatically in ${st.exports_dir}` }),
       el('div', { class: 'actions' }, exp(`balances_${detail.cutoff_local.slice(0, 10)}.csv`), exp(`transactions_${year}.csv`), exp('wallets.csv')),
       el('p', { class: 'help', text: 'Balances: one row per wallet and asset at the cutoff. Transactions: one row per transaction of the year, valued in EUR at its own time. Rewritten after every sync and at each year-end.' }));
@@ -328,7 +328,7 @@
     const body = el('tbody');
     const info = el('span', { class: 'muted small' });
     const more = el('button', { class: 'btn', type: 'button', text: 'Load more' });
-    const exportLink = el('a', { class: 'btn small', download: '' });
+    const exportLink = el('a', { class: 'btn small highlight', download: '' });
     const refreshExport = () => {
       const y = ySel.value || String(state.status.last_completed_year);
       exportLink.href = `/api/exports/transactions_${y}.csv` + pf();
@@ -544,7 +544,7 @@
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
 
     const list = card(`Your wallets (${wallets.length})`, el('div', { class: 'actions' },
-      el('a', { class: 'btn', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
+      el('a', { class: 'btn highlight', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
       el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') })),
       wallets.length ? table(['Wallet', 'Address', 'Portfolio', '#Slot', 'Last sync', ''], wallets.map((w) => el('tr', {},
         el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null, w.staking ? badge('staking', 'ok') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
@@ -660,7 +660,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/', helius_api_key: 'https://dashboard.helius.dev/',
+      moralis_api_key: 'https://admin.moralis.com/', nodereal_api_key: 'https://nodereal.io/meganode', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra) => {
@@ -717,13 +717,14 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan, Solana, Tron and Moralis (BSC, Ronin).
+    // Blockchain APIs: Etherscan, Solana, Tron, NodeReal (BSC); Ronin (Moralis) only once such a wallet exists.
     const chainRows = [
       serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, Polygon, Arbitrum (one key). Free: 3 calls/s, 100,000/day. Base, OP and Avalanche need a paid plan or a free explorer in Blockchain endpoints.', secret: 'etherscan_api_key', testId: 'etherscan' }),
       serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
     chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
-    chainRows.push(serviceRow({ limitId: 'moralis', label: 'BNB Smart Chain & Ronin (Moralis)', hint: 'Free key at moralis.com (Starter plan, metered in compute units per day). Etherscan\'s free plan no longer covers BSC.', secret: 'moralis_api_key', testId: 'moralis' }));
+    chainRows.push(serviceRow({ limitId: 'nodereal', label: 'BNB Smart Chain (NodeReal)', hint: 'Free key at nodereal.io (MegaNode): 10M compute units/month. BNB Chain\'s replacement for the BscScan API; Etherscan\'s free plan does not cover BSC.', secret: 'nodereal_api_key', testId: 'nodereal' }));
+    if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
     const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
       el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
       table(serviceHead, chainRows),
@@ -784,12 +785,12 @@
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
     // Etherscan chains, Solana and Tron always; other blockchains only once you track a wallet on them.
-    const netRows = nets.filter((n) => ['evm', 'solana', 'tron'].includes(n.adapter) || n.id === 'bsc'
+    const netRows = nets.filter((n) => ['evm', 'solana', 'tron', 'nodereal'].includes(n.adapter)
       || (['moralis', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
       const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;
-      const rpc = n.adapter === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
+      const rpc = ['evm', 'nodereal'].includes(n.adapter) ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
       if (rpc) rpc.dataset.secret = rpcName;
       return el('tr', {},
         el('td', {}, el('strong', { text: n.name }), el('div', { class: 'muted small', text: `${n.id} · ${n.adapter}${n.chain_id ? ' · chain ' + n.chain_id : ''}${n.builtin ? '' : ' · custom'}` })),
@@ -938,13 +939,33 @@
     catch (e) { root.replaceChildren(card('Something went wrong', null, el('p', { class: 'neg', text: e.message }))); }
   }
 
+  // ---------------------------------------------------------------- theme (dark-first, see docs/BRAND.md)
+  function applyTheme(t) {
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', cssVar('--bg'));
+  }
+  const getTheme = () => { try { return localStorage.getItem('cl.theme') || 'dark'; } catch (_) { return 'dark'; } };
+  applyTheme(getTheme());
+  function themeToggle() {
+    const t = getTheme();
+    return el('button', { class: 'btn small ghost theme-toggle', type: 'button', text: t === 'light' ? '☾ Dark theme' : '☀ Light theme',
+      onclick: () => {
+        const next = getTheme() === 'light' ? 'dark' : 'light';
+        try { localStorage.setItem('cl.theme', next); } catch (_) { /* private mode */ }
+        applyTheme(next); refreshStatus(); route();
+      } });
+  }
+
   async function refreshStatus() {
     state.status = await api.get('/api/status');
     const st = state.status;
     $('#sidebar-foot').replaceChildren(
       st.demo ? badge('DEMO DATA', 'warn') : null,
       el('div', { text: `v${st.version} · ${st.timezone}` }),
-      el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }));
+      el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }),
+      themeToggle());
     $('#banner').replaceChildren(st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
     const rb = $('#recompute-btn');
     rb.classList.toggle('attention', Boolean(st.yearend_stale) || !st.yearend_computed_at);
