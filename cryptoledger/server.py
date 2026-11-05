@@ -76,6 +76,7 @@ class App:
         r("PUT", r"/api/manual/(?P<wid>\d+)", self.put_manual)
         r("GET", r"/api/log", self.log)
         r("GET", r"/api/limits", self.limits)
+        r("POST", r"/api/test/(?P<service>[a-z_]+)", self.test_api)
 
     def _route(self, method: str, pattern: str, fn: Callable[..., Any]) -> None:
         self.routes.append((method, re.compile("^" + pattern + "$"), fn))
@@ -497,6 +498,10 @@ class App:
             r["price_service"] = r["id"] in PRICE_SERVICES
             r["wallets"] = len(users.get(r["id"], []))
         return rows
+
+    def test_api(self, service: str, **_: Any) -> Dict[str, Any]:
+        from . import apitest
+        return apitest.run(self.ctx, service)
 
     def log(self, **_: Any) -> List[Dict[str, Any]]:
         return self.ctx.db.query("SELECT * FROM sync_log ORDER BY id DESC LIMIT 200")

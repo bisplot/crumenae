@@ -1,7 +1,7 @@
 """Per-service API call limits: calls per second (or per minute) and calls per day.
 
 Free plans usually cap both. The defaults below are conservative; set your own
-plan's numbers in Settings → API keys & call limits. When a daily cap is reached the
+plan's numbers in Settings → Blockchain APIs or Price sources. When a daily cap is reached the
 app stops calling that service until the next UTC day (when most providers
 reset) and says so, instead of being blocked by the provider.
 """
@@ -68,7 +68,7 @@ class DailyLimitReached(HttpError):
     def __init__(self, service: str, limit: int, url: str):
         label = SERVICES.get(service, {}).get("label", service)
         super().__init__(429, f"daily limit of {limit:,} calls reached for {label} "
-                              "(Settings → API keys & call limits); it resets at 00:00 UTC", url)
+                              "(Settings → Blockchain APIs or Price sources); it resets at 00:00 UTC", url)
         self.service = service
 
 
@@ -110,11 +110,12 @@ class RateLimiter:
         return int(self.db.scalar("SELECT calls FROM api_usage WHERE service=? AND day=?",
                                   (service, utc_day())) or 0)
 
-    def acquire(self, host: str, url: str = "") -> str:
-        """Wait for a free slot for this host's service and count the call."""
+    def acquire(self, host: str, url: str = "", count: bool = True) -> str:
+        """Wait for a free slot for this host's service and count the call (unless count=False:
+        a call the provider does not charge, such as a free key check)."""
         service = self.service_for(host)
         lim = self.limits(service)
-        if lim["per_day"] is not None and self.used_today(service) >= lim["per_day"]:
+        if count and lim["per_day"] is not None and self.used_today(service) >= lim["per_day"]:
             raise DailyLimitReached(service, lim["per_day"], url)
         if lim["per_second"]:
             interval = 1.0 / lim["per_second"]
@@ -124,6 +125,8 @@ class RateLimiter:
                 self._next[service] = start + interval
             if start > now:
                 self._sleep(start - now)
+        if not count:
+            return service
         self.db.execute(
             "INSERT INTO api_usage(service, day, calls) VALUES(?,?,1) "
             "ON CONFLICT(service, day) DO UPDATE SET calls=calls+1", (service, utc_day()))

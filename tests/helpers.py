@@ -51,16 +51,16 @@ class FakeHttp:
                     return result
         raise HttpError(404, f"no fake for {method} {base} {merged}", url)
 
-    def get_json(self, url, params=None, headers=None):
+    def get_json(self, url, params=None, headers=None, count=True):
         return self._dispatch("GET", url, params, None)
 
     def post_json(self, url, payload, headers=None, params=None):
         return self._dispatch("POST", url, params, payload)
 
-    def get_text(self, url, params=None, headers=None):
+    def get_text(self, url, params=None, headers=None, count=True):
         return self._dispatch("GET", url, params, None)
 
-    def request(self, method, url, params=None, headers=None, body=None):
+    def request(self, method, url, params=None, headers=None, body=None, count=True):
         return json.dumps(self._dispatch(method, url, params, body)).encode("utf-8")
 
 

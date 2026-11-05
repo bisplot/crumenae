@@ -1,4 +1,4 @@
-"""Tron via TronGrid v1 (key optional: Settings → API keys → TronGrid).
+"""Tron via TronGrid v1 (key optional: Settings → Blockchain APIs → Tron).
 
 TRX transfers, TRC-10 transfers, TRC-20 transfers and fees are read from the
 account's transaction lists. Staked (frozen) TRX still belongs to you, so

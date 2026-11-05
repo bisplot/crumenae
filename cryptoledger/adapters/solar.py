@@ -1,6 +1,6 @@
 """Solar Network (SXP), an ARK Core fork, through its public REST API (no key).
 
-The API URL is editable in Settings → Networks: Solar is winding down and its
+The API URL is editable in Settings → Blockchain endpoints: Solar is winding down and its
 public endpoints may move. Amounts are in base units, 1 SXP = 100,000,000.
 
 Transfers (single or multi-recipient), burns and fees are read; other
@@ -61,7 +61,7 @@ class SolarAdapter(Adapter):
         try:
             return self.ctx.http.get_json(self.network.explorer_api.rstrip("/") + path, params)
         except HttpError as e:
-            raise AdapterError(f"Solar API: {e} (check the URL in Settings → Networks)")
+            raise AdapterError(f"Solar API: {e} (check the URL in Settings → Blockchain endpoints)")
 
     def parse_transaction(self, tx: Dict[str, Any], addr: str) -> Tuple[List[Movement], str]:
         h, ts = tx.get("id", ""), _ts(tx)

@@ -81,7 +81,9 @@ class HttpClient:
             time.sleep(wait)
 
     def request(self, method: str, url: str, params: Optional[Dict[str, Any]] = None,
-                headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None) -> bytes:
+                headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None,
+                count: bool = True) -> bytes:
+        """count=False: a call the provider does not charge (not counted against daily caps)."""
         if params:
             sep = "&" if "?" in url else "?"
             url = url + sep + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
@@ -91,7 +93,7 @@ class HttpClient:
         last_error: Optional[Exception] = None
         for attempt in range(self.retries + 1):
             if self.limiter is not None:
-                self.limiter.acquire(host, url)  # may raise DailyLimitReached: never retried
+                self.limiter.acquire(host, url, count=count)  # may raise DailyLimitReached: never retried
             else:
                 self._throttle(host)
             req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
@@ -116,8 +118,8 @@ class HttpClient:
         raise HttpError(0, f"network error: {last_error}", url)
 
     def get_json(self, url: str, params: Optional[Dict[str, Any]] = None,
-                 headers: Optional[Dict[str, str]] = None) -> Any:
-        return json.loads(self.request("GET", url, params, headers).decode("utf-8"))
+                 headers: Optional[Dict[str, str]] = None, count: bool = True) -> Any:
+        return json.loads(self.request("GET", url, params, headers, count=count).decode("utf-8"))
 
     def post_json(self, url: str, payload: Any, headers: Optional[Dict[str, str]] = None,
                   params: Optional[Dict[str, Any]] = None) -> Any:
@@ -127,8 +129,8 @@ class HttpClient:
         return json.loads(raw.decode("utf-8"))
 
     def get_text(self, url: str, params: Optional[Dict[str, Any]] = None,
-                 headers: Optional[Dict[str, str]] = None) -> str:
-        return self.request("GET", url, params, headers).decode("utf-8")
+                 headers: Optional[Dict[str, str]] = None, count: bool = True) -> str:
+        return self.request("GET", url, params, headers, count=count).decode("utf-8")
 
 
 def _retry_after(value: Optional[str]) -> Optional[float]:

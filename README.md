@@ -12,10 +12,10 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), Ronin (Moralis), Solana (Solscan or Helius), Tron, Bitcoin, Solar (SXP),
+  Etherscan-compatible explorer), Solana (Solscan), Ronin (Moralis), Tron, Bitcoin, Solar (SXP),
   Binance; manual accounts for anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
-  is never exceeded (Settings → API keys & call limits).
+  is never exceeded (Settings → Blockchain APIs and Price sources).
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
@@ -72,32 +72,31 @@ python3 -m pip install -r requirements-optional.txt
    - **Portfolio / owner** groups wallets (yours, a family member's, a client's); the dashboard filters by it.
    - **RW slot** fixes the row order in the Italian RW form.
    - **Bollo already applied**: tick it for accounts at an Italian intermediary, so no IC is estimated.
-2. **Settings → API keys & call limits**: one row per service. Only the keys you use:
+2. **Settings** has two boxes of APIs, one row per service. Each row takes the key (if any), the
+   plan's **speed limit** (per second or per minute, as your provider states it) and **calls per
+   day** (defaults are conservative free-plan values; empty = no limit). The app spaces its calls,
+   shows the calls used today, and stops calling a service once its daily cap is reached, until
+   00:00 UTC. **Test** makes one call to check the service and your key, and says what it cost:
+   only CoinMarketCap's check is free; elsewhere it counts as one call at the provider.
 
-   | Key | Needed for | Free? |
+   **Blockchain APIs** (where your wallets are read):
+
+   | Service | Needed for | Free? |
    |---|---|---|
-   | Etherscan | Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche… (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). Some chains may require a paid plan; point those to Blockscout/Routescan in Settings → Networks |
-   | Binance (per account) | Exchange balances, daily snapshots, deposits/withdrawals | Yes. Create it with **Enable Reading only** |
-   | CoinGecko | Optional: higher limits, tokens not listed on Binance | Demo key free (last 365 days of history); Pro for full history |
-   | CoinMarketCap | Optional: current prices | Free plan: current prices only |
-   | TronGrid | Optional: higher Tron limits | Yes |
-   | Solscan | Solana, if you have a Solscan Pro API plan (used first when set) | No: from Lite plan, [solscan.io/apis](https://solscan.io/apis) |
-   | Helius | Solana, free alternative to Solscan: the public endpoint is slow | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
-   | Moralis | Ronin transactions and balances | Yes, [admin.moralis.com](https://admin.moralis.com/) |
-   | Solana RPC URL | Optional, instead of Helius: any other Solana provider | Varies |
-   | Archive RPC URL (per EVM chain) | Optional: reads balances at the cutoff block to verify the history | Several free tiers |
+   | Etherscan | Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). If your plan does not cover a chain, point it to Blockscout/Routescan in Blockchain endpoints |
+   | Solana (Solscan) | Solana wallets; without a key the slow public endpoint is used | No: Pro API from Lite plan, [solscan.io/apis](https://solscan.io/apis) |
 
-   Bitcoin, Solar, Tron, Binance public prices and ECB rates need no key (Solana works without
-   one, slowly).
+   Ronin (Moralis) and Tron (TronGrid) rows appear only once you add a wallet on those
+   networks; Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
+   account on the Wallets page.
 
-   In the same row, enter your plan's speed limit (per second or per minute, as your provider
-   states it) and calls per day (defaults are conservative free-plan values; empty = no limit),
-   then **Save keys & limits**. The app spaces its calls, shows the calls used today, and stops
-   calling a service once its daily cap is reached, until 00:00 UTC. Each row's **Sync** button
-   updates only the wallets that use that service (price services have **Refresh prices**).
+   **Price sources** (market prices, they never read your wallets): Binance public prices and
+   ECB rates (no key), CoinGecko (optional key; Demo covers the last 365 days) and
+   CoinMarketCap (optional key; free plan has current prices only), plus the order in which
+   they are used and how USD prices become EUR.
 
    Solar (SXP) is winding down and its public API may move: if syncs fail, put the current URL
-   in Settings → Networks.
+   in Settings → Blockchain endpoints (advanced).
 3. Press **Sync now**. The first sync reads the whole history and can take a few minutes;
    later syncs only read what is new.
 4. Press **Recompute year-end** (top bar) to compute balances and EUR values at every
@@ -111,12 +110,14 @@ python3 -m pip install -r requirements-optional.txt
 
 ### Solana with Solscan
 
-Solscan's API needs a paid plan (Lite or higher). Helius is the free alternative; you only
-need one of the two.
+Solscan's API needs a paid plan (Lite or higher). Without a key Solana is read from the public
+Solana endpoint, which works but is slow.
 
 1. **Get a key.** Subscribe to a Solscan Pro API plan at [solscan.io/apis](https://solscan.io/apis),
-   then open your Solscan account → **API Management** and create an API key.
-2. **Add it to the app.** Settings → API keys & call limits → **Solscan (Solana)** row → paste the key.
+   then open your Solscan account → **API Management** and copy the **V2** key (the V1 key
+   listed there does not work on the endpoints the app uses).
+2. **Add it to the app.** Settings → Blockchain APIs → **Solana (Solscan)** row → paste the key →
+   **Save** → **Test**.
    It is stored in your OS keychain if `keyring` is installed, otherwise in `data/secrets.json`.
 3. **Set your plan's limits** in the same row:
    - *Speed limit*: Lite allows 1,000 calls **per minute** (the default): enter 1000 and choose
@@ -124,11 +125,10 @@ need one of the two.
    - *Calls / day*: each call costs 100 compute units. Lite includes 20 million a month, i.e.
      200,000 calls a month, about **6,600 a day**. Enter that (or your plan's figure) so the
      app never runs your plan dry.
-   - Press **Save keys & limits**.
+   - Press **Save**.
 4. **Add your Solana wallets and sync.** Wallets → network **Solana** → paste the address →
    **Add wallet** → **Sync now** → **Recompute year-end**. With a Solscan key set, Solana always
    reads from Solscan.
-   The order of preference is: Solscan key → Solana RPC URL → Helius key → public endpoint.
 5. **Check the first sync.** Compare the SOL and token balances on the Dashboard with the
    wallet's page on [solscan.io](https://solscan.io).
 
@@ -137,11 +137,11 @@ Good to know:
 - A sync reads the wallet's balance changes, its transactions (40 per call) and its transfers,
   plus two calls for the live balances. A wallet with a long history costs more calls on the
   first sync; later syncs only read what is new.
-- Switching between Solscan and Helius is safe: both produce the same entries, so nothing is
-  duplicated. To go back to Helius, remove the Solscan key in Settings → API keys & call limits.
-- *"Solscan: key refused or endpoint not in your plan"*: check that the key is copied in full
-  and that your plan includes the account endpoints (`/account/balance_change`,
-  `/account/transactions`, `/account/transfer`, `/account/detail`, `/account/token-accounts`).
+- Removing the Solscan key switches Solana back to the public endpoint; both produce the same
+  entries, so nothing is duplicated.
+- *"Solscan … key refused (401)"*: you pasted the V1 key, or the Pro API plan is not active.
+  Copy the **V2** key from API Management and press **Test**: it checks the key with Solscan's
+  `/monitor/usage` call (100 compute units) and shows what is left on your plan.
 
 ## How year-end values are computed
 
