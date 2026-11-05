@@ -19,7 +19,8 @@ To move a built-in chain to another explorer, edit its Explorer API URL in the s
 
 Add an entry to `config/networks.json` with `"adapter": "moralis"`, `"moralis_chain": "<hex chain id>"`,
 `"explorer_api": "https://deep-index.moralis.io/api/v2.2"` and `"explorer_key": "moralis"` (Ronin is
-set up this way). The same Moralis key covers every chain.
+set up this way). The same Moralis key covers every chain. Note: Moralis no longer has a
+free plan; BNB Smart Chain uses the `nodereal` adapter (NodeReal MegaNode, free key).
 
 ## 2. A token the app does not know: no code
 

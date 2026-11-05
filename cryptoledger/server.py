@@ -121,7 +121,7 @@ class App:
         secrets = {name: {"label": label, "source": self.ctx.secrets.source(name)}
                    for name, label in KNOWN_SECRETS.items()}
         for n in self.ctx.networks.all():
-            if n.adapter == "evm":
+            if n.adapter in ("evm", "nodereal"):
                 name = f"rpc_url:{n.id}"
                 secrets[name] = {"label": f"{n.name} archive RPC URL (optional)", "source": self.ctx.secrets.source(name)}
         return {"settings": self.ctx.settings.all(), "secrets": secrets, "secrets_backend": self.ctx.secrets.backend,

@@ -660,7 +660,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/', helius_api_key: 'https://dashboard.helius.dev/',
+      moralis_api_key: 'https://admin.moralis.com/', nodereal_api_key: 'https://nodereal.io/meganode', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra) => {
@@ -717,13 +717,14 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan, Solana, Tron and Moralis (BSC, Ronin).
+    // Blockchain APIs: Etherscan, Solana, Tron, NodeReal (BSC); Ronin (Moralis) only once such a wallet exists.
     const chainRows = [
       serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, Polygon, Arbitrum (one key). Free: 3 calls/s, 100,000/day. Base, OP and Avalanche need a paid plan or a free explorer in Blockchain endpoints.', secret: 'etherscan_api_key', testId: 'etherscan' }),
       serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
     chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
-    chainRows.push(serviceRow({ limitId: 'moralis', label: 'BNB Smart Chain & Ronin (Moralis)', hint: 'Free key at moralis.com (Starter plan, metered in compute units per day). Etherscan\'s free plan no longer covers BSC.', secret: 'moralis_api_key', testId: 'moralis' }));
+    chainRows.push(serviceRow({ limitId: 'nodereal', label: 'BNB Smart Chain (NodeReal)', hint: 'Free key at nodereal.io (MegaNode): 10M compute units/month. BNB Chain\'s replacement for the BscScan API; Etherscan\'s free plan does not cover BSC.', secret: 'nodereal_api_key', testId: 'nodereal' }));
+    if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
     const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
       el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
       table(serviceHead, chainRows),
@@ -784,12 +785,12 @@
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
     // Etherscan chains, Solana and Tron always; other blockchains only once you track a wallet on them.
-    const netRows = nets.filter((n) => ['evm', 'solana', 'tron'].includes(n.adapter) || n.id === 'bsc'
+    const netRows = nets.filter((n) => ['evm', 'solana', 'tron', 'nodereal'].includes(n.adapter)
       || (['moralis', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
       const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
       const rpcName = `rpc_url:${n.id}`;
-      const rpc = n.adapter === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
+      const rpc = ['evm', 'nodereal'].includes(n.adapter) ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
       if (rpc) rpc.dataset.secret = rpcName;
       return el('tr', {},
         el('td', {}, el('strong', { text: n.name }), el('div', { class: 'muted small', text: `${n.id} · ${n.adapter}${n.chain_id ? ' · chain ' + n.chain_id : ''}${n.builtin ? '' : ' · custom'}` })),

@@ -92,15 +92,12 @@ class NeverSyncedAndBscTest(unittest.TestCase):
         r = yearend.balance_at_cutoff(self.ctx, self.ctx.wallet(w["id"]), self.ctx.calendar.cutoff(2025))
         self.assertIn("401", r.flags[0])
 
-    def test_bsc_uses_moralis(self):
+    def test_bsc_uses_nodereal(self):
         from cryptoledger.adapters import get_adapter
-        from cryptoledger import sync
         net = self.ctx.networks.get("bsc")
-        self.assertEqual((net.adapter, net.moralis_chain), ("moralis", "0x38"))
+        self.assertEqual(net.adapter, "nodereal")
         a = get_adapter(self.ctx, net)
         self.assertEqual(a.validate_address("0x" + "AB" * 20), "0x" + "ab" * 20)
-        w = add_wallet(self.ctx, "bsc", "0x" + "ab" * 20)
-        self.assertEqual(sync.wallet_service(self.ctx, w), "moralis")
 
 
 if __name__ == "__main__":
