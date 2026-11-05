@@ -1,0 +1,66 @@
+/* ============================================================================
+   BRAND — the only file to edit to re-brand CryptoLedger (see docs/BRAND.md).
+   Colours, font and corner radii are CSS variables used by style.css.
+   Logo: web/logo.svg · Favicon: web/favicon.svg (+ PNGs) · Font files: web/fonts/
+   ============================================================================ */
+/* CryptoLedger brand: Night #0B0B12, Purple 900 #5B00FF, Purple 600 #8A3FFC, Purple 200 #DCCBFF,
+   Gold #D4AF37, White. Inter. Dark-first; light theme on request (sidebar toggle). */
+@font-face {
+  font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+  src: url(/fonts/inter-latin-ext-wght-normal.woff2) format("woff2-variations"), url(/fonts/inter-latin-ext-wght-normal.woff2) format("woff2");
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+  src: url(/fonts/inter-latin-wght-normal.woff2) format("woff2-variations"), url(/fonts/inter-latin-wght-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+:root {
+  /* Palette (brand guideline) */
+  --night: #0B0B12;          /* Night: page background */
+  --primary: #5B00FF;        /* Purple 900: primary actions */
+  --primary-2: #8A3FFC;      /* Purple 600: data, active states, focus */
+  --primary-light: #DCCBFF;  /* Purple 200: soft accents */
+  --highlight: #D4AF37;      /* Gold: value, exports, warnings, key highlights */
+  /* Typography */
+  --font: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  /* Semantic tokens used by style.css */
+  --bg: #0B0B12;
+  --surface: #13121E;
+  --surface-2: #1C1A2C;
+  --border: #2B2842;
+  --text: #F5F3FF;
+  --muted: #9D99B9;
+  --accent: #A46BFF;          /* links and active text: Purple 600, lifted for contrast on Night */
+  --accent-strong: #8A3FFC;
+  --accent-soft: rgba(138, 63, 252, .16);
+  --accent-text: #FFFFFF;  /* text on primary buttons */
+  --gradient: linear-gradient(90deg, var(--primary) 0%, var(--primary-2) 100%);
+  --highlight-soft: rgba(212, 175, 55, .13);
+  --pos: #34D399;
+  --neg: #FB7185;
+  --warn: #D4AF37;
+  --warn-soft: rgba(212, 175, 55, .13);
+  --err: #F87171;
+  --err-soft: rgba(248, 113, 113, .13);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 8px 24px rgba(0, 0, 0, .25);
+  --glow: 0 4px 18px rgba(91, 0, 255, .35);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --c1: #8A3FFC; --c2: #D4AF37; --c3: #DCCBFF; --c4: #34D399;
+  --c5: #60A5FA; --c6: #F472B6; --c7: #5B00FF; --c8: #64748B;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #F7F5FF; --surface: #FFFFFF; --surface-2: #F1EDFF; --border: #E4DEF7;
+  --text: #0B0B12; --muted: #6B6785; --accent: #5B00FF; --accent-strong: #5B00FF;
+  --accent-soft: rgba(91, 0, 255, .09); --highlight: #A8841C;
+  --highlight-soft: rgba(212, 175, 55, .16);
+  --pos: #0E8A55; --neg: #D1435B; --warn: #9A7714; --warn-soft: rgba(212, 175, 55, .18);
+  --err: #C62828; --err-soft: #FDECEC;
+  --shadow: 0 1px 2px rgba(11, 11, 18, .06); --glow: 0 4px 14px rgba(91, 0, 255, .25);
+  --c1: #5B00FF; --c2: #D4AF37; --c3: #8A3FFC; --c4: #0E8A55;
+  --c5: #2563EB; --c6: #DB2777; --c7: #B794FF; --c8: #94A3B8;
+  color-scheme: light;
+}
+

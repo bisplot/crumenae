@@ -244,7 +244,7 @@
         kpi('IC estimate', eur(rep.totals.ic_eur), `${Number(rep.ic_rate) * 100}% × days held, where no bollo applies`)));
 
     const dl = (name, label) => el('a', { class: 'btn small', href: `/api/report/${year}/${name}` + pf(), download: '', text: label });
-    const exp = (name) => el('a', { class: 'btn small primary', href: `/api/exports/${name}` + pf(), download: '', text: name });
+    const exp = (name) => el('a', { class: 'btn small highlight', href: `/api/exports/${name}` + pf(), download: '', text: name });
     const exportsCard = card('Exports', el('span', { class: 'muted small', text: `also saved automatically in ${st.exports_dir}` }),
       el('div', { class: 'actions' }, exp(`balances_${detail.cutoff_local.slice(0, 10)}.csv`), exp(`transactions_${year}.csv`), exp('wallets.csv')),
       el('p', { class: 'help', text: 'Balances: one row per wallet and asset at the cutoff. Transactions: one row per transaction of the year, valued in EUR at its own time. Rewritten after every sync and at each year-end.' }));
@@ -328,7 +328,7 @@
     const body = el('tbody');
     const info = el('span', { class: 'muted small' });
     const more = el('button', { class: 'btn', type: 'button', text: 'Load more' });
-    const exportLink = el('a', { class: 'btn small', download: '' });
+    const exportLink = el('a', { class: 'btn small highlight', download: '' });
     const refreshExport = () => {
       const y = ySel.value || String(state.status.last_completed_year);
       exportLink.href = `/api/exports/transactions_${y}.csv` + pf();
@@ -544,7 +544,7 @@
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
 
     const list = card(`Your wallets (${wallets.length})`, el('div', { class: 'actions' },
-      el('a', { class: 'btn', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
+      el('a', { class: 'btn highlight', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
       el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') })),
       wallets.length ? table(['Wallet', 'Address', 'Portfolio', '#Slot', 'Last sync', ''], wallets.map((w) => el('tr', {},
         el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null, w.staking ? badge('staking', 'ok') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
@@ -939,13 +939,33 @@
     catch (e) { root.replaceChildren(card('Something went wrong', null, el('p', { class: 'neg', text: e.message }))); }
   }
 
+  // ---------------------------------------------------------------- theme (dark-first, see docs/BRAND.md)
+  function applyTheme(t) {
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', cssVar('--bg'));
+  }
+  const getTheme = () => { try { return localStorage.getItem('cl.theme') || 'dark'; } catch (_) { return 'dark'; } };
+  applyTheme(getTheme());
+  function themeToggle() {
+    const t = getTheme();
+    return el('button', { class: 'btn small ghost theme-toggle', type: 'button', text: t === 'light' ? '☾ Dark theme' : '☀ Light theme',
+      onclick: () => {
+        const next = getTheme() === 'light' ? 'dark' : 'light';
+        try { localStorage.setItem('cl.theme', next); } catch (_) { /* private mode */ }
+        applyTheme(next); refreshStatus(); route();
+      } });
+  }
+
   async function refreshStatus() {
     state.status = await api.get('/api/status');
     const st = state.status;
     $('#sidebar-foot').replaceChildren(
       st.demo ? badge('DEMO DATA', 'warn') : null,
       el('div', { text: `v${st.version} · ${st.timezone}` }),
-      el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }));
+      el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }),
+      themeToggle());
     $('#banner').replaceChildren(st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
     const rb = $('#recompute-btn');
     rb.classList.toggle('attention', Boolean(st.yearend_stale) || !st.yearend_computed_at);

@@ -281,6 +281,13 @@ Year-end → **Write report folder** (or `python3 -m cryptoledger report 2025`) 
 
 The format is described in [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 
+## Look and brand
+
+Dark-first design in the CryptoLedger brand (Night, purples, gold; Inter), with a light theme
+from the sidebar. The whole look lives in `web/brand.css` (colours, font, radii), `web/logo.svg`
+and the favicon files: to make it your own, follow [docs/BRAND.md](docs/BRAND.md), which also
+holds the brand guideline. No code change is needed.
+
 ## Privacy and security
 
 - Everything personal lives in `data/` (git-ignored): the SQLite ledger, `secrets.json` if no
@@ -313,4 +320,5 @@ python3 -m unittest discover -s tests
 ```
 
 No dependencies, no build step: Python standard library on the server, plain JavaScript in
-`web/`. Contribution notes for humans and coding agents: [AGENTS.md](AGENTS.md).
+`web/`. Contribution notes for humans and coding agents: [AGENTS.md](AGENTS.md); look and brand
+rules: [docs/BRAND.md](docs/BRAND.md).
