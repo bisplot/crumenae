@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS assets (
     coingecko_id   TEXT,
     binance_symbol TEXT,
     fiat           TEXT,                  -- 'EUR', 'USD'... for fiat balances on exchanges
-    status         TEXT NOT NULL DEFAULT 'unmapped',  -- known | mapped | unmapped | spam | ignored
+    status         TEXT NOT NULL DEFAULT 'unmapped',  -- known | mapped | unmapped | spam | ignored | ghost
     updated_at     INTEGER
 );
 

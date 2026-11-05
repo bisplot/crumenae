@@ -38,7 +38,7 @@ class AssetInfo:
     coingecko_id: Optional[str] = None
     binance_symbol: Optional[str] = None
     fiat: Optional[str] = None
-    status: str = "unmapped"  # known | mapped | unmapped | spam | ignored
+    status: str = "unmapped"  # known | mapped | unmapped | spam | ignored | ghost
 
 
 @dataclass

@@ -6,7 +6,10 @@ from typing import Any, Dict, Iterable, Optional
 from .models import AssetInfo
 from .util import now
 
-USER_STATUSES = ("mapped", "spam", "ignored")
+# Statuses set by you, never overwritten by a sync. "ghost": a real token that can no longer
+# be traded (delisted, dead project): kept in balances, valued at EUR 0 when it has no market.
+USER_STATUSES = ("mapped", "spam", "ignored", "ghost")
+STATUSES = ("known", "mapped", "unmapped", "spam", "ignored", "ghost")
 
 
 def native_asset(network) -> AssetInfo:
@@ -80,8 +83,9 @@ def all_assets(ctx) -> Dict[str, Dict[str, Any]]:
 
 
 def is_priced(asset: Optional[Dict[str, Any]]) -> bool:
-    return bool(asset) and asset["status"] not in ("spam", "ignored") and bool(
-        asset.get("fiat") or asset.get("coingecko_id") or asset.get("binance_symbol"))
+    if not asset or asset["status"] in ("spam", "ignored"):
+        return False
+    return asset["status"] == "ghost" or bool(asset.get("fiat") or asset.get("coingecko_id") or asset.get("binance_symbol"))
 
 
 def is_hidden(asset: Optional[Dict[str, Any]]) -> bool:
@@ -104,7 +108,7 @@ def update_mapping(ctx, key: str, data: Dict[str, Any]) -> Dict[str, Any]:
     if not row:
         raise KeyError(f"asset {key} not found")
     status = data.get("status", row["status"])
-    if status not in ("known", "mapped", "unmapped", "spam", "ignored"):
+    if status not in STATUSES:
         raise ValueError("invalid status")
     cg = (data.get("coingecko_id", row["coingecko_id"]) or "").strip() or None
     bn = (data.get("binance_symbol", row["binance_symbol"]) or "").strip().upper() or None

@@ -41,6 +41,11 @@ the last one published on or before the date (weekends and TARGET holidays). Sta
 in USDT are treated as 1 USD and flagged. Setting: use Binance `EURUSDT` at the same minute
 instead. Fiat balances on exchanges are converted with ECB rates; EUR is 1.
 
+**Ghost tokens** (Assets page): real tokens that can no longer be traded. They stay in the
+balances; a price is still looked up through their mapping (if any) for moments when they
+traded, otherwise the value is €0 with source `ghost (no market)` and an ℹ flag instead of ⛔.
+Current values are always €0. Clear the mapping to force €0 for every date.
+
 Tokens are matched to prices by **contract address** (built-in list, then CoinGecko's contract
 lookup), never by ticker: scam tokens often copy real tickers. Unmatched tokens are not valued
 and are listed on the Assets page.

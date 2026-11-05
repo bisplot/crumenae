@@ -513,7 +513,7 @@
     const shown = rows.filter((a) => filter === 'all' ? true : filter === 'hidden' ? ['spam', 'ignored'].includes(a.status) : a.status === 'unmapped' || (a.status !== 'spam' && a.status !== 'ignored' && Number(a.held) !== 0));
     const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['hidden', 'Spam / ignored']].map(([k, l]) =>
       el('a', { class: 'tab' + (k === filter ? ' active' : ''), href: `#/assets?filter=${k}`, text: l })));
-    const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '' };
+    const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '', ghost: 'ghost' };
     const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Re-read every wallet from the start: all assets come back with their names and current balances',
       onclick: () => {
         if (!confirm('Load all assets from your wallets?\n\nEvery active wallet is synced again from the beginning of its history, so every asset comes back with its name and current balance. This uses API calls (within your limits) and can take a few minutes.')) return;
@@ -526,7 +526,7 @@
         catch (e) { toast(e.message, true); }
       } });
     root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
-      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker, or mark them as spam. "Load all" rebuilds the list from your wallets (full sync); "Clear all" empties it.' }),
+      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances, valued at the price they had while they traded and at €0 once there is no market. "Load all" rebuilds the list from your wallets (full sync); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
@@ -543,14 +543,15 @@
             a.contract ? el('div', { class: 'mono small muted', text: short(a.contract, 8, 6), title: a.contract }) : null),
           el('td', { class: 'small', text: a.network }),
           el('td', { class: 'num', text: qty(a.held) }),
-          el('td', {}, badge(a.status, statusKind[a.status])),
+          el('td', {}, badge(a.status === 'ghost' ? '👻 ghost' : a.status, statusKind[a.status])),
           el('td', {}, a.fiat ? el('span', { class: 'muted', text: 'fiat (ECB)' }) : cg),
           el('td', {}, a.fiat ? null : bn),
           el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end' },
             a.fiat ? null : el('button', { class: 'btn small primary', type: 'button', text: 'Save', onclick: () => upd({ coingecko_id: cg.value, binance_symbol: bn.value, status: a.status === 'spam' || a.status === 'ignored' ? 'unmapped' : a.status }) }),
-            ['spam', 'ignored'].includes(a.status)
+            ['spam', 'ignored', 'ghost'].includes(a.status)
               ? el('button', { class: 'btn small', type: 'button', text: 'Restore', onclick: () => upd({ status: a.coingecko_id || a.binance_symbol ? 'mapped' : 'unmapped' }) })
-              : el('button', { class: 'btn small danger', type: 'button', text: 'Spam', onclick: () => upd({ status: 'spam' }) }))));
+              : [a.fiat ? null : el('button', { class: 'btn small', type: 'button', text: 'Ghost', title: 'A real token that can no longer be traded: kept in balances, €0 when there is no market', onclick: () => upd({ status: 'ghost' }) }),
+                el('button', { class: 'btn small danger', type: 'button', text: 'Spam', onclick: () => upd({ status: 'spam' }) })])));
       }))));
   }
 
@@ -585,8 +586,8 @@
       const l = byId[limitId];
       const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:80px', 'aria-label': 'Calls' });
       const unit = el('select', { 'aria-label': 'Per' },
-        el('option', { value: 'second', text: '/ second', selected: l.unit === 'second' }),
-        el('option', { value: 'minute', text: '/ minute', selected: l.unit === 'minute' }));
+        el('option', { value: 'second', text: 'seconds', selected: l.unit === 'second' }),
+        el('option', { value: 'minute', text: 'minutes', selected: l.unit === 'minute' }));
       const pd = el('input', { type: 'text', inputmode: 'numeric', value: l.per_day ?? '', placeholder: 'no limit', style: 'width:100px', 'aria-label': 'Calls per day' });
       limitInputs[l.id] = { ps, unit, pd };
       const full = l.per_day && l.used_today >= l.per_day;

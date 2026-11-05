@@ -19,7 +19,7 @@ from . import assets as assets_mod
 from . import ledger
 from .adapters import get_adapter
 from .models import AdapterError
-from .prices import PriceService
+from .prices import GHOST_SOURCE, PriceService
 from .util import D, ZERO, dstr, now
 
 SOURCE_LABELS = {
@@ -174,6 +174,8 @@ def compute_year(ctx, prices: PriceService, year: int, wallets: Optional[List[Di
                              else "⛔ Asset not mapped to a price source (Assets page)")
             elif pr.note:
                 flags.append("🟡 " + pr.note)
+            if pr.source == GHOST_SOURCE:
+                flags.append("ℹ Ghost token: no market, valued at €0 (Assets page)")
             rows.append((year, w["id"], key, cutoff, dstr(amount), reading.source, dstr(pr.price),
                          pr.source if pr.price is not None else None, pr.price_ts, dstr(value),
                          json.dumps(flags, ensure_ascii=False), now()))
