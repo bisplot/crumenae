@@ -90,9 +90,9 @@ class RateLimiterTest(unittest.TestCase):
     def test_per_minute_spacing(self):
         clock = FakeClock()
         lim = RateLimiter(self.ctx.db, self.ctx.settings, clock=clock.clock, sleep=clock.sleep)
-        self.ctx.settings.set("rate_limits", {"solscan": {"rate": 30, "unit": "minute"}})
+        self.ctx.settings.set("rate_limits", {"helius": {"rate": 30, "unit": "minute"}})
         for _ in range(3):
-            lim.acquire("pro-api.solscan.io")
+            lim.acquire("mainnet.helius-rpc.com")
         self.assertEqual(clock.slept, [2.0, 2.0])     # 30 per minute -> one every 2 s
 
     def test_keys_are_redacted_in_errors(self):
@@ -263,12 +263,12 @@ class ServiceSyncTest(unittest.TestCase):
             by = sync.wallets_by_service(ctx)
             self.assertEqual(sorted(by["etherscan"]), sorted([eth["id"], base["id"]]))
             self.assertEqual(by["solana_public"], [sol["id"]])
-            ctx.secrets.set("solscan_api_key", "K")          # Solana now goes through Solscan
-            self.assertEqual(sync.wallets_by_service(ctx)["solscan"], [sol["id"]])
+            ctx.secrets.set("helius_api_key", "K")           # Solana now goes through Helius
+            self.assertEqual(sync.wallets_by_service(ctx)["helius"], [sol["id"]])
             app = App(ctx)
             rows = {r["id"]: r for r in app.dispatch("GET", "/api/limits", {}, None)}
             self.assertEqual((rows["etherscan"]["wallets"], rows["etherscan"]["secret"]), (2, "etherscan_api_key"))
-            self.assertEqual(rows["solscan"]["secret_source"], "file")
+            self.assertEqual(rows["helius"]["secret_source"], "file")
             self.assertTrue(rows["coingecko"]["price_service"])
             job = app.dispatch("POST", "/api/jobs/sync", {}, {"service": "etherscan"})
             self.assertEqual(job["kind"], "sync")
@@ -279,5 +279,39 @@ class ServiceSyncTest(unittest.TestCase):
                 time.sleep(0.02)
             with self.assertRaises(ApiError):
                 app.dispatch("POST", "/api/jobs/sync", {}, {"service": "trongrid"})   # no Tron wallet
+        finally:
+            t.close()
+
+
+class AssetsClearLoadTest(unittest.TestCase):
+    def test_clear_then_rebuild_from_wallets(self):
+        from decimal import Decimal as Dec
+        from cryptoledger import assets as assets_mod
+        from cryptoledger import sync
+        from cryptoledger.models import Movement, Snapshot, SyncResult
+        from cryptoledger.server import App
+        t = TempContext()
+        try:
+            ctx = t.ctx
+            man = add_wallet(ctx, "manual", "", label="Cold")
+            eth = add_wallet(ctx, "ethereum", "0x" + "a" * 40)
+            usdc = "ethereum:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+            ledger.store_sync_result(ctx, man, SyncResult(snapshots=[Snapshot(1767221999, "manual:DOT", Dec("5"), "manual")]))
+            ledger.store_sync_result(ctx, eth, SyncResult(movements=[
+                Movement("m1", "0xh", 1, "ethereum:native", Dec("1"), "in"),
+                Movement("m2", "0xh", 1, usdc, Dec("10"), "in")]))
+            ctx.db.execute("INSERT INTO assets(key, network, symbol, status) VALUES('manual:DOT','manual','DOT','spam')")
+            app = App(ctx)
+            self.assertEqual(app.dispatch("POST", "/api/assets/clear", {}, None)["cleared"], 1)
+            self.assertEqual(ctx.db.scalar("SELECT COUNT(*) FROM assets"), 0)
+            self.assertIn("cleared", ctx.yearend_stale())
+            # "Load all" = full sync; manual and on-chain assets come back from the wallets' data.
+            sync.ensure_assets(ctx, man, ctx.networks.get("manual"))
+            sync.ensure_assets(ctx, eth, ctx.networks.get("ethereum"))
+            got = {r["key"]: (r["symbol"], r["status"]) for r in ctx.db.query("SELECT * FROM assets")}
+            self.assertEqual(got["manual:DOT"], ("DOT", "known"))                 # spam mark was cleared
+            self.assertEqual(got["ethereum:native"], ("ETH", "known"))
+            self.assertEqual(got[usdc], ("USDC", "known"))
+            self.assertEqual(assets_mod.get(ctx, usdc)["coingecko_id"], "usd-coin")
         finally:
             t.close()

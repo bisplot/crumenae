@@ -111,6 +111,12 @@ th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-2); }
 td.wrap { white-space: normal; }
+/* compact tables (Transactions): one line per row */
+table.compact th, table.compact td { padding: 3px 8px; font-size: 12.5px; white-space: nowrap; }
+table.compact .mono { font-size: 12px; }
+table.compact .clip { display: inline-block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+table.compact .badge { padding: 0 6px; font-size: 11px; }
+select.mini { padding: 1px 4px; font-size: 12px; border-radius: 6px; }
 .share { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .share-bar { width: 60px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .share-bar span { display: block; height: 100%; background: var(--accent); }
@@ -214,3 +220,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .donut-wrap { grid-template-columns: 1fr; justify-items: center; }
   .donut-wrap .legend { width: 100%; }
 }
+
+/* reset */
+.card.danger-zone { border-color: var(--err); }
+.phrase { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; padding: 10px 12px;
+  background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; user-select: none; -webkit-user-select: none; }

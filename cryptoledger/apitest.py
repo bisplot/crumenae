@@ -2,8 +2,8 @@
 that the service answers and the key is accepted.
 
 Only CoinMarketCap has a test call that costs nothing (/v1/key/info). Elsewhere the
-cheapest call still counts at the provider (Etherscan: 1 call; Solscan: 100 compute
-units, and /monitor/usage also returns your usage), so it is counted here too.
+cheapest call still counts at the provider (Etherscan: 1 call; Helius: 1 credit),
+so it is counted here too.
 """
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from typing import Any, Dict, Optional
 from .http import HttpError
 
 ETHERSCAN = "https://api.etherscan.io/v2/api"
-SOLSCAN = "https://pro-api.solscan.io/v2.0"
 
 
 def _result(ok: bool, message: str, cost: str) -> Dict[str, Any]:
@@ -43,32 +42,17 @@ def test_etherscan(ctx) -> Dict[str, Any]:
 
 
 def test_solana(ctx) -> Dict[str, Any]:
-    key = ctx.secrets.get("solscan_api_key")
-    if not key:
-        net = ctx.networks.get("solana")
-        resp = ctx.http.post_json(net.rpc_url, {"jsonrpc": "2.0", "id": 1, "method": "getSlot", "params": []})
-        if "result" in resp:
-            return _result(True, f"No Solscan key: the public Solana endpoint answers (slot {resp['result']:,}). "
-                                 "It is slow; a Solscan key is recommended.", "1 call to the public endpoint")
-        return _result(False, f"Public Solana endpoint: {resp.get('error')}", "1 call")
-    cost = "100 compute units"
-    try:
-        data = ctx.http.get_json(SOLSCAN + "/monitor/usage", headers={"token": key})
-    except HttpError as e:
-        if e.status in (401, 403):
-            return _result(False, "Solscan refused the key (%d). Use the **V2** key from Solscan → API Management "
-                                  "(the V1 key does not work on these endpoints) and check that your Pro API "
-                                  "plan is active." % e.status, cost)
-        raise
-    usage = data.get("data") if isinstance(data, dict) else None
-    remaining = _first(usage, "remaining_cus", "remaining_cu", "remaining")
-    used = _first(usage, "total_requests_24h", "total_cu_24h", "used_cus", "used")
-    extra = []
-    if remaining is not None:
-        extra.append(f"compute units left: {remaining:,}" if isinstance(remaining, int) else f"left: {remaining}")
-    if used is not None:
-        extra.append(f"used: {used:,}" if isinstance(used, int) else f"used: {used}")
-    return _result(True, "Key accepted." + (" " + ", ".join(extra) + "." if extra else ""), cost)
+    from .adapters import get_adapter
+    adapter = get_adapter(ctx, ctx.networks.get("solana"))
+    url = adapter._url()
+    via_helius = "helius" in url
+    resp = ctx.http.post_json(url, {"jsonrpc": "2.0", "id": 1, "method": "getSlot", "params": []})
+    if "result" not in resp:
+        return _result(False, f"Solana RPC: {(resp.get('error') or {}).get('message') or resp}", "1 call")
+    if via_helius:
+        return _result(True, f"Helius key accepted. Current Solana slot: {resp['result']:,}.", "1 credit")
+    return _result(True, f"No Helius key: the public Solana endpoint answers (slot {resp['result']:,}). "
+                         "It is slow and rate-limited; a free Helius key is recommended.", "1 call")
 
 
 def test_coingecko(ctx) -> Dict[str, Any]:
