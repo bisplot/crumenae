@@ -357,15 +357,15 @@
     more.addEventListener('click', () => load(false));
     root.replaceChildren(card(null, null,
       el('div', { class: 'actions', style: 'margin-bottom:12px' }, wSel, ySel, cSel, qIn, el('span', { style: 'flex:1' }), info, exportLink),
-      el('div', { class: 'table-wrap' }, el('table', {},
-        el('thead', {}, el('tr', {}, ['Time (local)', 'Wallet', 'Asset', '#Amount', '#Value €', 'Category', 'Counterparty / tx'].map((h) =>
+      el('div', { class: 'table-wrap' }, el('table', { class: 'compact' },
+        el('thead', {}, el('tr', {}, ['Time (local)', 'Wallet', 'Asset', '#Amount', '#Value €', 'Category', 'Tx'].map((h) =>
           el('th', { class: h.startsWith('#') ? 'num' : '', text: h.replace('#', '') })))), body)),
       el('div', { class: 'actions', style: 'margin-top:12px' }, more)));
     await load(true);
   }
 
   function txRow(m, categories) {
-    const sel = el('select', { 'aria-label': 'Category', title: categories[m.category] || '' },
+    const sel = el('select', { class: 'mini', 'aria-label': 'Category', title: categories[m.category] || '' },
       Object.keys(categories).map((c) => el('option', { value: c, text: c + (m.category_source === 'user' && c === m.category ? ' ✎' : ''), selected: c === m.category })),
       el('option', { value: 'auto', text: '↺ automatic' }));
     sel.addEventListener('change', async () => {
@@ -373,26 +373,37 @@
       catch (e) { toast(e.message, true); }
     });
     const amount = Number(m.amount);
+    // Compact row: one line per movement; details (seconds, network, counterparty, full hash) in tooltips.
+    const time = isoLocal(m.time_local);
+    const txTitle = [m.tx_hash, m.counterparty ? `counterparty: ${m.counterparty}` : ''].filter(Boolean).join('\n');
     return el('tr', { class: m.failed ? 'muted' : '' },
-      el('td', { class: 'small', text: isoLocal(m.time_local) }),
-      el('td', {}, el('div', { text: m.wallet_label }), el('div', { class: 'muted small', text: m.network })),
-      el('td', {}, el('strong', { text: m.symbol || m.asset_key }), m.kind === 'fee' ? el('span', { class: 'muted small', text: ' fee' }) : null,
+      el('td', { class: 'mono', text: time.slice(0, 16), title: time }),
+      el('td', {}, el('span', { class: 'clip', text: m.wallet_label, title: `${m.wallet_label} · ${m.network}` })),
+      el('td', {}, el('strong', { text: m.symbol || m.asset_key }), m.kind === 'fee' ? el('span', { class: 'muted', text: ' fee' }) : null,
         m.failed ? badge('failed', 'err') : null),
       el('td', { class: 'num ' + (amount >= 0 ? 'pos' : 'neg'), text: (amount > 0 ? '+' : '') + qty(m.amount) }),
       el('td', { class: 'num', text: eur(m.value_eur), title: m.price_source || '' }),
       el('td', {}, sel),
-      el('td', { class: 'small' }, m.counterparty ? el('div', { class: 'mono', text: short(m.counterparty, 8, 6), title: m.counterparty }) : null,
-        m.tx_url ? el('a', { href: m.tx_url, target: '_blank', rel: 'noopener noreferrer', text: short(m.tx_hash, 8, 6) }) : el('span', { class: 'mono muted', text: short(m.tx_hash, 8, 6) })));
+      el('td', { class: 'mono' }, m.tx_url
+        ? el('a', { href: m.tx_url, target: '_blank', rel: 'noopener noreferrer', text: short(m.tx_hash, 6, 4), title: txTitle })
+        : el('span', { class: 'muted', text: short(m.tx_hash, 6, 4), title: txTitle })));
   }
 
   async function pageWallets(root) {
-    const [nets, wallets] = await Promise.all([api.get('/api/networks'), api.get('/api/wallets')]);
+    const [nets, wallets, cfg] = await Promise.all([api.get('/api/networks'), api.get('/api/wallets'), api.get('/api/settings')]);
     const byId = Object.fromEntries(nets.map((n) => [n.id, n]));
+    // Platforms you typed before (saved by the server when a wallet is saved): no built-in list.
+    const platformMap = new Map();
+    [...(cfg.settings.platforms || []), ...wallets.map((w) => w.platform)].forEach((p) => {
+      const v = (p || '').trim();
+      if (v && !platformMap.has(v.toLowerCase())) platformMap.set(v.toLowerCase(), v);
+    });
+    const platforms = [...platformMap.values()].sort((a, b) => a.localeCompare(b));
     const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
     const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / S… / Solana address', autocomplete: 'off', spellcheck: 'false' });
     const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
-    const platform = el('input', { type: 'text', placeholder: 'MetaMask, Ledger, Phantom, Binance…', list: 'platform-list' });
+    const platform = el('input', { type: 'text', placeholder: platforms.length ? 'choose or type a new one' : 'e.g. MetaMask, Ledger, Binance', list: 'platform-list', autocomplete: 'off' });
     const portfolios = [...new Set(wallets.map((w) => w.portfolio))];
     const portfolio = el('input', { type: 'text', value: state.portfolio || 'Personal', list: 'portfolio-list' });
     const slot = el('input', { type: 'number', min: 1, placeholder: 'optional' });
@@ -435,7 +446,7 @@
       } catch (err) { toast(err.message, true); }
     } },
     el('div', { class: 'form-row' }, field('Network', netSel), field('Label', label),
-      field('Platform', platform, 'Where it is held: the wallet app, device or exchange.')),
+      field('Platform', platform, 'Where it is held: the wallet app, device or exchange. A new name is added to the list.')),
     addrField, evmField, credField,
     el('div', { class: 'form-row' },
       field('Portfolio / owner', portfolio, 'Group wallets per person or client.'),
@@ -443,8 +454,7 @@
       el('label', { class: 'field' }, el('span', { text: 'Stamp duty' }), el('span', { class: 'check' }, bollo, 'Italian bollo already applied'),
         el('span', { class: 'help', text: 'e.g. an Italian-resident exchange: then no IC is estimated.' }))),
     el('datalist', { id: 'portfolio-list' }, portfolios.map((p) => el('option', { value: p }))),
-    el('datalist', { id: 'platform-list' }, ['MetaMask', 'Ledger', 'Trezor', 'Phantom', 'Trust Wallet', 'Exodus', 'Binance', 'Coinbase', 'Kraken']
-      .map((p) => el('option', { value: p }))),
+    el('datalist', { id: 'platform-list' }, platforms.map((p) => el('option', { value: p }))),
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
 
     const list = card(`Your wallets (${wallets.length})`, el('div', { class: 'actions' },
@@ -470,7 +480,7 @@
   function editWallet(w, net) {
     const label = el('input', { type: 'text', value: w.label });
     const portfolio = el('input', { type: 'text', value: w.portfolio });
-    const platform = el('input', { type: 'text', value: w.platform || '', placeholder: w.platform_display, list: 'platform-list' });
+    const platform = el('input', { type: 'text', value: w.platform || '', placeholder: w.platform_display, list: 'platform-list', autocomplete: 'off' });
     const slot = el('input', { type: 'number', min: 1, value: w.rw_slot ?? '' });
     const bollo = el('input', { type: 'checkbox', checked: w.bollo_applied });
     const active = el('input', { type: 'checkbox', checked: w.active });
@@ -728,8 +738,49 @@
       el('div', {}, 'Version ', el('strong', { text: state.status.version }), ` · Python ${state.status.python}`),
       el('div', {}, 'Data folder: ', el('code', { text: state.status.data_dir })),
       el('div', {}, 'Exports folder: ', el('code', { text: state.status.exports_dir })),
-      el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. Delete it to start over.' })));
-    root.replaceChildren(keysCard, pricesCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), networksCard, about);
+      el('div', { class: 'muted', text: 'Back up the data folder to keep your ledger. To start over, use Reset below.' })));
+    const resetCard = card('Reset', null,
+      el('p', { class: 'help', text: 'Delete everything and start over as after the first installation: wallets, transactions, assets, prices, year-end values, settings, API keys, exports and reports. It cannot be undone: back up the data folder first if you may need it.' }),
+      el('div', { class: 'actions' }, el('button', { class: 'btn danger', type: 'button', text: 'Reset everything…', onclick: openReset })));
+    resetCard.classList.add('danger-zone');
+    root.replaceChildren(keysCard, pricesCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), networksCard, about, resetCard);
+  }
+
+  async function openReset() {
+    let phrase;
+    try { phrase = (await api.get('/api/reset/phrase')).phrase; } catch (e) { toast(e.message, true); return; }
+    const input = el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Confirmation sentence', style: 'width:100%' });
+    const go = el('button', { class: 'btn danger', type: 'button', text: 'Delete everything', disabled: true });
+    input.addEventListener('paste', (e) => e.preventDefault());   // type it: no copy & paste
+    input.addEventListener('input', () => { go.disabled = input.value.trim() !== phrase; });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !go.disabled) go.click(); });
+    go.addEventListener('click', async () => {
+      go.disabled = true; go.textContent = 'Deleting…';
+      try {
+        const r = await api.post('/api/reset', { phrase: input.value.trim() });
+        closeModal();
+        state.portfolio = '';
+        try { localStorage.removeItem('cl.portfolio'); } catch (_) { /* private mode */ }
+        fillPortfolios([]);
+        await refreshStatus();
+        toast(r.env_secrets_left && r.env_secrets_left.length
+          ? `Everything deleted. Still set by environment variables: ${r.env_secrets_left.join(', ')}`
+          : 'Everything deleted. CryptoLedger is empty.', Boolean(r.env_secrets_left && r.env_secrets_left.length));
+        if (location.hash === '#/dashboard') route(); else location.hash = '#/dashboard';
+      } catch (e) { toast(e.message, true); go.textContent = 'Delete everything'; go.disabled = input.value.trim() !== phrase; }
+    });
+    openModal(
+      el('h2', { style: 'color:var(--err)', text: '⚠ Reset CryptoLedger' }),
+      el('p', { text: 'This permanently deletes from this computer:' }),
+      el('ul', { class: 'small', style: 'margin:0;padding-left:20px;display:grid;gap:2px' },
+        ['all wallets and accounts, with their transactions and categories', 'the asset list, price mappings and cached prices',
+          'year-end balances, snapshots and manual entries', 'all settings, API keys and call counters',
+          'the exports and reports folders'].map((t) => el('li', { text: t }))),
+      el('p', { class: 'small', text: 'It cannot be undone. To confirm, type this sentence:' }),
+      el('div', { class: 'phrase', text: phrase }),
+      input,
+      el('div', { class: 'actions', style: 'justify-content:flex-end' },
+        el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }), go));
   }
 
   // ---------------------------------------------------------------- jobs

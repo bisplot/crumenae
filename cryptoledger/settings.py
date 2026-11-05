@@ -33,6 +33,9 @@ DEFAULTS: Dict[str, Any] = {
     # API call limits per service: {"etherscan": {"per_second": 3, "per_day": 100000}}.
     # Missing values use the defaults in ratelimit.SERVICES; null or 0 = no limit.
     "rate_limits": {},
+    # Platforms offered in the wallet form (wallet app, device or exchange). Starts empty:
+    # every new platform typed on a wallet is added here.
+    "platforms": [],
 }
 
 

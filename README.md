@@ -71,6 +71,8 @@ python3 -m pip install -r requirements-optional.txt
    tick the other chains where you use it. Optional fields:
    - **Portfolio / owner** groups wallets (yours, a family member's, a client's); the dashboard filters by it.
    - **RW slot** fixes the row order in the Italian RW form.
+   - **Platform**: where the wallet is held (wallet app, device or exchange). The list starts
+     empty: each new name you type is saved and offered for the next wallets.
    - **Bollo already applied**: tick it for accounts at an Italian intermediary, so no IC is estimated.
 2. **Settings** has two boxes of APIs, one row per service. Each row takes the key (if any), the
    plan's **speed limit** (per second or per minute, as your provider states it) and **calls per
@@ -109,6 +111,17 @@ python3 -m pip install -r requirements-optional.txt
    stay); **Load all** rebuilds it from your wallets with a full sync of every wallet.
 6. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
    API cannot help, then download the report.
+7. **Transactions**: a compact list, one line per movement. Hover the time for the seconds, the
+   wallet for its network and the tx link for the full hash and the counterparty. Change the
+   category in place.
+
+### Start over
+
+Settings → **Reset** deletes everything: wallets, transactions, assets, prices, year-end values,
+settings, API keys (keychain and `data/secrets.json`), call counters, exports and reports. A
+window lists what goes and shows a random sentence; **Delete everything** is enabled only once
+you type that sentence exactly. Keys set as `CRYPTOLEDGER_…` environment variables cannot be
+removed by the app: unset them yourself. Back up `data/` first if you may need it.
 
 ### Solana with Helius
 
@@ -214,7 +227,7 @@ The format is described in [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 ## Privacy and security
 
 - Everything personal lives in `data/` (git-ignored): the SQLite ledger, `secrets.json` if no
-  keychain is available, and reports. Back it up; delete it to start over.
+  keychain is available, and reports. Back it up; Settings → Reset (or deleting it) starts over.
 - The server listens on `127.0.0.1` only, rejects foreign `Host` headers and requires a custom
   header on every change, so other websites cannot drive it.
 - API keys are never sent to the browser. Use read-only exchange keys.

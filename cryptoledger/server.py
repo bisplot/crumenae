@@ -10,7 +10,10 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+import secrets as _random
+import shutil
 import socketserver
+import threading
 import sys
 import traceback
 import urllib.parse
@@ -78,6 +81,10 @@ class App:
         r("GET", r"/api/log", self.log)
         r("GET", r"/api/limits", self.limits)
         r("POST", r"/api/test/(?P<service>[a-z_]+)", self.test_api)
+        r("GET", r"/api/reset/phrase", self.reset_phrase)
+        r("POST", r"/api/reset", self.reset)
+        self._reset_phrase: Optional[Tuple[str, float]] = None
+        self._reset_lock = threading.Lock()
 
     def _route(self, method: str, pattern: str, fn: Callable[..., Any]) -> None:
         self.routes.append((method, re.compile("^" + pattern + "$"), fn))
@@ -161,6 +168,10 @@ class App:
                 value = bool(value)
             elif key == "rate_limits":
                 value = _clean_rate_limits(value)
+            elif key == "platforms":
+                if not isinstance(value, list):
+                    raise ApiError(400, "platforms must be a list")
+                value = _merge_platforms([], value)
             elif key == "network_overrides":
                 if not isinstance(value, dict):
                     raise ApiError(400, "network_overrides must be an object")
@@ -285,6 +296,7 @@ class App:
                  c["bollo_applied"], c["active"], c["notes"], now()))
             self._save_credentials(cur.lastrowid, c["network"], body)
             created.append(cur.lastrowid)
+        self._remember_platform(cleaned[0]["platform"])
         self._wallets_changed()
         return [w for w in views.wallets(self.ctx) if w["id"] in created]
 
@@ -299,6 +311,7 @@ class App:
             (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
              w["id"]))
         self._save_credentials(w["id"], w["network"], body or {})
+        self._remember_platform(c["platform"])
         self._wallets_changed()
         return next(x for x in views.wallets(self.ctx) if x["id"] == w["id"])
 
@@ -310,6 +323,14 @@ class App:
         self.ctx.db.execute("DELETE FROM wallets WHERE id=?", (w["id"],))
         self._wallets_changed()
         return {"ok": True}
+
+    def _remember_platform(self, platform: str) -> None:
+        """A platform typed on a wallet joins the list offered in the wallet form."""
+        if platform:
+            current = self.ctx.settings.get("platforms") or []
+            merged = _merge_platforms(current, [platform])
+            if merged != current:
+                self.ctx.settings.set("platforms", merged)
 
     def _wallets_changed(self) -> None:
         """wallets.csv is rewritten whenever the list of wallets changes."""
@@ -499,6 +520,66 @@ class App:
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
         return views.dashboard(self.ctx, query.get("portfolio") or None)
 
+    # --- reset -----------------------------------------------------------------------
+    def reset_phrase(self, **_: Any) -> Dict[str, Any]:
+        """A random sentence the user must type to confirm the reset. Valid for 10 minutes."""
+        words = [_random.choice(RESET_WORDS[i]) for i in range(len(RESET_WORDS))]
+        phrase = " ".join(words)
+        with self._reset_lock:
+            self._reset_phrase = (phrase, now() + 600)
+        return {"phrase": phrase, "expires_in": 600}
+
+    def reset(self, body: Any, **_: Any) -> Dict[str, Any]:
+        """Delete everything: wallets, transactions, assets, prices, year-end values, settings,
+        API keys (keychain and data/secrets.json), exports and reports. Only the empty database
+        stays, as after the first start."""
+        if self.jobs.current and self.jobs.current.finished_at is None:
+            raise ApiError(409, "a job is running: wait for it to finish, then reset")
+        typed = str((body or {}).get("phrase") or "").strip() if isinstance(body, dict) else ""
+        with self._reset_lock:
+            expected = self._reset_phrase
+            if not expected or now() > expected[1]:
+                raise ApiError(400, "the confirmation sentence expired: open the reset window again")
+            if typed != expected[0]:
+                raise ApiError(400, "the sentence does not match")
+            self._reset_phrase = None
+        ctx = self.ctx
+        # API keys: the global ones, archive RPC URLs and the exchange keys of every wallet.
+        names = set(KNOWN_SECRETS) | {f"rpc_url:{n.id}" for n in ctx.networks.all()}
+        for w in ctx.db.query("SELECT id, network FROM wallets"):
+            try:
+                cls = ADAPTERS.get(ctx.networks.get(w["network"]).adapter)
+            except KeyError:
+                cls = None
+            for cred in set(getattr(cls, "credentials", ()) or ()) | {"api_key", "api_secret"}:
+                names.add(f"wallet:{w['id']}:{cred}")
+        for name in names:
+            ctx.secrets.delete(name)
+        try:
+            ctx.secrets.file.unlink()
+        except FileNotFoundError:
+            pass
+        env_left = sorted(n for n in KNOWN_SECRETS if ctx.secrets.source(n) == "env")
+        # Database: every table emptied; meta keeps only the schema version and the demo flag.
+        tables = [r["name"] for r in ctx.db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        with ctx.db.tx() as conn:
+            conn.execute("PRAGMA defer_foreign_keys=ON")
+            for t in tables:
+                if t == "meta":
+                    conn.execute("DELETE FROM meta WHERE key NOT IN ('schema_version', 'demo')")
+                else:
+                    conn.execute(f'DELETE FROM "{t}"')
+        try:
+            ctx.db.execute("VACUUM")  # deleted rows do not linger in the file
+        except Exception:
+            pass
+        # Files written by the app.
+        for folder in (exports.exports_dir(ctx), ctx.data_dir / "reports"):
+            shutil.rmtree(folder, ignore_errors=True)
+        ctx.log("Reset: all data deleted")
+        return {"ok": True, "env_secrets_left": env_left}
+
     def limits(self, **_: Any) -> List[Dict[str, Any]]:
         """One row per API service: its key, limits, usage today and wallets that use it."""
         from .ratelimit import PRICE_SERVICES, SECRET_OF
@@ -523,6 +604,25 @@ class App:
 # Settings whose change alters year-end values (they then need a recompute).
 YEAREND_SETTINGS = ("timezone", "fiscal_year_end", "first_fiscal_year", "historical_price_providers",
                     "usd_to_eur", "snapshot_tolerance_seconds")
+
+
+RESET_WORDS = (
+    ("amber", "silver", "quiet", "golden", "frozen", "hidden", "purple", "rapid", "gentle", "crimson", "distant", "hollow"),
+    ("falcon", "river", "harbor", "lantern", "meadow", "comet", "anchor", "orchard", "glacier", "canyon", "beacon", "willow"),
+    ("carries", "follows", "guards", "paints", "counts", "crosses", "shelters", "measures", "finds", "watches"),
+    ("seven", "twelve", "three", "eleven", "nine", "forty", "twenty", "five"),
+    ("ledgers", "pebbles", "kettles", "candles", "ribbons", "marbles", "lanterns", "compasses", "feathers", "tickets"),
+)
+
+
+def _merge_platforms(current: List[str], new: List[Any]) -> List[str]:
+    """Add platforms to the list, without duplicates (case-insensitive), sorted."""
+    out = {str(p).strip().lower(): str(p).strip()[:60] for p in current if str(p).strip()}
+    for p in new:
+        p = str(p or "").strip()[:60]
+        if p and p.lower() not in out:
+            out[p.lower()] = p
+    return sorted(out.values(), key=str.lower)
 
 
 def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
