@@ -71,6 +71,19 @@ class FiscalCalendar:
     def iso_local(self, ts: int) -> str:
         return self.local(ts).isoformat()
 
+    def parse_local(self, text: str) -> int:
+        """'YYYY-MM-DD' (noon) or 'YYYY-MM-DD HH:MM[:SS]' / 'YYYY-MM-DDTHH:MM' in local time."""
+        text = text.strip().replace("T", " ")
+        for fmt, noon in (("%Y-%m-%d %H:%M:%S", False), ("%Y-%m-%d %H:%M", False), ("%Y-%m-%d", True)):
+            try:
+                d = datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+            if noon:
+                d = d.replace(hour=12)
+            return int(d.replace(tzinfo=self.tz).timestamp())
+        raise ValueError(f"invalid local date/time '{text}'")
+
 
 def iso_utc(ts: int) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -341,7 +341,7 @@
 
     async function load(reset) {
       if (reset) { offset = 0; body.replaceChildren(); }
-      const qs = new URLSearchParams({ wallet: wSel.value, year: ySel.value, category: cSel.value, q: qIn.value, offset, limit: 200 });
+      const qs = new URLSearchParams({ wallet: wSel.value, year: ySel.value, category: cSel.options.length === 1 ? f.category : cSel.value, q: qIn.value, offset, limit: 200 });
       if (state.portfolio) qs.set('portfolio', state.portfolio);
       const data = await api.get('/api/transactions?' + qs.toString());
       categories = data.categories;
@@ -389,6 +389,89 @@
         : el('span', { class: 'muted', text: short(m.tx_hash, 6, 4), title: txTitle })));
   }
 
+  async function pageStaking(root, params) {
+    const st = state.status;
+    const year = Number(params.year) || st.last_completed_year;
+    const d = await api.get(`/api/staking?year=${year}` + pf('&'));
+    const years = [...new Set([...d.years, st.last_completed_year, st.last_completed_year + 1])].sort();
+    const tabs = el('div', { class: 'tabs' }, years.map((y) => el('a', { class: 'tab' + (y === year ? ' active' : ''), href: `#/staking?year=${y}`, text: `TY${y}` })));
+    const current = year > st.last_completed_year;
+    const head = card(null, null,
+      el('div', { class: 'card-head' },
+        el('div', {}, el('h2', { text: `Staking · TY${year}` }),
+          el('div', { class: 'muted small', text: current ? 'Fiscal year in progress: rewards so far; positions are valued at the year-end.' : `Positions valued at ${isoLocal(d.cutoff_local)}` })),
+        tabs),
+      el('div', { class: 'grid kpis' },
+        kpi(current ? 'Staked (last year-end)' : 'Staked at year-end', current ? '—' : eur(d.staked_value_eur), `${d.positions.length} position(s), included in the RW`),
+        kpi(`Rewards TY${year}`, eur(d.rewards_value_eur), d.rewards_unvalued ? `⚠ ${d.rewards_unvalued} without a price` : 'EUR value on the day received'),
+        kpi('Reward entries', String(d.rewards.length), `${d.reward_totals.length} asset(s)`)));
+
+    // Positions
+    const addPosition = () => {
+      const label = el('input', { type: 'text', placeholder: 'e.g. DOT staking' });
+      const platform = el('input', { type: 'text', placeholder: 'e.g. Ledger Live, Binance Earn, Lido' });
+      openModal(el('h2', { text: 'Add a staking position' }),
+        el('p', { class: 'help', text: 'For staking without an API (inside Ledger Live, an exchange Earn product…): a manual account marked as staking. Then enter the quantity staked at each year-end. For an on-chain stake account (e.g. a Solana stake account), add its address on the Wallets page and tick "Staking position" instead.' }),
+        el('div', { class: 'form' }, el('div', { class: 'form-row' }, field('Label', label), field('Platform', platform))),
+        el('div', { class: 'actions', style: 'justify-content:flex-end' },
+          el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }),
+          el('button', { class: 'btn primary', type: 'button', text: 'Add', onclick: async () => {
+            try {
+              await api.post('/api/wallets', { network: 'manual', label: label.value.trim() || 'Staking', platform: platform.value.trim(), staking: true, portfolio: state.portfolio || 'Personal' });
+              closeModal(); toast('Added. Enter the quantity staked at the year-end.'); route();
+            } catch (e) { toast(e.message, true); }
+          } })));
+    };
+    const posCard = card('Staking positions', el('button', { class: 'btn small primary', type: 'button', text: '+ Add position', onclick: addPosition }),
+      el('p', { class: 'help', text: 'Staked coins still belong to you: each position is part of the year-end balances, the RW and the IC like any wallet. Mark a wallet as staking with "Edit" on the Wallets page.' }),
+      d.positions.length ? table(['Position', 'Balance source', 'Held at year-end', '#Value €', 'Now', ''], d.positions.map((p) => el('tr', {},
+        el('td', {}, el('strong', { text: p.wallet.label }), el('div', { class: 'muted small', text: `${p.wallet.platform_display} · ${p.wallet.network_name}` }), flagList(p.flags)),
+        el('td', {}, p.source ? sourceBadge(p.source, p.source_label) : el('span', { class: 'muted small', text: 'not computed' })),
+        el('td', { class: 'small' }, p.assets.length ? p.assets.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol || a.asset_key}` })) : el('span', { class: 'muted', text: '—' })),
+        el('td', { class: 'num', text: p.value === null || p.value === undefined ? '—' : eur(p.value) }),
+        el('td', { class: 'small muted' }, p.current.length ? p.current.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol}` })) : '—'),
+        el('td', {}, p.manual && !current ? el('button', { class: 'btn small', type: 'button', text: p.source === 'manual' ? 'Edit balance' : 'Enter balance',
+          onclick: () => manualModal(p, year) }) : null))))
+        : el('p', { class: 'muted', text: 'No staking positions yet.' }));
+
+    // Rewards
+    const rwWallet = el('select', {}, d.manual_wallets.map((w) => el('option', { value: w.id, text: w.label + (w.staking ? '' : ' (manual)') })));
+    const rwTime = el('input', { type: 'text', placeholder: `${year}-06-30 or ${year}-06-30 14:00`, style: 'width:220px' });
+    const rwSym = el('input', { type: 'text', placeholder: 'DOT', style: 'width:80px' });
+    const rwQty = el('input', { type: 'text', inputmode: 'decimal', placeholder: '0.0', style: 'width:110px' });
+    const rwNote = el('input', { type: 'text', placeholder: 'optional' });
+    const addForm = d.manual_wallets.length ? el('div', { class: 'form', style: 'margin-top:14px' },
+      el('h3', { text: 'Add a reward received on a manual account' }),
+      el('div', { class: 'form-row' }, field('Account', rwWallet), field('Date (local)', rwTime), field('Asset', rwSym), field('Quantity', rwQty), field('Note', rwNote)),
+      el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'button', text: 'Add reward', onclick: async () => {
+        try {
+          const r = await api.post('/api/staking/rewards', { wallet_id: Number(rwWallet.value), time: rwTime.value, symbol: rwSym.value, amount: rwQty.value, note: rwNote.value });
+          toast(r.value_eur ? `Reward added: ${eur(r.value_eur)} on receipt` : 'Reward added (no EUR price yet: it is valued at the next sync)');
+          route();
+        } catch (e) { toast(e.message, true); }
+      } })))
+      : el('p', { class: 'help', style: 'margin-top:12px', text: 'To type rewards by hand, add a staking position (manual account) first.' });
+    const rewardsCard = card(`Rewards TY${year}`, el('a', { class: 'btn small', href: `#/transactions?category=reward&year=${year}`, text: 'Open in Transactions' }),
+      el('p', { class: 'help', text: 'Every movement with the category "reward", valued in EUR on the day received (that value is income and becomes the cost of the coins). On-chain rewards come from your synced history: set their category on the Transactions page. Rewards credited without a transaction (e.g. inside Ledger Live or an Earn product) can be typed here.' }),
+      d.reward_totals.length ? table(['Asset', '#Quantity', '#Value € on receipt', '#Entries'], d.reward_totals.map((t) => el('tr', {},
+        el('td', {}, el('strong', { text: t.symbol })), el('td', { class: 'num', text: qty(t.amount) }),
+        el('td', { class: 'num', text: eur(t.value_eur) }), el('td', { class: 'num', text: t.count })))) : el('p', { class: 'muted', text: 'No rewards in this fiscal year.' }),
+      d.rewards.length ? el('details', { style: 'margin-top:10px' }, el('summary', { class: 'small', text: `Show all ${d.rewards.length} entries` }),
+        table(['Time (local)', 'Wallet', 'Asset', '#Quantity', '#Value €', 'Note', ''], d.rewards.map((r) => el('tr', {},
+          el('td', { class: 'mono small', text: isoLocal(r.time_local).slice(0, 16) }),
+          el('td', { class: 'small', text: r.wallet_label }),
+          el('td', {}, el('strong', { text: r.symbol || r.asset_key })),
+          el('td', { class: 'num', text: qty(r.amount) }),
+          el('td', { class: 'num', text: eur(r.value_eur), title: r.price_source || '' }),
+          el('td', { class: 'small muted', text: r.note || (r.manual ? 'typed by hand' : '') }),
+          el('td', {}, r.manual ? el('button', { class: 'btn small ghost danger', type: 'button', text: 'Delete', onclick: async () => {
+            if (!confirm('Delete this reward?')) return;
+            try { await api.del(`/api/staking/rewards/${r.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); }
+          } }) : null))), 'compact')) : null,
+      addForm);
+    root.replaceChildren(head, posCard, rewardsCard);
+  }
+
   async function pageWallets(root) {
     const [nets, wallets, cfg] = await Promise.all([api.get('/api/networks'), api.get('/api/wallets'), api.get('/api/settings')]);
     const byId = Object.fromEntries(nets.map((n) => [n.id, n]));
@@ -408,6 +491,7 @@
     const portfolio = el('input', { type: 'text', value: state.portfolio || 'Personal', list: 'portfolio-list' });
     const slot = el('input', { type: 'number', min: 1, placeholder: 'optional' });
     const bollo = el('input', { type: 'checkbox' });
+    const stakingBox = el('input', { type: 'checkbox' });
     const evmBox = el('div', { class: 'chips' });
     const evmField = field('Also track this address on', evmBox, 'The same EVM address can hold funds on several chains: one wallet per chain is created.');
     const keyIn = el('input', { type: 'password', autocomplete: 'off' });
@@ -436,7 +520,7 @@
       if (!n) { toast('Choose a network', true); return; }
       const extra = [...evmBox.querySelectorAll('input:checked')].map((i) => i.value);
       const body = { networks: [n.id, ...(n.adapter === 'evm' ? extra : [])], address: addr.value.trim(), label: label.value.trim(),
-        portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked };
+        portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked, staking: stakingBox.checked };
       if ((n.credentials || []).length) { body.api_key = keyIn.value.trim(); body.api_secret = secretIn.value.trim(); }
       try {
         const created = await api.post('/api/wallets', body);
@@ -452,7 +536,9 @@
       field('Portfolio / owner', portfolio, 'Group wallets per person or client.'),
       field('RW slot', slot, 'Fixed row order in the tax form (optional).'),
       el('label', { class: 'field' }, el('span', { text: 'Stamp duty' }), el('span', { class: 'check' }, bollo, 'Italian bollo already applied'),
-        el('span', { class: 'help', text: 'e.g. an Italian-resident exchange: then no IC is estimated.' }))),
+        el('span', { class: 'help', text: 'e.g. an Italian-resident exchange: then no IC is estimated.' })),
+      el('label', { class: 'field' }, el('span', { text: 'Staking' }), el('span', { class: 'check' }, stakingBox, 'Staking position'),
+        el('span', { class: 'help', text: 'Listed on the Staking page, e.g. a Solana stake account or a staking account without API.' }))),
     el('datalist', { id: 'portfolio-list' }, portfolios.map((p) => el('option', { value: p }))),
     el('datalist', { id: 'platform-list' }, platforms.map((p) => el('option', { value: p }))),
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
@@ -461,7 +547,7 @@
       el('a', { class: 'btn', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
       el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') })),
       wallets.length ? table(['Wallet', 'Address', 'Portfolio', '#Slot', 'Last sync', ''], wallets.map((w) => el('tr', {},
-        el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
+        el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null, w.staking ? badge('staking', 'ok') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
         el('td', { class: 'mono small' }, w.address ? (w.address_url ? el('a', { href: w.address_url, target: '_blank', rel: 'noopener noreferrer', text: short(w.address, 8, 6), title: w.address }) : short(w.address, 8, 6)) : '—'),
         el('td', { text: w.portfolio }),
         el('td', { class: 'num', text: w.rw_slot ?? '—' }),
@@ -484,6 +570,7 @@
     const slot = el('input', { type: 'number', min: 1, value: w.rw_slot ?? '' });
     const bollo = el('input', { type: 'checkbox', checked: w.bollo_applied });
     const active = el('input', { type: 'checkbox', checked: w.active });
+    const stakingBox = el('input', { type: 'checkbox', checked: w.staking });
     const notes = el('textarea', { rows: 2 }, w.notes || '');
     const creds = {};
     const credFields = ((net && net.credentials) || []).map((c) => {
@@ -496,12 +583,13 @@
         el('div', { class: 'form-row' }, field('Portfolio / owner', portfolio), field('RW slot', slot)),
         el('label', { class: 'check' }, bollo, 'Italian bollo already applied (no IC)'),
         el('label', { class: 'check' }, active, 'Active (included in syncs)'),
+        el('label', { class: 'check' }, stakingBox, 'Staking position (listed on the Staking page)'),
         credFields.length ? el('div', { class: 'form-row' }, credFields) : null,
         field('Notes', notes)),
       el('div', { class: 'actions', style: 'justify-content:flex-end' },
         el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }),
         el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: async () => {
-          const body = { label: label.value, portfolio: portfolio.value, platform: platform.value, rw_slot: slot.value, bollo_applied: bollo.checked, active: active.checked, notes: notes.value };
+          const body = { label: label.value, portfolio: portfolio.value, platform: platform.value, rw_slot: slot.value, bollo_applied: bollo.checked, active: active.checked, staking: stakingBox.checked, notes: notes.value };
           Object.entries(creds).forEach(([k, i]) => { if (i.value.trim()) body[k] = i.value.trim(); });
           try { await api.put(`/api/wallets/${w.id}`, body); closeModal(); toast('Saved'); route(); } catch (e) { toast(e.message, true); }
         } })));
@@ -510,8 +598,11 @@
   async function pageAssets(root, params) {
     const rows = await api.get('/api/assets');
     const filter = params.filter || 'attention';
-    const shown = rows.filter((a) => filter === 'all' ? true : filter === 'hidden' ? ['spam', 'ignored'].includes(a.status) : a.status === 'unmapped' || (a.status !== 'spam' && a.status !== 'ignored' && Number(a.held) !== 0));
-    const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['hidden', 'Spam / ignored']].map(([k, l]) =>
+    const shown = rows.filter((a) => filter === 'all' ? true : filter === 'hidden' ? ['spam', 'ignored'].includes(a.status)
+      : filter === 'ghost' ? a.status === 'ghost'
+        : a.status === 'unmapped' || (!['spam', 'ignored', 'ghost'].includes(a.status) && Number(a.held) !== 0));
+    const nGhost = rows.filter((a) => a.status === 'ghost').length;
+    const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['ghost', `Ghost${nGhost ? ' (' + nGhost + ')' : ''}`], ['hidden', 'Spam / ignored']].map(([k, l]) =>
       el('a', { class: 'tab' + (k === filter ? ' active' : ''), href: `#/assets?filter=${k}`, text: l })));
     const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '', ghost: 'ghost' };
     const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Re-read every wallet from the start: all assets come back with their names and current balances',
@@ -626,13 +717,13 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan, Solana and Tron; the Ronin row only once such a wallet exists.
+    // Blockchain APIs: Etherscan, Solana, Tron and Moralis (BSC, Ronin).
     const chainRows = [
-      serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key). Free: 3 calls/s, 100,000/day.', secret: 'etherscan_api_key', testId: 'etherscan' }),
+      serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, Polygon, Arbitrum (one key). Free: 3 calls/s, 100,000/day. Base, OP and Avalanche need a paid plan or a free explorer in Blockchain endpoints.', secret: 'etherscan_api_key', testId: 'etherscan' }),
       serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
     chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
-    if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
+    chainRows.push(serviceRow({ limitId: 'moralis', label: 'BNB Smart Chain & Ronin (Moralis)', hint: 'Free key at moralis.com (Starter plan, metered in compute units per day). Etherscan\'s free plan no longer covers BSC.', secret: 'moralis_api_key', testId: 'moralis' }));
     const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
       el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
       table(serviceHead, chainRows),
@@ -693,7 +784,7 @@
     // Networks
     const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
     // Etherscan chains, Solana and Tron always; other blockchains only once you track a wallet on them.
-    const netRows = nets.filter((n) => ['evm', 'solana', 'tron'].includes(n.adapter)
+    const netRows = nets.filter((n) => ['evm', 'solana', 'tron'].includes(n.adapter) || n.id === 'bsc'
       || (['moralis', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
       const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
       api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
@@ -818,7 +909,7 @@
 
   // ---------------------------------------------------------------- router & init
   const PAGES = {
-    dashboard: ['Dashboard', pageDashboard], 'year-end': ['Year-end', pageYearEnd], transactions: ['Transactions', pageTransactions],
+    dashboard: ['Dashboard', pageDashboard], 'year-end': ['Year-end', pageYearEnd], transactions: ['Transactions', pageTransactions], staking: ['Staking', pageStaking],
     wallets: ['Wallets', pageWallets], assets: ['Assets', pageAssets], settings: ['Settings', pageSettings],
   };
   function fillPortfolios(list) {

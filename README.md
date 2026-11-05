@@ -85,11 +85,12 @@ python3 -m pip install -r requirements-optional.txt
 
    | Service | Needed for | Free? |
    |---|---|---|
-   | Etherscan | Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). If your plan does not cover a chain, point it to Blockscout/Routescan in Blockchain endpoints |
+   | Etherscan | Ethereum, Polygon, Arbitrum (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). Base, OP and Avalanche need a paid Etherscan plan: or point them to a free explorer (Blockscout/Routescan) in Blockchain endpoints |
    | Solana (Helius) | Solana wallets; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron wallets (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/): about 15 calls/s, 100,000/day |
+   | Moralis | BNB Smart Chain (BSC) and Ronin | Yes, [moralis.com](https://moralis.com/) Starter plan (daily compute units). Etherscan's free plan no longer covers BSC |
 
-   The Ronin (Moralis) row appears only once you add a Ronin wallet; Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
+   Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
    account on the Wallets page.
 
    **Price sources** (market prices, they never read your wallets): Binance public prices and
@@ -109,7 +110,7 @@ python3 -m pip install -r requirements-optional.txt
    Binance ticker, or mark them as spam (airdropped scam tokens are common: ignored everywhere).
    Mark real tokens that can no longer be traded (delisted, dead projects) as **ghost**: they stay
    in your balances and the RW, valued at the price they had while they traded and at €0 once
-   there is no market, without the ⛔ "no price" flag. **Clear all**
+   there is no market, without the ⛔ "no price" flag; they have their own **Ghost** tab. **Clear all**
    empties the list (your mappings and spam marks too; wallets, transactions and year-end values
    stay); **Load all** rebuilds it from your wallets with a full sync of every wallet.
 6. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
@@ -117,6 +118,25 @@ python3 -m pip install -r requirements-optional.txt
 7. **Transactions**: a compact list, one line per movement. Hover the time for the seconds, the
    wallet for its network and the tx link for the full hash and the counterparty. Change the
    category in place.
+8. **Staking**: your staking positions and the rewards of each fiscal year (see below).
+
+### Staking
+
+Staked coins are still yours: they belong in the RW and the IC at their year-end value, and
+rewards are income at their EUR value on the day received (which becomes their cost).
+
+- **Positions**: any wallet can be marked **Staking position** (Wallets → Edit). For staking
+  without an API (inside Ledger Live, an exchange Earn product…) press **+ Add position** on the
+  Staking page: it creates a manual account; then **Enter balance** at each year-end. For an
+  on-chain stake account (e.g. a Solana stake account) add its address as a wallet and tick
+  Staking position. Positions are valued at the cutoff like every wallet, so they are already in
+  the year-end balances, the RW and the IC.
+- **Rewards**: every movement with the category `reward`, per fiscal year, with quantity and EUR
+  value on receipt, totals per asset. On-chain rewards come from the synced history (set the
+  category on the Transactions page; **Open in Transactions** lists them). Rewards credited
+  without a transaction can be typed on manual accounts (date, asset, quantity): they are
+  valued in EUR at that moment and appear in `transactions_YYYY.csv` with type `reward`.
+  Typed rewards do not change a manual balance: keep entering the year-end quantity.
 
 ### Start over
 

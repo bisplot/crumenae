@@ -1,8 +1,8 @@
 """EVM chains through the Moralis Web3 Data API (one API key, free plan available).
 
-Used for Ronin, whose own Skynet API is being retired by Sky Mavis in favour of
-Moralis. Works for any chain Moralis supports: set "moralis_chain" (hex chain id)
-in the network config.
+Used for BNB Smart Chain (Etherscan's free plan no longer covers it) and Ronin
+(whose Skynet API Sky Mavis retired in favour of Moralis). Works for any chain
+Moralis supports: set "moralis_chain" (hex chain id) in the network config.
 
 Reads native transactions (with internal transfers), ERC-20 transfers, live
 balances, and balances at a past block (used to cross-check year-end values).

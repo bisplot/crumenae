@@ -118,6 +118,14 @@ def seed(ctx: Context) -> None:
     ledger.store_current(ctx, man["id"], {manual["DOT"].key: D("110"), manual["ADA"].key: D("1200")}, now(),
                          snapshot_source=None)
 
+    # Staking position with rewards typed by hand (DOT 104 -> 108 during 2025).
+    ctx.db.execute("UPDATE wallets SET staking=1 WHERE id=?", (man["id"],))
+    for day in ("2025-03-31", "2025-06-30", "2025-09-30", "2025-12-15"):
+        ts = _t(day + "T10:00:00")
+        ctx.db.execute(
+            "INSERT INTO movements(wallet_id, uid, ts, asset_key, amount, kind, category, category_source, note)"
+            " VALUES(?,?,?,?,?,?,?,?,?)", (man["id"], f"manual-reward:{ts}:DOT:demo", ts, manual["DOT"].key, "1", "in",
+                                           "reward", "user", "quarterly staking reward"))
     classify.run(ctx)
     ctx.db.execute("UPDATE movements SET category='reward', category_source='user' WHERE uid='t3:in'")
     ctx.db.execute("UPDATE movements SET category='payment', category_source='user' WHERE uid='t4:out'")

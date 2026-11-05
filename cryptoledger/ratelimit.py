@@ -19,7 +19,7 @@ from .http import HttpError
 SERVICES: Dict[str, Dict[str, Any]] = {
     "etherscan": {"label": "Etherscan (EVM chains)", "hosts": ["api.etherscan.io"],
                   "rate": 3, "unit": "second", "per_day": 100000, "hint": "Free: 3 calls/s, 100,000 calls/day"},
-    "moralis": {"label": "Moralis (Ronin)", "hosts": ["deep-index.moralis.io"],
+    "moralis": {"label": "Moralis (BNB Smart Chain, Ronin)", "hosts": ["deep-index.moralis.io"],
                 "rate": 5, "unit": "second", "per_day": None,
                 "hint": "Free plan is metered in compute units per day: see your Moralis dashboard"},
     "helius": {"label": "Helius (Solana)", "hosts": ["mainnet.helius-rpc.com", "api.helius.xyz"],
