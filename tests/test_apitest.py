@@ -12,8 +12,10 @@ def handler(method, url, params, payload):
         if params.get("apikey") == "GOOD":
             return {"jsonrpc": "2.0", "id": 1, "result": "0x1700000"}
         return {"status": "0", "message": "NOTOK", "result": "Invalid API Key"}
-    if url.endswith("/monitor/usage"):
-        raise HttpError(401, '{"success":false}', url)
+    if "helius-rpc.com" in url:
+        if params.get("api-key") != "GOOD":
+            raise HttpError(401, '{"jsonrpc":"2.0","error":{"code":-32401,"message":"invalid api key"}}', url)
+        return {"jsonrpc": "2.0", "id": 1, "result": 380000000}
     if url.endswith("/v1/key/info"):
         return {"data": {"plan": {"credit_limit_monthly": 10000, "rate_limit_minute": 30},
                          "usage": {"current_day": {"credits_used": 12}, "current_month": {"credits_left": 9500}}}}
@@ -41,11 +43,15 @@ class ApiTestTest(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertIn("24,117,248", r["message"])
 
-    def test_solscan_401_explains_v2_key(self):
-        self.ctx.secrets.set("solscan_api_key", "V1KEY")
+    def test_solana_helius_key(self):
+        self.ctx.secrets.set("helius_api_key", "WRONG")
         r = apitest.run(self.ctx, "solana")
         self.assertFalse(r["ok"])
-        self.assertIn("V2", r["message"])
+        self.assertIn("Key refused", r["message"])
+        self.ctx.secrets.set("helius_api_key", "GOOD")
+        r = apitest.run(self.ctx, "solana")
+        self.assertEqual((r["ok"], r["cost"]), (True, "1 credit"))
+        self.assertIn("380,000,000", r["message"])
 
     def test_coinmarketcap_is_free_and_reports_plan(self):
         self.ctx.secrets.set("coinmarketcap_api_key", "K")

@@ -110,8 +110,8 @@
     "name": "Solana",
     "adapter": "solana",
     "rpc_url": "https://api.mainnet-beta.solana.com",
-    "tx_url": "https://solscan.io/tx/{tx}",
-    "address_url": "https://solscan.io/account/{address}",
+    "tx_url": "https://explorer.solana.com/tx/{tx}",
+    "address_url": "https://explorer.solana.com/address/{address}",
     "coingecko_platform": "solana",
     "native": {"symbol": "SOL", "name": "Solana", "decimals": 9, "coingecko": "solana", "binance": "SOL"}
   },

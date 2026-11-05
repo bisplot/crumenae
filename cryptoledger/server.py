@@ -71,6 +71,7 @@ class App:
         r("GET", r"/api/transactions", self.transactions)
         r("PUT", r"/api/transactions/(?P<mid>\d+)", self.update_transaction)
         r("GET", r"/api/assets", self.assets)
+        r("POST", r"/api/assets/clear", self.clear_assets)
         r("PUT", r"/api/assets/(?P<key>.+)", self.update_asset)
         r("GET", r"/api/manual/(?P<wid>\d+)", self.get_manual)
         r("PUT", r"/api/manual/(?P<wid>\d+)", self.put_manual)
@@ -425,6 +426,18 @@ class App:
 
     def assets(self, **_: Any) -> List[Dict[str, Any]]:
         return views.asset_list(self.ctx)
+
+    def clear_assets(self, **_: Any) -> Dict[str, Any]:
+        """"Clear all" on the Assets page: forget every asset (names, price mappings, spam marks)
+        and the live balances. Transactions and year-end values stay. "Load all" rebuilds the
+        list from the wallets with a full sync."""
+        n = self.ctx.db.scalar("SELECT COUNT(*) FROM assets") or 0
+        with self.ctx.db.tx():
+            self.ctx.db.execute("DELETE FROM assets")
+            self.ctx.db.execute("DELETE FROM current_balances")
+            self.ctx.db.execute("DELETE FROM meta WHERE key LIKE 'cg_lookup:%'")
+        self.ctx.mark_yearend_stale("asset list cleared")
+        return {"cleared": n}
 
     def update_asset(self, key: str, body: Any, **_: Any) -> Dict[str, Any]:
         try:

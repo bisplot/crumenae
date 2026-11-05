@@ -504,8 +504,20 @@
     const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['hidden', 'Spam / ignored']].map(([k, l]) =>
       el('a', { class: 'tab' + (k === filter ? ' active' : ''), href: `#/assets?filter=${k}`, text: l })));
     const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '' };
-    root.replaceChildren(card(null, tabs,
-      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker, or mark them as spam.' }),
+    const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Re-read every wallet from the start: all assets come back with their names and current balances',
+      onclick: () => {
+        if (!confirm('Load all assets from your wallets?\n\nEvery active wallet is synced again from the beginning of its history, so every asset comes back with its name and current balance. This uses API calls (within your limits) and can take a few minutes.')) return;
+        startJob('sync', { full: true });
+      } });
+    const clearAll = el('button', { class: 'btn danger', type: 'button', text: 'Clear all', title: 'Empty the asset list',
+      onclick: async () => {
+        if (!confirm(`Clear all ${rows.length} assets?\n\nThe list is emptied, including the CoinGecko/Binance mappings and spam marks you set. Your wallets, transactions and year-end values stay. Press "Load all" to rebuild the list from your wallets.`)) return;
+        try { const r = await api.post('/api/assets/clear'); toast(`${r.cleared} assets cleared. Press "Load all" to rebuild them from your wallets.`); await refreshStatus(); route(); }
+        catch (e) { toast(e.message, true); }
+      } });
+    root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
+      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker, or mark them as spam. "Load all" rebuilds the list from your wallets (full sync); "Clear all" empties it.' }),
+      rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
         const bn = el('input', { type: 'text', value: a.binance_symbol || '', placeholder: 'e.g. ETH', style: 'width:90px' });
@@ -546,7 +558,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      solscan_api_key: 'https://solscan.io/apis', moralis_api_key: 'https://admin.moralis.com/',
+      moralis_api_key: 'https://admin.moralis.com/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra) => {
@@ -594,6 +606,7 @@
       const secrets = {};
       Object.entries(secretInputs).forEach(([k, i]) => { if (i.value.trim()) secrets[k] = i.value.trim(); });
       const rate_limits = {};
+      Object.entries(s.rate_limits || {}).forEach(([id, v]) => { if (byId[id]) rate_limits[id] = v; });   // services not shown keep their limits
       Object.entries(limitInputs).forEach(([id, i]) => { rate_limits[id] = { rate: i.ps.value.trim(), unit: i.unit.value, per_day: i.pd.value.trim() }; });
       try {
         if (Object.keys(secrets).length) await api.put('/api/secrets', secrets);
@@ -605,7 +618,7 @@
     // Blockchain APIs: Etherscan and Solana; Ronin/Tron rows only once such a wallet exists.
     const chainRows = [
       serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, BNB Chain, Polygon, Arbitrum, Base, OP, Avalanche (one key). Free: 3 calls/s, 100,000/day.', secret: 'etherscan_api_key', testId: 'etherscan' }),
-      serviceRow({ limitId: 'solscan', label: 'Solana (Solscan)', hint: 'Solscan Pro API, V2 key. Lite: 1,000 calls/min; 100 compute units per call. Without a key the slow public endpoint is used.', secret: 'solscan_api_key', testId: 'solana' }),
+      serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
     if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
     if (byId.trongrid && byId.trongrid.wallets) chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', secret: 'trongrid_api_key', testId: 'trongrid' }));

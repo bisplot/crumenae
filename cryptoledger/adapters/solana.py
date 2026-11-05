@@ -1,8 +1,7 @@
-"""Solana. Sources, in order of preference (Settings → Blockchain APIs):
-  1. Solscan API key  -> Solscan Pro API (see adapters/solscan.py)
-  2. Solana RPC URL   -> any RPC provider
-  3. Helius API key   -> Helius RPC (free plan available)
-  4. nothing          -> public Solana endpoint (slow, rate-limited)
+"""Solana via JSON-RPC. With a Helius API key (Settings → Blockchain APIs, free plan
+available) the app calls Helius; without one, the public Solana endpoint (slow,
+rate-limited). An explicit "solana_rpc_url" secret (environment variable
+CRYPTOLEDGER_SOLANA_RPC_URL) overrides both, for any other provider.
 
 Every transaction carries the balances before and after it, so SOL and SPL
 token changes are exact, and the SOL balance after each transaction is stored:
@@ -20,7 +19,6 @@ from ..b58 import b58decode
 from ..http import HttpError
 from ..util import ZERO, scaled
 from . import register
-from . import solscan
 from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
 TOKEN_PROGRAMS = (
@@ -46,7 +44,7 @@ class SolanaAdapter(Adapter):
 
     # --- RPC --------------------------------------------------------------------
     def _url(self) -> str:
-        """RPC endpoint: explicit RPC URL > Helius API key > public endpoint."""
+        """Explicit RPC URL > Helius API key > public endpoint."""
         explicit = self.secret("solana_rpc_url")
         if explicit:
             return explicit
@@ -61,6 +59,9 @@ class SolanaAdapter(Adapter):
                 resp = self.ctx.http.post_json(self._url(), {"jsonrpc": "2.0", "id": 1,
                                                              "method": method, "params": params})
             except HttpError as e:
+                if e.status in (401, 403) and self.secret("helius_api_key"):
+                    raise AdapterError(f"Helius refused the API key ({e.status}): check it in Settings → "
+                                       "Blockchain APIs and press Test")
                 raise AdapterError(f"Solana RPC {method}: {e}")
             err = resp.get("error")
             if not err:
@@ -168,28 +169,8 @@ class SolanaAdapter(Adapter):
                                       to_address=owner if delta > 0 else cp))
         return moves, decs
 
-    # --- Solscan ----------------------------------------------------------------
-    def _solscan(self) -> Optional[solscan.SolscanClient]:
-        key = self.secret("solscan_api_key")
-        return solscan.SolscanClient(self.ctx, key) if key else None
-
-    def _sync_solscan(self, client, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:
-        owner = wallet["address"]
-        result = SyncResult(state=dict(state))
-        since = int(state.get("solscan_from_time", 0))
-        moves, decimals, newest = solscan.movements(self.ctx, self.network.id, client, owner, since,
-                                                    lambda m: log(f"{wallet['label']}: {m}"))
-        result.movements = moves
-        result.assets = [assets_mod.native_asset(self.network)] + [
-            assets_mod.token_asset(self.ctx, self.network, mint, decimals=dec) for mint, dec in decimals.items()]
-        result.state["solscan_from_time"] = newest   # re-reads the last second; duplicates are dropped
-        return result
-
     # --- sync -------------------------------------------------------------------
     def sync(self, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:
-        client = self._solscan()
-        if client:
-            return self._sync_solscan(client, wallet, state, log)
         owner = wallet["address"]
         result = SyncResult(state=dict(state))
         token_accounts = self._token_accounts(owner)
@@ -228,15 +209,6 @@ class SolanaAdapter(Adapter):
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],
                          log: Logger) -> Tuple[Dict[str, Decimal], List[AssetInfo]]:
         owner = wallet["address"]
-        client = self._solscan()
-        if client:
-            out, decs = solscan.balances(client, self.network.id, owner)
-            infos = [assets_mod.native_asset(self.network)] + [
-                assets_mod.token_asset(self.ctx, self.network, mint, decimals=dec) for mint, dec in decs.items()]
-            for key in known_assets:
-                if key.startswith(self.network.id + ":") and key not in out:
-                    out[key] = ZERO
-            return out, infos
         lamports = self._rpc("getBalance", [owner, {"commitment": "finalized"}])["value"]
         out: Dict[str, Decimal] = {f"{self.network.id}:native": scaled(lamports, 9)}
         infos: List[AssetInfo] = [assets_mod.native_asset(self.network)]

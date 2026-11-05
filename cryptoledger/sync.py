@@ -29,11 +29,35 @@ def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: b
     balances, infos = adapter.current_balances(wallet, ledger.known_asset_keys(ctx, wallet["id"]), log)
     assets_mod.upsert(ctx, infos)
     ledger.store_current(ctx, wallet["id"], balances, now())
+    ensure_assets(ctx, wallet, network)
     ctx.db.execute("UPDATE wallets SET last_sync_at=?, last_error=NULL WHERE id=?", (now(), wallet["id"]))
     log(f"{wallet['label']}: {added} new movements, {sum(1 for v in balances.values() if v)} assets held now")
     if added or res.snapshots:
         ctx.mark_yearend_stale(f"new data from {wallet['label']}")
     return added
+
+
+def ensure_assets(ctx, wallet: Dict[str, Any], network) -> int:
+    """Re-create the asset entry of anything this wallet holds or has moved but that is missing
+    from the asset list (e.g. after "Clear all"): tickers for exchange and manual accounts,
+    native coins, contracts for tokens (name filled by the next CoinGecko lookup)."""
+    keys = [r["k"] for r in ctx.db.query(
+        "SELECT asset_key AS k FROM movements WHERE wallet_id=? UNION SELECT asset_key FROM snapshots WHERE wallet_id=?"
+        " UNION SELECT asset_key FROM current_balances WHERE wallet_id=?", (wallet["id"],) * 3)]
+    known = {r["key"] for r in ctx.db.query("SELECT key FROM assets")}
+    infos = []
+    for key in keys:
+        if key in known or ":" not in key:
+            continue
+        prefix, rest = key.split(":", 1)
+        if rest == "native" and network.native:
+            infos.append(assets_mod.native_asset(network))
+        elif network.kind in ("exchange", "manual"):
+            infos.append(assets_mod.ticker_asset(ctx, prefix, rest))
+        elif not rest.startswith("trc10:"):
+            infos.append(assets_mod.token_asset(ctx, network, rest))
+    assets_mod.upsert(ctx, infos)
+    return len(infos)
 
 
 def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = None,
@@ -43,6 +67,11 @@ def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = 
     errors = 0
     if ctx.offline:
         log("Offline/demo mode: external APIs are not called.")
+        for w in wallets:   # still rebuild missing asset entries from stored data
+            try:
+                ensure_assets(ctx, w, ctx.networks.get(w["network"]))
+            except KeyError:
+                pass
     else:
         for w in wallets:
             try:
@@ -85,7 +114,6 @@ def recompute(ctx, log: Callable[[str], None]) -> List[int]:
 def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:
     """The API service (ratelimit.SERVICES id) a wallet's sync calls, or None (manual)."""
     import urllib.parse
-    from .adapters import solscan
     try:
         net = ctx.networks.get(wallet["network"])
     except KeyError:
@@ -93,7 +121,7 @@ def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:
     if net.adapter == "manual":
         return None
     if net.adapter == "solana":
-        url = solscan.BASE if ctx.secrets.get("solscan_api_key") else get_adapter(ctx, net)._url()
+        url = get_adapter(ctx, net)._url()
     elif net.adapter == "binance":
         url = net.explorer_api or "https://api.binance.com"
     else:
