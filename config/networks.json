@@ -14,12 +14,12 @@
     "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
   },
   "bsc": {
-    "name": "BNB Smart Chain",
-    "adapter": "evm",
+    "name": "BNB Smart Chain (BSC)",
+    "adapter": "moralis",
     "chain_id": 56,
-    "explorer_api": "https://api.etherscan.io/v2/api",
-    "explorer_key": "etherscan",
-    "chainid_param": true,
+    "moralis_chain": "0x38",
+    "explorer_api": "https://deep-index.moralis.io/api/v2.2",
+    "explorer_key": "moralis",
     "tx_url": "https://bscscan.com/tx/{tx}",
     "address_url": "https://bscscan.com/address/{address}",
     "rpc_url": "",

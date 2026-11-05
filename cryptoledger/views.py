@@ -196,3 +196,66 @@ def asset_list(ctx) -> List[Dict[str, Any]]:
     for r in rows:
         r["held"] = dstr(sum((D(x) for x in (r["held"] or "").split(",") if x), ZERO))
     return rows
+
+
+def staking(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
+    """Staking page: positions (wallets marked as staking, valued at the year-end like any
+    wallet, so they are part of the RW) and rewards received during the fiscal year."""
+    from .adapters import get_adapter
+    detail = year_detail(ctx, year, portfolio)
+    by_id = {w["wallet"]["id"]: w for w in detail["wallets"]}
+    positions = []
+    manual_wallets = []
+    for w in ctx.wallets(portfolio=portfolio):
+        try:
+            kind = get_adapter(ctx, ctx.networks.get(w["network"])).kind
+        except KeyError:
+            kind = ""
+        if kind == "manual":
+            manual_wallets.append({"id": w["id"], "label": w["label"], "staking": bool(w["staking"])})
+        if not w["staking"]:
+            continue
+        item = by_id.get(w["id"]) or {"wallet": _wallet_public(ctx, w), "assets": [], "source": "",
+                                      "flags": [], "value": None, "complete": False}
+        item["manual"] = kind == "manual"
+        item["current"] = [{"asset_key": r["asset_key"], "symbol": r["symbol"] or r["asset_key"], "amount": r["amount"]}
+                           for r in ctx.db.query(
+                               "SELECT c.asset_key, c.amount, a.symbol FROM current_balances c"
+                               " LEFT JOIN assets a ON a.key=c.asset_key WHERE c.wallet_id=? AND c.amount<>'0'",
+                               (w["id"],))]
+        positions.append(item)
+
+    cal = ctx.calendar
+    sql = ("SELECT m.id, m.uid, m.ts, m.amount, m.asset_key, m.value_eur, m.price_source, m.note, m.tx_hash,"
+           " w.id AS wallet_id, w.label AS wallet_label, w.network, a.symbol"
+           " FROM movements m JOIN wallets w ON w.id=m.wallet_id LEFT JOIN assets a ON a.key=m.asset_key"
+           " WHERE m.category='reward' AND m.failed=0 AND m.ts BETWEEN ? AND ?")
+    params: List[Any] = [cal.start(year), cal.cutoff(year)]
+    if portfolio:
+        sql += " AND w.portfolio=?"
+        params.append(portfolio)
+    rewards = ctx.db.query(sql + " ORDER BY m.ts DESC, m.id DESC", params)
+    totals: Dict[str, Dict[str, Any]] = {}
+    total_eur = ZERO
+    unvalued = 0
+    for r in rewards:
+        r["time_local"] = cal.iso_local(r["ts"])
+        r["manual"] = r["uid"].startswith("manual-reward:")
+        t = totals.setdefault(r["asset_key"], {"asset_key": r["asset_key"], "symbol": r["symbol"] or r["asset_key"],
+                                               "amount": ZERO, "value_eur": ZERO, "count": 0})
+        t["amount"] += D(r["amount"])
+        t["count"] += 1
+        if r["value_eur"] is not None:
+            t["value_eur"] += D(r["value_eur"])
+            total_eur += D(r["value_eur"])
+        else:
+            unvalued += 1
+    staked_eur = sum((D(p["value"]) for p in positions if p.get("value")), ZERO)
+    return {
+        "year": year, "cutoff_local": detail["cutoff_local"], "years": detail["years"],
+        "positions": positions, "staked_value_eur": dstr(staked_eur),
+        "rewards": rewards, "reward_totals": [dict(t, amount=dstr(t["amount"]), value_eur=dstr(t["value_eur"]))
+                                              for t in sorted(totals.values(), key=lambda t: -t["value_eur"])],
+        "rewards_value_eur": dstr(total_eur), "rewards_unvalued": unvalued,
+        "manual_wallets": manual_wallets,
+    }

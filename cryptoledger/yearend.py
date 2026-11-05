@@ -127,7 +127,9 @@ def balance_at_cutoff(ctx, wallet: Dict[str, Any], cutoff: int, log=lambda m: No
         detail = ""
     else:
         if adapter.kind == "chain" and not wallet.get("last_sync_at"):
-            flags.append("⛔ Wallet never synced")
+            flags.append("⛔ Wallet never synced: " + (f"the last sync failed ({wallet['last_error']})"
+                                                     if wallet.get("last_error") else "press Sync now")
+                         + ", then Recompute year-end")
         elif adapter.kind == "exchange":
             flags.append("⛔ No snapshot at this cutoff: sync within 30 days of it, or add a manual entry")
         else:

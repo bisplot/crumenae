@@ -6,7 +6,7 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     notes         TEXT NOT NULL DEFAULT '',
     created_at    INTEGER NOT NULL,
     last_sync_at  INTEGER,
-    last_error    TEXT
+    last_error    TEXT,
+    staking       INTEGER NOT NULL DEFAULT 0   -- a staking position (shown on the Staking page)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS wallets_uniq ON wallets(network, address, label);
 
@@ -188,6 +189,7 @@ class Database:
     # Columns added after the first release: (table, column, definition).
     ADDED_COLUMNS = (
         ("wallets", "platform", "TEXT NOT NULL DEFAULT ''"),
+        ("wallets", "staking", "INTEGER NOT NULL DEFAULT 0"),
         ("movements", "from_address", "TEXT NOT NULL DEFAULT ''"),
         ("movements", "to_address", "TEXT NOT NULL DEFAULT ''"),
     )

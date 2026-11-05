@@ -81,6 +81,9 @@ class App:
         r("GET", r"/api/log", self.log)
         r("GET", r"/api/limits", self.limits)
         r("POST", r"/api/test/(?P<service>[a-z_]+)", self.test_api)
+        r("GET", r"/api/staking", self.staking)
+        r("POST", r"/api/staking/rewards", self.add_reward)
+        r("DELETE", r"/api/staking/rewards/(?P<mid>\d+)", self.delete_reward)
         r("GET", r"/api/reset/phrase", self.reset_phrase)
         r("POST", r"/api/reset", self.reset)
         self._reset_phrase: Optional[Tuple[str, float]] = None
@@ -264,6 +267,7 @@ class App:
             "bollo_applied": 1 if body.get("bollo_applied", (existing or {}).get("bollo_applied")) else 0,
             "active": 0 if body.get("active", (existing or {}).get("active", 1)) in (False, 0, "0") else 1,
             "notes": str(body.get("notes", (existing or {}).get("notes") or ""))[:500],
+            "staking": 1 if body.get("staking", (existing or {}).get("staking")) not in (None, False, 0, "0", "") else 0,
         }
 
     def _save_credentials(self, wallet_id: int, network_id: str, body: Dict[str, Any]) -> None:
@@ -291,9 +295,9 @@ class App:
                 raise ApiError(409, f"{c['address']} is already tracked on {c['network']}")
             cur = self.ctx.db.execute(
                 "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, active,"
-                " notes, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                " notes, staking, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (c["label"], c["network"], c["address"], c["portfolio"], c["platform"], c["rw_slot"],
-                 c["bollo_applied"], c["active"], c["notes"], now()))
+                 c["bollo_applied"], c["active"], c["notes"], c["staking"], now()))
             self._save_credentials(cur.lastrowid, c["network"], body)
             created.append(cur.lastrowid)
         self._remember_platform(cleaned[0]["platform"])
@@ -306,10 +310,10 @@ class App:
         if c["address"] != w["address"]:
             raise ApiError(400, "the address cannot change: add a new wallet instead")
         self.ctx.db.execute(
-            "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?"
-            " WHERE id=?",
+            "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?,"
+            " staking=? WHERE id=?",
             (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
-             w["id"]))
+             c["staking"], w["id"]))
         self._save_credentials(w["id"], w["network"], body or {})
         self._remember_platform(c["platform"])
         self._wallets_changed()
@@ -519,6 +523,59 @@ class App:
 
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
         return views.dashboard(self.ctx, query.get("portfolio") or None)
+
+    # --- staking -------------------------------------------------------------------------
+    def staking(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
+        year = query.get("year") or ""
+        y = int(year) if year.isdigit() else self.ctx.calendar.last_completed_year(now())
+        return views.staking(self.ctx, y, query.get("portfolio") or None)
+
+    def add_reward(self, body: Any, **_: Any) -> Dict[str, Any]:
+        """A reward received on a manual account (e.g. staking inside Ledger Live or an exchange
+        without API). On-chain rewards are already in the history: set their category instead."""
+        body = body if isinstance(body, dict) else {}
+        w = self._wallet(body.get("wallet_id"))
+        if get_adapter(self.ctx, self.ctx.networks.get(w["network"])).kind != "manual":
+            raise ApiError(400, "rewards can be added by hand only to manual accounts: for a synced wallet, "
+                                "set the category 'reward' on the Transactions page")
+        ticker = str(body.get("symbol", "")).strip().upper()
+        if not re.match(r"^[A-Z0-9.\-]{1,15}$", ticker):
+            raise ApiError(400, f"invalid ticker '{ticker}'")
+        try:
+            amount = D(str(body.get("amount", "")).replace(",", "."))
+        except InvalidOperation:
+            raise ApiError(400, "invalid quantity")
+        if not amount > 0:
+            raise ApiError(400, "the quantity must be positive")
+        cal = self.ctx.calendar
+        try:
+            ts = cal.parse_local(str(body.get("time", "")).strip())
+        except ValueError:
+            raise ApiError(400, "date/time must be YYYY-MM-DD or YYYY-MM-DD HH:MM")
+        if ts > now():
+            raise ApiError(400, "the date is in the future")
+        info = assets_mod.ticker_asset(self.ctx, w["network"], ticker)
+        assets_mod.upsert(self.ctx, [info])
+        uid = f"manual-reward:{ts}:{ticker}:{_random.token_hex(4)}"
+        cur = self.ctx.db.execute(
+            "INSERT INTO movements(wallet_id, uid, ts, asset_key, amount, kind, category, category_source, note)"
+            " VALUES(?,?,?,?,?,?,?,?,?)",
+            (w["id"], uid, ts, info.key, dstr(amount), "in", "reward", "user", str(body.get("note", ""))[:200]))
+        mid = cur.lastrowid
+        pr = PriceService(self.ctx).price_at(assets_mod.get(self.ctx, info.key), ts - ts % 60)
+        if pr.price is not None:
+            self.ctx.db.execute("UPDATE movements SET price_eur=?, value_eur=?, price_source=? WHERE id=?",
+                                (dstr(pr.price), dstr(amount * pr.price), pr.source, mid))
+        self._year_changed(cal.year_of(ts))
+        return self.ctx.db.query_one("SELECT * FROM movements WHERE id=?", (mid,)) or {}
+
+    def delete_reward(self, mid: str, **_: Any) -> Dict[str, Any]:
+        row = self.ctx.db.query_one("SELECT * FROM movements WHERE id=?", (int(mid),))
+        if not row or not row["uid"].startswith("manual-reward:"):
+            raise ApiError(404, "only rewards added by hand can be deleted")
+        self.ctx.db.execute("DELETE FROM movements WHERE id=?", (row["id"],))
+        self._year_changed(self.ctx.calendar.year_of(row["ts"]))
+        return {"ok": True}
 
     # --- reset -----------------------------------------------------------------------
     def reset_phrase(self, **_: Any) -> Dict[str, Any]:
