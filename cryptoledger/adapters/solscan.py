@@ -1,6 +1,6 @@
 """Solana history and balances from the Solscan Pro API (v2.0, paid plans from "Lite").
 
-Used by the Solana network when a Solscan API key is set (Settings → API keys):
+Used by the Solana network when a Solscan API key is set (Settings → Blockchain APIs):
 
   /account/balance_change   every balance change of the wallet: token, raw amount,
                             inc/dec, balance before and after

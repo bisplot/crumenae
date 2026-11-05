@@ -1,4 +1,4 @@
-"""Solana. Sources, in order of preference (Settings → API keys):
+"""Solana. Sources, in order of preference (Settings → Blockchain APIs):
   1. Solscan API key  -> Solscan Pro API (see adapters/solscan.py)
   2. Solana RPC URL   -> any RPC provider
   3. Helius API key   -> Helius RPC (free plan available)

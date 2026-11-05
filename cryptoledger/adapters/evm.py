@@ -52,7 +52,7 @@ class EvmAdapter(Adapter):
         if key_name:
             key = self.secret(f"{key_name}_api_key")
             if not key and "etherscan.io" in base:
-                raise AdapterError("Etherscan API key missing (Settings → API keys)")
+                raise AdapterError("Etherscan API key missing (Settings → Blockchain APIs)")
             if key:
                 p["apikey"] = key
         for attempt in range(6):

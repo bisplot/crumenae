@@ -41,7 +41,7 @@ class MoralisAdapter(Adapter):
     def _get(self, path: str, params: Dict[str, Any]) -> Any:
         key = self.secret(f"{self.network.explorer_key or 'moralis'}_api_key")
         if not key:
-            raise AdapterError("Moralis API key missing (Settings → API keys)")
+            raise AdapterError("Moralis API key missing (Settings → Blockchain APIs)")
         p = dict(params, chain=self.network.moralis_chain or hex(int(self.network.chain_id)))
         try:
             return self.ctx.http.get_json(self.network.explorer_api.rstrip("/") + path, p, {"X-API-Key": key})
