@@ -21,6 +21,13 @@ class PriceResult:
     note: str = ""
 
 
+GHOST_SOURCE = "ghost (no market)"
+
+
+def ghost_price(ts: int) -> PriceResult:
+    return PriceResult(Decimal(0), GHOST_SOURCE, ts, "")
+
+
 def identity(asset: Optional[Dict[str, Any]]) -> Optional[str]:
     """Cache key: same coin -> same key, whichever chain it sits on."""
     if not asset:
@@ -71,6 +78,13 @@ class PriceService:
 
     # --- historical -----------------------------------------------------------------
     def price_at(self, asset: Optional[Dict[str, Any]], ts: int) -> PriceResult:
+        r = self._price_at(asset, ts)
+        if r.price is None and asset and asset.get("status") == "ghost":
+            # Ghost token: the price it had while it traded, otherwise EUR 0.
+            return ghost_price(ts)
+        return r
+
+    def _price_at(self, asset: Optional[Dict[str, Any]], ts: int) -> PriceResult:
         if not asset:
             return PriceResult(None, "unmapped", None, "unknown asset")
         if asset.get("status") in ("spam", "ignored"):
@@ -130,8 +144,8 @@ class PriceService:
         remaining: Dict[str, Dict[str, Any]] = {}
         for key, a in assets.items():
             ident = identity(a)
-            if not ident or a.get("status") in ("spam", "ignored"):
-                continue
+            if not ident or a.get("status") in ("spam", "ignored", "ghost"):
+                continue   # a ghost token has no market today: valued by latest() at EUR 0
             cached = self._cached(ident, bucket)
             if cached:
                 results[key] = cached
@@ -165,6 +179,8 @@ class PriceService:
 
     def latest(self, asset: Optional[Dict[str, Any]]) -> Optional[PriceResult]:
         """Most recent cached price (live first), without network calls."""
+        if (asset or {}).get("status") == "ghost":
+            return ghost_price(now())
         ident = identity(asset)
         if not ident or (asset or {}).get("status") in ("spam", "ignored"):
             return None

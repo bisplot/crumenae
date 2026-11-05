@@ -106,7 +106,10 @@ python3 -m pip install -r requirements-optional.txt
    or a settings change the button lights up and the Year-end page says the values are out of
    date, until you press it. Recomputing also rewrites the exports.
 5. **Assets**: tokens the app does not know are listed here. Map them to a CoinGecko id or a
-   Binance ticker, or mark them as spam (airdropped scam tokens are common). **Clear all**
+   Binance ticker, or mark them as spam (airdropped scam tokens are common: ignored everywhere).
+   Mark real tokens that can no longer be traded (delisted, dead projects) as **ghost**: they stay
+   in your balances and the RW, valued at the price they had while they traded and at €0 once
+   there is no market, without the ⛔ "no price" flag. **Clear all**
    empties the list (your mappings and spam marks too; wallets, transactions and year-end values
    stay); **Load all** rebuilds it from your wallets with a full sync of every wallet.
 6. **Year-end**: check each wallet's balance source and flags, enter manual balances where an

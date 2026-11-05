@@ -225,3 +225,4 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .card.danger-zone { border-color: var(--err); }
 .phrase { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; padding: 10px 12px;
   background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; user-select: none; -webkit-user-select: none; }
+.badge.ghost { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--border); }
