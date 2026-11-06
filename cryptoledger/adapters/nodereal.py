@@ -1,6 +1,11 @@
-"""BNB Smart Chain through NodeReal MegaNode (free key; BNB Chain's replacement for
-the BscScan API, which closed in December 2025 — Etherscan's free plan does not
-cover BSC).
+"""BNB Smart Chain through Alchemy or NodeReal MegaNode (both have a free plan; the
+BscScan API closed in December 2025 and Etherscan's free plan does not cover BSC).
+
+Provider: an Alchemy key if saved (sign-up with e-mail or Google), else a NodeReal
+key. Alchemy uses alchemy_getAssetTransfers (native and BEP-20; Alchemy gives no
+internal transfers on BSC, so BNB received from contracts is caught by the year-end
+cross-check against chain state) and alchemy_getTokenBalances to list every token
+held now. NodeReal is described below.
 
 History comes from the MegaNode enhanced API `nr_getAssetTransfers` (native,
 internal and BEP-20 transfers, JSON-RPC 2.0). Gas fees come from the receipts of
@@ -13,6 +18,7 @@ numbers, optional decimals) because the documentation examples vary.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -49,13 +55,28 @@ class NodeRealAdapter(EvmAdapter):
     def has_history(self) -> bool:  # type: ignore[override]
         return True
 
+    ALCHEMY_URL = "https://bnb-mainnet.g.alchemy.com/v2/"
+
     def _key(self) -> Optional[str]:
         return self.secret(f"{self.network.explorer_key or 'nodereal'}_api_key")
+
+    def provider(self) -> Optional[str]:
+        """'alchemy', 'nodereal' or None (no key)."""
+        custom = self.secret(f"rpc_url:{self.network.id}")
+        if custom:
+            return "alchemy" if "alchemy.com" in custom else "nodereal"
+        if self.secret("alchemy_api_key"):
+            return "alchemy"
+        if self._key():
+            return "nodereal"
+        return None
 
     def _rpc_url(self) -> Optional[str]:
         custom = self.secret(f"rpc_url:{self.network.id}")
         if custom:
             return custom
+        if self.secret("alchemy_api_key"):
+            return self.ALCHEMY_URL + self.secret("alchemy_api_key")
         key = self._key()
         if not key:
             return None
@@ -64,18 +85,20 @@ class NodeRealAdapter(EvmAdapter):
     def _call(self, method: str, params: List[Any]) -> Any:
         url = self._rpc_url()
         if not url:
-            raise AdapterError("NodeReal API key missing (Settings → Blockchain APIs → BNB Smart Chain)")
+            raise AdapterError("BSC API key missing (Settings → Blockchain APIs → BNB Smart Chain: Alchemy or NodeReal)")
+        name = "Alchemy" if self.provider() == "alchemy" else "NodeReal"
         try:
             resp = self.ctx.http.post_json(url, {"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
         except HttpError as e:
             if e.status in (401, 403):
-                raise AdapterError("NodeReal refused the API key: copy it again from dashboard.nodereal.io")
-            raise AdapterError(f"{self.network.name} (NodeReal) {method}: {e}")
+                raise AdapterError(f"{name} refused the API key: copy it again from your {name} dashboard "
+                                   "(for Alchemy, enable BNB Smart Chain on the app)")
+            raise AdapterError(f"{self.network.name} ({name}) {method}: {e}")
         if not isinstance(resp, dict):
-            raise AdapterError(f"{self.network.name} (NodeReal) {method}: unexpected response")
+            raise AdapterError(f"{self.network.name} ({name}) {method}: unexpected response")
         if resp.get("error"):
             err = resp["error"]
-            raise AdapterError(f"{self.network.name} (NodeReal) {method}: {err.get('message') if isinstance(err, dict) else err}")
+            raise AdapterError(f"{self.network.name} ({name}) {method}: {err.get('message') if isinstance(err, dict) else err}")
         return resp.get("result")
 
     _rpc = _call  # balance_at / block_at of the EVM adapter use the same endpoint
@@ -94,6 +117,8 @@ class NodeRealAdapter(EvmAdapter):
 
     # --- history ------------------------------------------------------------------
     def _transfers(self, address_field: str, address: str, from_block: int) -> List[Dict[str, Any]]:
+        if self.provider() == "alchemy":
+            return self._alchemy_transfers(address_field, address, from_block)
         out: List[Dict[str, Any]] = []
         page_key = None
         while True:
@@ -105,6 +130,26 @@ class NodeRealAdapter(EvmAdapter):
             res = self._call("nr_getAssetTransfers", [q]) or {}
             batch = res.get("transfers") or []
             out.extend(batch)
+            page_key = res.get("pageKey")
+            if not page_key or not batch:
+                return out
+
+    def _alchemy_transfers(self, address_field: str, address: str, from_block: int) -> List[Dict[str, Any]]:
+        """alchemy_getAssetTransfers, converted to the NodeReal shape used by sync()."""
+        out: List[Dict[str, Any]] = []
+        page_key = None
+        while True:
+            q: Dict[str, Any] = {"fromBlock": hex(from_block), "toBlock": "latest", address_field: address,
+                                 "category": ["external", "erc20"], "order": "asc", "withMetadata": True,
+                                 "excludeZeroValue": False, "maxCount": "0x3e8"}
+            if page_key:
+                q["pageKey"] = page_key
+            res = self._call("alchemy_getAssetTransfers", [q]) or {}
+            batch = res.get("transfers") or []
+            for t in batch:
+                n = _from_alchemy(t)
+                if n:
+                    out.append(n)
             page_key = res.get("pageKey")
             if not page_key or not batch:
                 return out
@@ -226,8 +271,78 @@ class NodeRealAdapter(EvmAdapter):
         native = assets_mod.native_asset(self.network)
         tokens = [k for k in known_assets if k != native.key and k.startswith(self.network.id + ":")]
         if not self._rpc_url():
-            raise AdapterError("NodeReal API key missing (Settings → Blockchain APIs → BNB Smart Chain)")
-        bal = self.balance_at(wallet, None, [native.key] + tokens, log)
+            raise AdapterError("BSC API key missing (Settings → Blockchain APIs → BNB Smart Chain: Alchemy or NodeReal)")
+        infos: List[AssetInfo] = [native]
+        found: Dict[str, Tuple[int, AssetInfo]] = {}
+        if self.provider() == "alchemy":
+            # Every token held now, without reading the history.
+            found = self._alchemy_token_balances(wallet["address"].lower(), log)
+            infos += [info for _, info in found.values()]
+        found_keys = {info.key for _, info in found.values()}
+        bal = self.balance_at(wallet, None, [native.key] + [k for k in tokens if k not in found_keys], log)
         if bal is None:
-            raise AdapterError(f"{self.network.name}: live balances could not be read from NodeReal")
-        return bal, [native]
+            raise AdapterError(f"{self.network.name}: live balances could not be read")
+        for raw, info in found.values():
+            if info.decimals is not None:
+                bal[info.key] = scaled(raw, info.decimals)
+        return bal, infos
+
+    def _alchemy_token_balances(self, address: str, log: Logger) -> Dict[str, Tuple[int, AssetInfo]]:
+        out: Dict[str, Tuple[int, AssetInfo]] = {}
+        page_key = None
+        while True:
+            params: List[Any] = [address, "erc20"] + ([{"pageKey": page_key}] if page_key else [])
+            res = self._call("alchemy_getTokenBalances", params) or {}
+            for tb in res.get("tokenBalances") or []:
+                contract = str(tb.get("contractAddress") or "").lower()
+                raw = _int(tb.get("tokenBalance"))
+                if not contract or tb.get("error") or not raw:
+                    continue
+                known = assets_mod.get(self.ctx, f"{self.network.id}:{contract}")
+                builtin = assets_mod.token_asset(self.ctx, self.network, contract)
+                if builtin.decimals is not None:          # built-in token list
+                    info = builtin
+                elif known and known.get("decimals") is not None:
+                    info = assets_mod.token_asset(self.ctx, self.network, contract, known["symbol"], known.get("name") or "",
+                                                  int(known["decimals"]))
+                else:
+                    try:
+                        meta = self._call("alchemy_getTokenMetadata", [contract]) or {}
+                    except AdapterError as e:
+                        log(f"token {contract}: metadata not read ({e})")
+                        meta = {}
+                    dec = meta.get("decimals")
+                    info = assets_mod.token_asset(self.ctx, self.network, contract, str(meta.get("symbol") or ""),
+                                                  str(meta.get("name") or ""), int(dec) if dec is not None else None)
+                out[contract] = (raw, info)
+            page_key = res.get("pageKey")
+            if not page_key:
+                return out
+
+
+def _from_alchemy(t: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    cat = {"external": "external", "internal": "internal", "erc20": "20"}.get(str(t.get("category") or ""))
+    if not cat:
+        return None   # NFTs are not valued
+    raw_c = t.get("rawContract") or {}
+    raw = raw_c.get("value")
+    dec = raw_c.get("decimal")
+    if raw in (None, ""):
+        # Some transfers carry only the scaled value: rebuild the raw integer.
+        v, d = t.get("value"), _int(dec, -1)
+        if v is None or d < 0:
+            return None
+        raw = hex(int(Decimal(str(v)) * (Decimal(10) ** d)))
+    ts = 0
+    stamp = (t.get("metadata") or {}).get("blockTimestamp")
+    if stamp:
+        try:
+            ts = int(datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp())
+        except ValueError:
+            ts = 0
+    uid = str(t.get("uniqueId") or "")
+    log_index = uid.split(":log:", 1)[1] if ":log:" in uid else None
+    return {"category": cat, "blockNum": t.get("blockNum"), "from": t.get("from"), "to": t.get("to"),
+            "value": raw, "asset": t.get("asset"), "hash": t.get("hash"), "blockTimeStamp": ts,
+            "contractAddress": raw_c.get("address") if cat == "20" else None,
+            "decimal": dec if cat == "20" else None, "logIndex": log_index}

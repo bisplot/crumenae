@@ -168,9 +168,13 @@ def transactions(ctx, wallet_id: Optional[int] = None, year: Optional[int] = Non
         cal = ctx.calendar
         sql += " AND m.ts BETWEEN ? AND ?"
         params += [cal.start(year), cal.cutoff(year)]
-    if category:
+    if category == "all":
+        pass                                   # everything, spam included
+    elif category:
         sql += " AND m.category=?"
         params.append(category)
+    else:
+        sql += " AND COALESCE(m.category,'') <> 'spam'"   # spam hidden by default
     if q:
         sql += " AND (m.tx_hash LIKE ? OR m.counterparty LIKE ? OR a.symbol LIKE ? OR m.note LIKE ?)"
         params += [f"%{q}%"] * 4
@@ -213,6 +217,17 @@ def staking(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
             kind = ""
         if kind == "manual":
             manual_wallets.append({"id": w["id"], "label": w["label"], "staking": bool(w["staking"])})
+        earn_raw = ctx.db.get_meta(f"earn_positions:{w['id']}") if w["network"] == "binance" else None
+        if earn_raw:
+            import json
+            earn = json.loads(earn_raw)
+            if earn.get("positions"):
+                positions.append({
+                    "wallet": _wallet_public(ctx, w), "assets": [], "source": "", "flags": [], "value": None,
+                    "complete": False, "manual": False, "auto": "Binance Simple Earn",
+                    "current": [{"asset_key": f"binance:{t}", "symbol": t, "amount": a}
+                                for t, a in earn["positions"].items()],
+                    "current_at": earn.get("at")})
         if not w["staking"]:
             continue
         item = by_id.get(w["id"]) or {"wallet": _wallet_public(ctx, w), "assets": [], "source": "",

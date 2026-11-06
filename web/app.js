@@ -323,7 +323,7 @@
     const f = { wallet: params.wallet || '', year: params.year || '', category: params.category || '', q: params.q || '' };
     const wSel = el('select', {}, el('option', { value: '', text: 'All wallets' }), wallets.map((w) => el('option', { value: w.id, text: w.label, selected: String(w.id) === f.wallet })));
     const ySel = el('select', {}, el('option', { value: '', text: 'All years' }), yearOpts.map((y) => el('option', { value: y, text: `TY${y}`, selected: String(y) === f.year })));
-    const cSel = el('select', {}, el('option', { value: '', text: 'All categories' }));
+    const cSel = el('select', {}, el('option', { value: '', text: 'All except spam' }), el('option', { value: 'all', text: 'All, spam included', selected: f.category === 'all' }));
     const qIn = el('input', { type: 'search', placeholder: 'Hash, address, asset, note', value: f.q });
     const body = el('tbody');
     const info = el('span', { class: 'muted small' });
@@ -341,14 +341,14 @@
 
     async function load(reset) {
       if (reset) { offset = 0; body.replaceChildren(); }
-      const qs = new URLSearchParams({ wallet: wSel.value, year: ySel.value, category: cSel.options.length === 1 ? f.category : cSel.value, q: qIn.value, offset, limit: 200 });
+      const qs = new URLSearchParams({ wallet: wSel.value, year: ySel.value, category: cSel.options.length === 2 ? f.category : cSel.value, q: qIn.value, offset, limit: 200 });
       if (state.portfolio) qs.set('portfolio', state.portfolio);
       const data = await api.get('/api/transactions?' + qs.toString());
       categories = data.categories;
-      if (cSel.options.length === 1) Object.keys(categories).forEach((c) => cSel.appendChild(el('option', { value: c, text: c, selected: c === f.category })));
+      if (cSel.options.length === 2) Object.keys(categories).forEach((c) => cSel.appendChild(el('option', { value: c, text: c, selected: c === f.category })));
       data.rows.forEach((m) => body.appendChild(txRow(m, categories)));
       offset += data.rows.length;
-      info.textContent = `${offset} of ${data.total} movements`;
+      info.textContent = `${offset} of ${data.total} movements` + (cSel.value === '' ? ' · spam hidden' : '');
       more.classList.toggle('hidden', offset >= data.total);
     }
     [wSel, ySel, cSel].forEach((s) => s.addEventListener('change', () => load(true)));
@@ -425,8 +425,9 @@
     const posCard = card('Staking positions', el('button', { class: 'btn small primary', type: 'button', text: '+ Add position', onclick: addPosition }),
       el('p', { class: 'help', text: 'Staked coins still belong to you: each position is part of the year-end balances, the RW and the IC like any wallet. Mark a wallet as staking with "Edit" on the Wallets page.' }),
       d.positions.length ? table(['Position', 'Balance source', 'Held at year-end', '#Value €', 'Now', ''], d.positions.map((p) => el('tr', {},
-        el('td', {}, el('strong', { text: p.wallet.label }), el('div', { class: 'muted small', text: `${p.wallet.platform_display} · ${p.wallet.network_name}` }), flagList(p.flags)),
-        el('td', {}, p.source ? sourceBadge(p.source, p.source_label) : el('span', { class: 'muted small', text: 'not computed' })),
+        el('td', {}, el('strong', { text: p.auto ? `${p.auto} · ${p.wallet.label}` : p.wallet.label }),
+          el('div', { class: 'muted small', text: p.auto ? 'automatic, from the Binance API' : `${p.wallet.platform_display} · ${p.wallet.network_name}` }), flagList(p.flags)),
+        el('td', {}, p.auto ? el('span', { class: 'muted small', text: 'inside the account' }) : p.source ? sourceBadge(p.source, p.source_label) : el('span', { class: 'muted small', text: 'not computed' })),
         el('td', { class: 'small' }, p.assets.length ? p.assets.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol || a.asset_key}` })) : el('span', { class: 'muted', text: '—' })),
         el('td', { class: 'num', text: p.value === null || p.value === undefined ? '—' : eur(p.value) }),
         el('td', { class: 'small muted' }, p.current.length ? p.current.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol}` })) : '—'),
@@ -605,11 +606,8 @@
     const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['ghost', `Ghost${nGhost ? ' (' + nGhost + ')' : ''}`], ['hidden', 'Spam / ignored']].map(([k, l]) =>
       el('a', { class: 'tab' + (k === filter ? ' active' : ''), href: `#/assets?filter=${k}`, text: l })));
     const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '', ghost: 'ghost' };
-    const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Re-read every wallet from the start: all assets come back with their names and current balances',
-      onclick: () => {
-        if (!confirm('Load all assets from your wallets?\n\nEvery active wallet is synced again from the beginning of its history, so every asset comes back with its name and current balance. This uses API calls (within your limits) and can take a few minutes.')) return;
-        startJob('sync', { full: true });
-      } });
+    const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Read the tokens each wallet holds now (no transactions: few API calls)',
+      onclick: () => startJob('assets') });
     const clearAll = el('button', { class: 'btn danger', type: 'button', text: 'Clear all', title: 'Empty the asset list',
       onclick: async () => {
         if (!confirm(`Clear all ${rows.length} assets?\n\nThe list is emptied, including the CoinGecko/Binance mappings and spam marks you set. Your wallets, transactions and year-end values stay. Press "Load all" to rebuild the list from your wallets.`)) return;
@@ -617,7 +615,7 @@
         catch (e) { toast(e.message, true); }
       } });
     root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
-      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances, valued at the price they had while they traded and at €0 once there is no market. "Load all" rebuilds the list from your wallets (full sync); "Clear all" empties it.' }),
+      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances, valued at the price they had while they traded and at €0 once there is no market. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
@@ -660,7 +658,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/', nodereal_api_key: 'https://nodereal.io/meganode', helius_api_key: 'https://dashboard.helius.dev/',
+      moralis_api_key: 'https://admin.moralis.com/', nodereal_api_key: 'https://nodereal.io/meganode', alchemy_api_key: 'https://dashboard.alchemy.com/signup', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra) => {
@@ -717,13 +715,14 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan, Solana, Tron, NodeReal (BSC); Ronin (Moralis) only once such a wallet exists.
+    // Blockchain APIs: Etherscan, Solana, Tron, Alchemy and NodeReal (BSC, one is enough); Ronin only with Ronin wallets.
     const chainRows = [
       serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, Polygon, Arbitrum (one key). Free: 3 calls/s, 100,000/day. Base, OP and Avalanche need a paid plan or a free explorer in Blockchain endpoints.', secret: 'etherscan_api_key', testId: 'etherscan' }),
       serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
     ];
     chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
-    chainRows.push(serviceRow({ limitId: 'nodereal', label: 'BNB Smart Chain (NodeReal)', hint: 'Free key at nodereal.io (MegaNode): 10M compute units/month. BNB Chain\'s replacement for the BscScan API; Etherscan\'s free plan does not cover BSC.', secret: 'nodereal_api_key', testId: 'nodereal' }));
+    chainRows.push(serviceRow({ limitId: 'alchemy', label: 'BNB Smart Chain (Alchemy)', hint: 'Free key at alchemy.com (sign up with e-mail or Google): create an app with BNB Smart Chain enabled. Etherscan\'s free plan does not cover BSC.', secret: 'alchemy_api_key', testId: 'alchemy' }));
+    chainRows.push(serviceRow({ limitId: 'nodereal', label: 'BNB Smart Chain (NodeReal)', hint: 'Alternative to Alchemy (sign-up with GitHub or Discord), used only when no Alchemy key is saved. Free plan: 10M compute units/month.', secret: 'nodereal_api_key', testId: 'nodereal' }));
     if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
     const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
       el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
