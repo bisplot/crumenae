@@ -12,10 +12,13 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), BNB Smart Chain (Alchemy or NodeReal), Solana (Helius), Ronin (Moralis),
-  Tron, Bitcoin, Solar (SXP), Binance (with Simple Earn rewards); manual accounts for anything else.
+  Etherscan-compatible explorer), BNB Smart Chain, Monad and Arc (Alchemy), Solana (Helius),
+  Ronin (Moralis), Tron, Bitcoin, Stellar, Solar (SXP), Binance (with Simple Earn rewards); manual accounts for anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
-  is never exceeded (Settings → Blockchain APIs and Price sources).
+  is never exceeded (Settings → API providers and Price sources).
+- **Providers and networks you control**: add an API provider (any Etherscan-compatible,
+  Alchemy-compatible, Moralis, Esplora or Horizon service) or a new blockchain from Settings,
+  with its key, limits and Test, and choose which provider reads each chain. No code.
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
@@ -74,34 +77,43 @@ python3 -m pip install -r requirements-optional.txt
    - **Platform**: where the wallet is held (wallet app, device or exchange). The list starts
      empty: each new name you type is saved and offered for the next wallets.
    - **Bollo already applied**: tick it for accounts at an Italian intermediary, so no IC is estimated.
-2. **Settings** has two boxes of APIs, one row per service. Each row takes the key (if any), the
-   plan's **speed limit** (per second or per minute, as your provider states it) and **calls per
-   day** (defaults are conservative free-plan values; empty = no limit). The app spaces its calls,
-   shows the calls used today, and stops calling a service once its daily cap is reached, until
-   00:00 UTC. **Test** makes one call to check the service and your key, and says what it cost:
-   only CoinMarketCap's check is free; elsewhere it counts as one call at the provider.
+2. **Settings** has three boxes for the services the app calls. Each provider row takes the key
+   (if any), the plan's **speed limit** (per second or per minute, as your provider states it)
+   and **calls per day** (defaults are conservative free-plan values; empty = no limit). The app
+   spaces its calls, shows the calls used today, and stops calling a service once its daily cap is
+   reached, until 00:00 UTC. **Test** makes one cheap call to check the service and your key,
+   and says what it cost.
 
-   **Blockchain APIs** (where your wallets are read):
+   **API providers** (where your wallets are read). Built in:
 
-   | Service | Needed for | Free? |
+   | Provider | Reads | Free? |
    |---|---|---|
-   | Etherscan | Ethereum, Polygon, Arbitrum (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). Base, OP and Avalanche need a paid Etherscan plan: or point them to a free explorer (Blockscout/Routescan) in Blockchain endpoints |
-   | Solana (Helius) | Solana wallets; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
-   | Tron (TronGrid) | Tron wallets (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/): about 15 calls/s, 100,000/day |
-   | BNB Smart Chain (Alchemy) | BSC wallets (BNB and BEP-20 tokens) | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup): free plan, sign-up with e-mail or Google. Etherscan's free plan does not cover BSC |
-   | BNB Smart Chain (NodeReal) | the same, as an alternative (only one is needed) | Yes, [nodereal.io/meganode](https://nodereal.io/meganode): free plan, sign-up with GitHub or Discord |
+   | Etherscan | Ethereum, Polygon, Arbitrum, Linea (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). BNB Smart Chain, Base, OP, Avalanche and Arc need a paid plan: read them with Alchemy instead |
+   | Alchemy | BNB Smart Chain, Monad, Arc, and any chain you point to it | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
+   | Solana (Helius) | Solana; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
+   | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
+   | mempool.space | Bitcoin | no key |
+   | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
 
-   The Ronin (Moralis) row appears only once you add a Ronin wallet (Moralis is now paid).
-   Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
-   account on the Wallets page.
+   Moralis (Ronin, now paid) and the Solar API appear once a wallet uses them. Binance account
+   keys (read-only) are entered per account on the Wallets page. **+ Add provider** adds any
+   other service that speaks a supported type — Etherscan-compatible (Blockscout, Routescan,
+   Lineascan…), Alchemy-compatible, Moralis, Esplora or Horizon — with its key, limits and Test.
+   No code, no request to anyone.
+
+   **Networks**: every blockchain you can track and the provider that reads it. Change a chain's
+   provider (e.g. Arbitrum from Etherscan to Alchemy), give its Alchemy name, hide the chains you
+   do not use from the Wallets list, set an optional archive node URL (lets the app read each
+   balance directly at the 31/12 block), or **+ Add network** for a new chain (chain id, native
+   coin, price ids, explorer links). See [docs/ADDING_AN_ADAPTER.md](docs/ADDING_AN_ADAPTER.md).
 
    **Price sources** (market prices, they never read your wallets): Binance public prices and
    ECB rates (no key), CoinGecko (optional key; Demo covers the last 365 days) and
    CoinMarketCap (optional key; free plan has current prices only), plus the order in which
    they are used and how USD prices become EUR.
 
-   Solar (SXP) is winding down and its public API may move: if syncs fail, put the current URL
-   in Settings → Blockchain endpoints (advanced).
+   Solar (SXP) is winding down and its public API may move: if syncs fail, add a provider with
+   the current URL.
 3. Press **Sync now**. The first sync reads the whole history and can take a few minutes;
    later syncs only read what is new.
 4. Press **Recompute year-end** (top bar) to compute balances and EUR values at every
@@ -166,7 +178,7 @@ public Solana endpoint, which works but is slow and rate-limited.
 
 1. **Get a key.** Sign up at [dashboard.helius.dev](https://dashboard.helius.dev/) (free plan)
    and copy the API key shown on the dashboard.
-2. **Add it to the app.** Settings → Blockchain APIs → **Solana (Helius)** row → paste the key →
+2. **Add it to the app.** Settings → API providers → **Solana (Helius)** row → paste the key →
    **Save** → **Test**. Test reads the current Solana slot and costs 1 credit.
 3. **Set your plan's limits** in the same row: the free plan allows 10 calls **per second** (the
    default). Its credits are monthly: if you want a daily cap, divide them by 30.
@@ -185,30 +197,33 @@ Good to know:
 - *"Helius refused the API key (401)"*: the key is wrong or was revoked. Copy it again from the
   Helius dashboard and press **Test**.
 
-### BNB Smart Chain with Alchemy (or NodeReal)
+### BNB Smart Chain, Monad and Arc with Alchemy
 
-The BscScan API closed in December 2025 and Etherscan's free plan does not cover BSC. BSC is read
-through **Alchemy** (free plan, sign-up with e-mail or Google) or, if you prefer, **NodeReal
-MegaNode** (free plan, sign-up with GitHub or Discord). One of the two is enough; with both,
-Alchemy is used.
+The BscScan API closed in December 2025 and Etherscan's free plan does not cover BNB Smart Chain
+or Arc. These chains are read through **Alchemy** (free plan, sign-up with e-mail or Google);
+one key covers all of them.
 
-1. Sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup) and create an app
-   with **BNB Smart Chain** (Mainnet) enabled; copy its API key.
-2. **Settings → Blockchain APIs → BNB Smart Chain (Alchemy)**: paste the key, **Save**, **Test**.
-3. Add your BSC address (0x…, the same as on Ethereum) on the **Wallets** page and **Sync now**.
+1. Sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup) and create an app;
+   enable **BNB Smart Chain**, **Monad** and/or **Arc** (Mainnet) on it; copy the API key.
+2. **Settings → API providers → Alchemy**: paste the key, **Save keys and limits**, **Test**.
+3. Add your 0x address on the **Wallets** page (tick every chain where you use it) and **Sync now**.
 
-With Alchemy the app reads BNB and BEP-20 transfers (`alchemy_getAssetTransfers`), the gas of the
-transactions you sent (one receipt each), and lists every token held now
-(`alchemy_getTokenBalances`, also used by Assets → **Load all**). Alchemy has no internal
-transfers on BSC: BNB received from a contract (e.g. a DEX refund) is caught by the year-end
-check against chain state and flagged ⛔ until you add a snapshot.
+The app reads native and token transfers (`alchemy_getAssetTransfers`), the gas of the
+transactions you sent, and lists every token held now (`alchemy_getTokenBalances`, also used by
+Assets → **Load all**). Alchemy gives internal transfers only on some chains (Ethereum, Polygon,
+Base, Arc): elsewhere, BNB received from a contract (e.g. a DEX refund) is caught by the year-end
+check against chain state and flagged ⛔. The Alchemy name of each chain (bnb-mainnet,
+monad-mainnet, arc-mainnet…) is in Settings → Networks; if **Test** reports an error for a chain,
+check the name in your Alchemy dashboard and correct it there. On Arc the gas coin is USDC: its
+ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice.
 
-NodeReal instead: create a key at [nodereal.io/meganode](https://nodereal.io/meganode) and paste
-it in the **BNB Smart Chain (NodeReal)** row (leave the Alchemy row empty). It reads internal
-transfers too (`nr_getAssetTransfers`).
+### Stellar
 
-Year-end balances are also read from chain state at the cutoff block when your plan allows
-archive reads, and any difference with the history is flagged ⛔.
+Stellar is read from the public Horizon server, no key: add your G… address on the Wallets page
+and **Sync now**. XLM and issued assets are imported (an issued asset is identified by its issuer,
+so a fake "USDC" is not priced as Circle's). Liquidity-pool deposits, claimable balances and
+account merges are not imported yet: the sync warns when it meets one; check that balance with a
+snapshot or a manual entry.
 
 ### Tron with TronGrid
 
@@ -216,7 +231,7 @@ TronGrid is the public Tron API run by the TRON network; its key is free.
 
 1. Sign up at [trongrid.io](https://www.trongrid.io/) (email, no card) and open the dashboard.
 2. Create an API key and copy it.
-3. In CryptoLedger: **Settings → Blockchain APIs → Tron (TronGrid)**, paste the key, **Save**,
+3. In CryptoLedger: **Settings → API providers → Tron (TronGrid)**, paste the key, **Save**,
    then **Test**.
 4. Add your Tron address (starts with `T`) on the **Wallets** page and press **Sync now**.
 

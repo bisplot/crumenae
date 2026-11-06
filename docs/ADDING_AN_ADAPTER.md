@@ -1,33 +1,42 @@
 # Connecting a new API
 
-There are three levels, from no code to a new module.
+There are three levels, from no code to a new module. Most needs stop at level 1.
 
-## 1. An EVM chain with an Etherscan-compatible explorer: no code
+## 1. A provider or a chain that speaks a supported type: no code
 
-Settings → Blockchain endpoints (advanced) → **Add another EVM blockchain**: id, chain id, native symbol, explorer API URL.
-Examples of compatible APIs:
+Everything happens in **Settings**:
 
-| Provider | URL pattern | Notes |
-|---|---|---|
-| Etherscan V2 | `https://api.etherscan.io/v2/api` | one key, `chainid` sent automatically |
-| Blockscout | `https://<chain>.blockscout.com/api` | usually no key |
-| Routescan | `https://api.routescan.io/v2/network/mainnet/evm/<chainId>/etherscan/api` | no key, rate limited |
+- **API providers → + Add provider**: name, type, base URL, key, limits. **Test** makes one
+  cheap call. The key is stored as the secret `<provider id>_api_key` (OS keychain or
+  `data/secrets.json`); its limits are the rate-limit entry with the same id.
+- **Networks → + Add network**: id, name, the provider that reads it, chain id (EVM), Alchemy
+  name (Alchemy providers), native coin (symbol, decimals, CoinGecko id, Binance ticker),
+  explorer links. Or change the provider of an existing chain in the table, or hide it.
 
-To move a built-in chain to another explorer, edit its Explorer API URL in the same table.
+Supported types (`cryptoledger/providers.py: TYPES`):
 
-## 1b. Any EVM chain supported by Moralis: config only
+| Type | Reads | Examples | Adapter |
+|---|---|---|---|
+| Etherscan-compatible | any EVM chain: transactions, internal transfers, tokens | Etherscan V2 `https://api.etherscan.io/v2/api` (one key, `chainid` sent), Blockscout `https://<chain>.blockscout.com/api` (no key), Routescan `https://api.routescan.io/v2/network/mainnet/evm/<chainId>/etherscan/api` | `evm` |
+| Alchemy-compatible | any EVM chain the provider serves: native and token transfers, tokens held now | Alchemy `https://{network}.g.alchemy.com/v2` (`{network}` = the chain's Alchemy name) | `alchemy` |
+| Moralis | any EVM chain Moralis serves | `https://deep-index.moralis.io/api/v2.2` (each network gives its hex chain id) | `moralis` |
+| Esplora | Bitcoin | mempool.space, Blockstream, your own node | `bitcoin` |
+| Horizon | Stellar | `https://horizon.stellar.org` or any Horizon | `stellar` |
 
-Add an entry to `config/networks.json` with `"adapter": "moralis"`, `"moralis_chain": "<hex chain id>"`,
-`"explorer_api": "https://deep-index.moralis.io/api/v2.2"` and `"explorer_key": "moralis"` (Ronin is
-set up this way). The same Moralis key covers every chain. Note: Moralis no longer has a
-free plan; BNB Smart Chain uses the `nodereal` adapter (NodeReal MegaNode, free key).
+Solana (Helius or any Solana RPC), Tron (TronGrid) and Solar are built in with their own
+endpoints. Built-in networks are listed in `config/networks.json`, each with its `provider`.
 
 ## 2. A token the app does not know: no code
 
 Assets page → enter the CoinGecko id or the Binance ticker. To ship it for everyone, add it to
 `config/tokens.json` (contract in lower case for EVM).
 
-## 3. A new blockchain or exchange: one Python class
+## 3. A new protocol or exchange: one Python class
+
+Needed only when a service speaks a protocol none of the types above understands (e.g. a
+Cosmos or Cardano API, a new exchange's account API). Write the adapter below; to make its
+providers addable from the UI too, add its type to `TYPES` in `cryptoledger/providers.py`
+(label, family, adapter id, default URL) and a branch in `apitest.test_provider` for its Test.
 
 Create `cryptoledger/adapters/<name>.py`:
 

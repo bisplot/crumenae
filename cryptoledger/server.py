@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from . import __version__
 from . import assets as assets_mod
 from . import classify, exports, report, sync, views, yearend
+from . import providers as providers_mod
 from .adapters import ADAPTERS, get_adapter
 from .context import Context
 from .paths import WEB_DIR
@@ -55,7 +56,12 @@ class App:
         r("GET", r"/api/dashboard", self.dashboard)
         r("GET", r"/api/networks", self.networks)
         r("POST", r"/api/networks", self.add_network)
+        r("PUT", r"/api/networks/(?P<nid>[a-z0-9_-]+)", self.update_network)
         r("DELETE", r"/api/networks/(?P<nid>[a-z0-9_-]+)", self.delete_network)
+        r("GET", r"/api/providers", self.providers)
+        r("POST", r"/api/providers", self.add_provider)
+        r("PUT", r"/api/providers/(?P<pid>[a-z0-9_]+)", self.update_provider)
+        r("DELETE", r"/api/providers/(?P<pid>[a-z0-9_]+)", self.delete_provider)
         r("GET", r"/api/wallets", self.wallets)
         r("POST", r"/api/wallets", self.create_wallets)
         r("PUT", r"/api/wallets/(?P<wid>\d+)", self.update_wallet)
@@ -120,8 +126,11 @@ class App:
     def get_settings(self, **_: Any) -> Dict[str, Any]:
         secrets = {name: {"label": label, "source": self.ctx.secrets.source(name)}
                    for name, label in KNOWN_SECRETS.items()}
+        for prov in providers_mod.custom(self.ctx.settings):
+            name = providers_mod.secret_name(prov["id"])
+            secrets[name] = {"label": f"{prov['name']} API key", "source": self.ctx.secrets.source(name)}
         for n in self.ctx.networks.all():
-            if n.adapter in ("evm", "nodereal"):
+            if n.adapter in ("evm", "alchemy"):
                 name = f"rpc_url:{n.id}"
                 secrets[name] = {"label": f"{n.name} archive RPC URL (optional)", "source": self.ctx.secrets.source(name)}
         return {"settings": self.ctx.settings.all(), "secrets": secrets, "secrets_backend": self.ctx.secrets.backend,
@@ -170,7 +179,7 @@ class App:
             elif key in ("value_transactions", "auto_snapshot"):
                 value = bool(value)
             elif key == "rate_limits":
-                value = _clean_rate_limits(value)
+                value = _clean_rate_limits(value, set(self.ctx.limiter.services()))
             elif key == "platforms":
                 if not isinstance(value, list):
                     raise ApiError(400, "platforms must be a list")
@@ -198,7 +207,9 @@ class App:
             raise ApiError(400, "expected an object")
         network_ids = {n.id for n in self.ctx.networks.all()}
         for name, value in body.items():
-            ok = name in KNOWN_SECRETS or (name.startswith("rpc_url:") and name.split(":", 1)[1] in network_ids)
+            custom_keys = {providers_mod.secret_name(p["id"]) for p in providers_mod.custom(self.ctx.settings)}
+            ok = name in KNOWN_SECRETS or name in custom_keys or \
+                (name.startswith("rpc_url:") and name.split(":", 1)[1] in network_ids)
             if not ok:
                 raise ApiError(400, f"unknown secret '{name}'")
             value = (value or "").strip()
@@ -210,19 +221,150 @@ class App:
     # --- networks ------------------------------------------------------------------
     def networks(self, **_: Any) -> List[Dict[str, Any]]:
         out = []
+        provs = {p["id"]: p for p in providers_mod.all_providers(self.ctx.settings)}
+        used = {r["network"]: r["n"] for r in self.ctx.db.query("SELECT network, COUNT(*) AS n FROM wallets GROUP BY network")}
         for n in self.ctx.networks.all():
             p = n.public()
             cls = ADAPTERS.get(n.adapter)
             p["needs_address"] = bool(cls and cls.needs_address)
             p["credentials"] = list(cls.credentials) if cls else []
+            p["provider_name"] = (provs.get(n.provider) or {}).get("name") or ""
+            p["provider_type"] = (provs.get(n.provider) or {}).get("type") or ""
+            p["wallets"] = used.get(n.id, 0)
+            p["hidden"] = bool(n.hidden)
             out.append(p)
         return out
 
     def add_network(self, body: Any, **_: Any) -> Dict[str, Any]:
         try:
-            return self.ctx.networks.add_custom_evm(body or {}).public()
+            return self.ctx.networks.add_custom(body or {}).public()
         except ValueError as e:
             raise ApiError(400, str(e))
+
+    def update_network(self, nid: str, body: Any, **_: Any) -> Dict[str, Any]:
+        """Built-in network: provider, Alchemy name, hidden, URLs (stored as overrides).
+        Network you added: every field."""
+        body = body if isinstance(body, dict) else {}
+        try:
+            net = self.ctx.networks.get(nid)
+        except KeyError:
+            raise ApiError(404, "unknown network")
+        if body.get("provider"):
+            prov = providers_mod.get(self.ctx.settings, str(body["provider"]))
+            if not prov:
+                raise ApiError(400, "unknown provider")
+            if providers_mod.TYPES[prov["type"]]["family"] != net.family:
+                raise ApiError(400, f"{prov['name']} cannot read {net.name}")
+            if prov["type"] == "alchemy" and not (body.get("alchemy_network") or net.alchemy_network):
+                raise ApiError(400, f"give the Alchemy name of {net.name} (e.g. eth-mainnet, arb-mainnet)")
+        if not net.builtin:
+            data = dict(json.loads(self.ctx.db.scalar("SELECT config FROM custom_networks WHERE id=?", (nid,)) or "{}"))
+            flat = {"id": nid, "name": data.get("name"), "provider": data.get("provider"),
+                    "chain_id": data.get("chain_id"), "alchemy_network": data.get("alchemy_network"),
+                    "moralis_chain": data.get("moralis_chain"), "tx_url": data.get("tx_url"),
+                    "address_url": data.get("address_url"), "coingecko_platform": data.get("coingecko_platform"),
+                    "rpc_url": data.get("rpc_url"), "l2": data.get("l2")}
+            for k, v in (data.get("native") or {}).items():
+                flat[f"native_{k}"] = v
+            flat["native_coingecko"] = (data.get("native") or {}).get("coingecko")
+            flat["native_binance"] = (data.get("native") or {}).get("binance")
+            flat.update({k: v for k, v in body.items() if k != "id"})
+            if not flat.get("provider"):
+                raise ApiError(400, "choose a provider")
+            hidden = bool(flat.pop("hidden", data.get("hidden")))
+            try:
+                self.ctx.networks.add_custom(flat, update=True)
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            if hidden != bool(data.get("hidden")):
+                ov = dict(self.ctx.settings.get("network_overrides") or {})
+                ov[nid] = dict(ov.get(nid) or {}, hidden=hidden)
+                self.ctx.settings.set("network_overrides", ov)
+            return self.ctx.networks.get(nid).public()
+        from .networks import EDITABLE
+        overrides = dict(self.ctx.settings.get("network_overrides") or {})
+        ov = dict(overrides.get(nid) or {})
+        for k, v in body.items():
+            if k not in EDITABLE:
+                raise ApiError(400, f"'{k}' cannot be changed on a built-in network")
+            if k in ("explorer_api", "rpc_url") and v and not str(v).startswith(("https://", "http://")):
+                raise ApiError(400, f"{k} must be a URL")
+            if k == "hidden":
+                v = bool(v)
+            if k == "provider" and v != net.provider:
+                ov.pop("explorer_api", None)   # an explorer URL set for the old provider no longer applies
+            if v in (None, "") or (k == "hidden" and not v):
+                ov.pop(k, None)
+            else:
+                ov[k] = v
+        overrides[nid] = ov
+        self.ctx.settings.set("network_overrides", {k: v for k, v in overrides.items() if v})
+        return self.ctx.networks.get(nid).public()
+
+    # --- API providers -------------------------------------------------------------------
+    def providers(self, **_: Any) -> List[Dict[str, Any]]:
+        limits = {r["id"]: r for r in self.limits()}
+        nets = self.ctx.networks.all()
+        out = []
+        for p in providers_mod.all_providers(self.ctx.settings):
+            t = providers_mod.TYPES.get(p["type"], {})
+            secret = providers_mod.secret_name(p["id"])
+            lim = limits.get(p["id"]) or {}
+            out.append(dict(
+                p, type_label=t.get("label", p["type"]), family=t.get("family"), secret=secret,
+                secret_source=self.ctx.secrets.source(secret),
+                networks=[{"id": n.id, "name": n.name} for n in nets if n.provider == p["id"] and not n.hidden],
+                wallets=lim.get("wallets", 0), limits={k: lim.get(k) for k in (
+                    "rate", "unit", "per_day", "default_rate", "default_unit", "default_per_day", "used_today")},
+                removable=not p["builtin"] and not any(n.provider == p["id"] for n in nets)))
+        return out
+
+    def add_provider(self, body: Any, **_: Any) -> Dict[str, Any]:
+        body = body if isinstance(body, dict) else {}
+        try:
+            prov = providers_mod.clean(body)
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        current = providers_mod.custom(self.ctx.settings)
+        prov["id"] = providers_mod.slug(prov["name"], {p["id"] for p in current})
+        self.ctx.settings.set("providers", [{k: v for k, v in p.items() if k != "builtin"} for p in current] + [prov])
+        if body.get("key"):
+            self.ctx.secrets.set(providers_mod.secret_name(prov["id"]), str(body["key"]).strip())
+        return next(p for p in self.providers() if p["id"] == prov["id"])
+
+    def update_provider(self, pid: str, body: Any, **_: Any) -> Dict[str, Any]:
+        body = body if isinstance(body, dict) else {}
+        current = providers_mod.custom(self.ctx.settings)
+        existing = next((p for p in current if p["id"] == pid), None)
+        if not existing:
+            raise ApiError(400, "built-in providers keep their settings; change their key and limits in the table")
+        if body.get("type") and body["type"] != existing["type"] and \
+                any(n.provider == pid for n in self.ctx.networks.all()):
+            raise ApiError(400, "networks use this provider: its type cannot change")
+        try:
+            prov = providers_mod.clean(body, existing)
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        prov["id"] = pid
+        self.ctx.settings.set("providers", [prov if p["id"] == pid else {k: v for k, v in p.items() if k != "builtin"}
+                                            for p in current])
+        if body.get("key"):
+            self.ctx.secrets.set(providers_mod.secret_name(pid), str(body["key"]).strip())
+        return next(p for p in self.providers() if p["id"] == pid)
+
+    def delete_provider(self, pid: str, **_: Any) -> Dict[str, Any]:
+        current = providers_mod.custom(self.ctx.settings)
+        if not any(p["id"] == pid for p in current):
+            raise ApiError(400, "built-in providers cannot be removed")
+        users = [n.name for n in self.ctx.networks.all() if n.provider == pid]
+        if users:
+            raise ApiError(400, "used by " + ", ".join(users) + ": point those networks to another provider first")
+        self.ctx.settings.set("providers", [{k: v for k, v in p.items() if k != "builtin"} for p in current if p["id"] != pid])
+        self.ctx.secrets.delete(providers_mod.secret_name(pid))
+        limits = dict(self.ctx.settings.get("rate_limits") or {})
+        if limits.pop(pid, None) is not None:
+            self.ctx.settings.set("rate_limits", limits)
+        return {"ok": True}
 
     def delete_network(self, nid: str, **_: Any) -> Dict[str, Any]:
         try:
@@ -605,7 +747,8 @@ class App:
             self._reset_phrase = None
         ctx = self.ctx
         # API keys: the global ones, archive RPC URLs and the exchange keys of every wallet.
-        names = set(KNOWN_SECRETS) | {f"rpc_url:{n.id}" for n in ctx.networks.all()}
+        names = set(KNOWN_SECRETS) | {f"rpc_url:{n.id}" for n in ctx.networks.all()} | \
+            {providers_mod.secret_name(p["id"]) for p in providers_mod.custom(ctx.settings)}
         for w in ctx.db.query("SELECT id, network FROM wallets"):
             try:
                 cls = ADAPTERS.get(ctx.networks.get(w["network"]).adapter)
@@ -685,7 +828,7 @@ def _merge_platforms(current: List[str], new: List[Any]) -> List[str]:
     return sorted(out.values(), key=str.lower)
 
 
-def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
+def _clean_rate_limits(value: Any, valid: Optional[set] = None) -> Dict[str, Dict[str, Any]]:
     """{service: {rate: number|null, unit: "second"|"minute", per_day: int|null}};
     empty/0 means no limit. The v0.1 form {per_second: n} is still accepted."""
     from .ratelimit import SERVICES
@@ -693,7 +836,7 @@ def _clean_rate_limits(value: Any) -> Dict[str, Dict[str, Any]]:
         raise ApiError(400, "rate_limits must be an object")
     out: Dict[str, Dict[str, Any]] = {}
     for sid, lim in value.items():
-        if sid not in SERVICES or not isinstance(lim, dict):
+        if sid not in (valid or SERVICES) or not isinstance(lim, dict):
             raise ApiError(400, f"unknown service '{sid}'")
         clean: Dict[str, Any] = {}
         if "unit" in lim:

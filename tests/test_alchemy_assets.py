@@ -61,7 +61,6 @@ class AlchemyBscTest(unittest.TestCase):
         self.t = TempContext(FakeHttp().on("https://bnb-mainnet.g.alchemy.com", alchemy_handler))
         self.ctx = self.t.ctx
         self.ctx.secrets.set("alchemy_api_key", KEY)
-        self.ctx.secrets.set("nodereal_api_key", "n" * 32)   # Alchemy wins when both are saved
         self.wallet = add_wallet(self.ctx, "bsc", ME)
         self.adapter = get_adapter(self.ctx, self.ctx.networks.get("bsc"))
 
@@ -81,6 +80,10 @@ class AlchemyBscTest(unittest.TestCase):
         self.assertEqual(res.state["last_block"], 0x13)
         from cryptoledger import sync as sync_mod
         self.assertEqual(sync_mod.wallet_service(self.ctx, self.wallet), "alchemy")
+
+    def test_key_redacted_in_errors(self):
+        from cryptoledger.http import _redact
+        self.assertEqual(_redact(f"https://bnb-mainnet.g.alchemy.com/v2/{KEY}"), "https://bnb-mainnet.g.alchemy.com/v2/***")
 
     def test_live_balances_find_every_token(self):
         bal, infos = self.adapter.current_balances(self.wallet, [], LOG)

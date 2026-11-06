@@ -22,12 +22,9 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     "moralis": {"label": "Moralis (Ronin)", "hosts": ["deep-index.moralis.io"],
                 "rate": 5, "unit": "second", "per_day": None,
                 "hint": "Free plan is metered in compute units per day: see your Moralis dashboard"},
-    "alchemy": {"label": "Alchemy (BNB Smart Chain)", "hosts": ["bnb-mainnet.g.alchemy.com"],
+    "alchemy": {"label": "Alchemy (BNB Smart Chain, Monad, Arc…)", "hosts": ["*.g.alchemy.com"],
                 "rate": 10, "unit": "second", "per_day": None,
                 "hint": "Free plan: monthly compute units (about 120 per transfers call); see your Alchemy dashboard"},
-    "nodereal": {"label": "NodeReal MegaNode (BNB Smart Chain)", "hosts": ["bsc-mainnet.nodereal.io"],
-                 "rate": 5, "unit": "second", "per_day": None,
-                 "hint": "Free key: 10M compute units/month, 150 CU/s; see your NodeReal dashboard"},
     "helius": {"label": "Helius (Solana)", "hosts": ["mainnet.helius-rpc.com", "api.helius.xyz"],
                "rate": 10, "unit": "second", "per_day": None,
                "hint": "Free: 10 RPC calls/s, monthly credits (1 credit per standard call)"},
@@ -36,6 +33,8 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     "trongrid": {"label": "TronGrid (Tron)", "hosts": ["api.trongrid.io"],
                  "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free key at trongrid.io: ~15 calls/s, 100,000/day; without a key calls may be refused"},
     "esplora": {"label": "mempool.space / Blockstream (Bitcoin)", "hosts": ["mempool.space", "blockstream.info"],
+                "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "horizon": {"label": "Stellar Horizon", "hosts": ["horizon.stellar.org"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "solar": {"label": "Solar API (SXP)", "hosts": ["sxp.mainnet.sh"],
               "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
@@ -60,9 +59,25 @@ UNITS = {"second": 1, "minute": 60}   # seconds per unit
 
 
 # API key (secret name) of each service, and services that provide prices rather than wallet data.
-SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "nodereal": "nodereal_api_key", "alchemy": "alchemy_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
+SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "alchemy": "alchemy_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
              "coinmarketcap": "coinmarketcap_api_key"}
 PRICE_SERVICES = ("binance_data", "coingecko", "coinmarketcap", "ecb")
+
+
+def all_services(settings) -> Dict[str, Dict[str, Any]]:
+    """Built-in services plus the API providers you added (Settings → API providers)."""
+    from . import providers
+    out = dict(SERVICES)
+    for p in providers.custom(settings) if settings is not None else []:
+        if p.get("id") and p["id"] not in out:
+            out[p["id"]] = {"label": p.get("name") or p["id"], "hosts": providers.hosts(p), "rate": 5,
+                            "unit": "second", "per_day": None, "hint": p.get("hint") or "Added by you",
+                            "custom": True}
+    return out
+
+
+def _match(host: str, pattern: str) -> bool:
+    return host == pattern or (pattern.startswith("*.") and host.endswith(pattern[1:]))
 
 
 class DailyLimitReached(HttpError):
@@ -87,15 +102,24 @@ class RateLimiter:
         self._sleep = sleep
         self._next: Dict[str, float] = {}
         self._lock = threading.Lock()
-        self._host_map = {h: sid for sid, s in SERVICES.items() for h in s["hosts"]}
+    def services(self) -> Dict[str, Dict[str, Any]]:
+        return all_services(self.settings)
 
     def service_for(self, host: str) -> str:
-        return self._host_map.get((host or "").lower(), "other")
+        host = (host or "").lower()
+        services = self.services()
+        for sid, s in services.items():        # exact hosts first, then wildcards
+            if host in s["hosts"]:
+                return sid
+        for sid, s in services.items():
+            if any(_match(host, h) for h in s["hosts"] if h.startswith("*.")):
+                return sid
+        return "other"
 
     def limits(self, service: str) -> Dict[str, Any]:
         """Effective limits: user settings over defaults. rate/per_day None = no limit.
         per_second is the rate converted to calls per second."""
-        base = SERVICES.get(service, SERVICES["other"])
+        base = self.services().get(service, SERVICES["other"])
         user = (self.settings.get("rate_limits") or {}).get(service) or {}
         if "rate" in user or "unit" in user:
             rate, unit = user.get("rate", base["rate"]), user.get("unit", base["unit"])
@@ -137,7 +161,7 @@ class RateLimiter:
 
     def overview(self) -> List[Dict[str, Any]]:
         out = []
-        for sid, s in SERVICES.items():
+        for sid, s in self.services().items():
             lim = self.limits(sid)
             out.append({"id": sid, "label": s["label"], "hint": s["hint"], "hosts": s["hosts"],
                         "rate": lim["rate"], "unit": lim["unit"], "per_second": lim["per_second"],

@@ -28,8 +28,8 @@ HOST_INTERVALS = {
     "blockstream.info": 0.3,
     "data-api.binance.vision": 0.05,
     "api.binance.com": 0.1,
-    "bsc-mainnet.nodereal.io": 0.2,
     "bnb-mainnet.g.alchemy.com": 0.1,
+    "horizon.stellar.org": 0.3,
     "data-api.ecb.europa.eu": 0.2,
 }
 DEFAULT_INTERVAL = 0.2
@@ -50,7 +50,7 @@ def _redact(url: str) -> str:
     q = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
     q = [(k, "***" if k.lower() in ("apikey", "api_key", "api-key", "key", "signature", "x_cg_demo_api_key") else v)
          for k, v in q]
-    # Keys carried in the path (e.g. https://bsc-mainnet.nodereal.io/v1/<key>): long opaque segments.
+    # Keys carried in the path (e.g. https://bnb-mainnet.g.alchemy.com/v2/<key>): long opaque segments.
     path = "/".join("***" if re.fullmatch(r"[A-Za-z0-9_-]{24,}", seg) else seg for seg in parts.path.split("/"))
     return urllib.parse.urlunsplit(parts._replace(path=path, query=urllib.parse.urlencode(q)))
 

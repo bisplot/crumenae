@@ -36,6 +36,8 @@ DEFAULTS: Dict[str, Any] = {
     # Platforms offered in the wallet form (wallet app, device or exchange). Starts empty:
     # every new platform typed on a wallet is added here.
     "platforms": [],
+    # API providers you added (Settings → API providers): [{id, name, type, base_url, ...}].
+    "providers": [],
 }
 
 

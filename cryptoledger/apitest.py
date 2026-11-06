@@ -105,27 +105,58 @@ def test_moralis(ctx) -> Dict[str, Any]:
     return _result(True, f"Key accepted (API {data.get('version', '?')}).", "1 call")
 
 
-def test_nodereal(ctx) -> Dict[str, Any]:
-    key = ctx.secrets.get("nodereal_api_key")
-    if not key:
-        return _result(False, "No NodeReal key saved.", "none")
-    data = ctx.http.post_json(f"https://bsc-mainnet.nodereal.io/v1/{key}",
-                              {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
-    if not isinstance(data, dict) or data.get("error") or not data.get("result"):
-        return _result(False, f"NodeReal answered with an error: {(data or {}).get('error')}", "1 call")
-    return _result(True, f"Key accepted: BSC block {int(data['result'], 16):,}.", "1 call")
+def _networks_of(ctx, provider_id: str):
+    return [n for n in ctx.networks.all() if n.provider == provider_id and not n.hidden]
 
 
-def test_alchemy(ctx) -> Dict[str, Any]:
-    key = ctx.secrets.get("alchemy_api_key")
-    if not key:
-        return _result(False, "No Alchemy key saved.", "none")
-    data = ctx.http.post_json(f"https://bnb-mainnet.g.alchemy.com/v2/{key}",
-                              {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
-    if not isinstance(data, dict) or data.get("error") or not data.get("result"):
-        return _result(False, f"Alchemy answered with an error: {(data or {}).get('error')} "
-                              "(is BNB Smart Chain enabled on your Alchemy app?)", "1 call")
-    return _result(True, f"Key accepted: BSC block {int(data['result'], 16):,}.", "1 call")
+def test_provider(ctx, provider_id: str) -> Dict[str, Any]:
+    """Generic test for any provider, built-in or added by you: one cheap call."""
+    from . import providers
+    p = providers.get(ctx.settings, provider_id)
+    if not p:
+        return _result(False, "Unknown provider.", "none")
+    key = ctx.secrets.get(providers.secret_name(provider_id))
+    if p.get("needs_key") and not key:
+        return _result(False, f"No {p['name']} key saved.", "none")
+    nets = _networks_of(ctx, provider_id)
+    base = p["base_url"].rstrip("/")
+    t = p["type"]
+    if t == "etherscan":
+        params = {"module": "proxy", "action": "eth_blockNumber"}
+        chain = next((n for n in nets if n.chain_id), None)
+        if p.get("chainid_param"):
+            params["chainid"] = chain.chain_id if chain else 1
+        if key:
+            params["apikey"] = key
+        data = ctx.http.get_json(base, params)
+        block = data.get("result") if isinstance(data, dict) else None
+        if isinstance(block, str) and block.startswith("0x"):
+            where = f" on {chain.name}" if chain else ""
+            return _result(True, f"{p['name']} answers{where}: latest block {int(block, 16):,}.", "1 call")
+        return _result(False, f"{p['name']} refused: {(data or {}).get('result') or (data or {}).get('message') or data}",
+                       "1 call")
+    if t == "alchemy":
+        net = next((n for n in nets if n.alchemy_network), None)
+        sub = net.alchemy_network if net else "eth-mainnet"
+        data = ctx.http.post_json(base.replace("{network}", sub) + "/" + (key or ""),
+                                  {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
+        if not isinstance(data, dict) or data.get("error") or not data.get("result"):
+            return _result(False, f"{p['name']} answered with an error on {sub}: {(data or {}).get('error')} "
+                                  "(is this chain enabled on your Alchemy app?)", "1 call")
+        return _result(True, f"Key accepted on {net.name if net else sub}: block {int(data['result'], 16):,}.", "1 call")
+    if t == "moralis":
+        data = ctx.http.get_json(base + "/web3/version", headers={"X-API-Key": key or ""})
+        return _result(True, f"Key accepted (API {data.get('version', '?')}).", "1 call")
+    if t == "esplora":
+        height = ctx.http.get_json(base + "/blocks/tip/height")
+        return _result(True, f"{p['name']} answers: block {height:,}.", "1 call")
+    if t == "horizon":
+        data = ctx.http.get_json(base + "/")
+        ledger = (data or {}).get("history_latest_ledger") or (data or {}).get("core_latest_ledger")
+        if ledger:
+            return _result(True, f"{p['name']} answers: ledger {int(ledger):,}.", "1 call")
+        return _result(False, f"{p['name']} answered without a ledger number.", "1 call")
+    return _result(False, "No test available for this provider type.", "none")
 
 
 def test_trongrid(ctx) -> Dict[str, Any]:
@@ -137,11 +168,14 @@ def test_trongrid(ctx) -> Dict[str, Any]:
 
 TESTS = {"etherscan": test_etherscan, "solana": test_solana, "coingecko": test_coingecko,
          "coinmarketcap": test_coinmarketcap, "binance_data": test_binance_data, "ecb": test_ecb,
-         "moralis": test_moralis, "nodereal": test_nodereal, "alchemy": test_alchemy, "trongrid": test_trongrid}
+         "moralis": test_moralis, "trongrid": test_trongrid, "helius": test_solana}
 
 
 def run(ctx, service: str) -> Dict[str, Any]:
+    from . import providers
     fn = TESTS.get(service)
+    if not fn and providers.get(ctx.settings, service):
+        fn = lambda c: test_provider(c, service)  # noqa: E731
     if not fn:
         return _result(False, "No test available for this service.", "none")
     if ctx.offline:

@@ -22,4 +22,4 @@ def get_adapter(ctx, network) -> Adapter:
 
 
 # Import adapter modules so they register themselves.
-from . import evm, moralis, nodereal, solana, solar, tron, bitcoin, binance, manual  # noqa: E402,F401
+from . import evm, alchemy, moralis, solana, solar, stellar, tron, bitcoin, binance, manual  # noqa: E402,F401

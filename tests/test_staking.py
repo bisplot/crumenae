@@ -92,10 +92,10 @@ class NeverSyncedAndBscTest(unittest.TestCase):
         r = yearend.balance_at_cutoff(self.ctx, self.ctx.wallet(w["id"]), self.ctx.calendar.cutoff(2025))
         self.assertIn("401", r.flags[0])
 
-    def test_bsc_uses_nodereal(self):
+    def test_bsc_uses_alchemy(self):
         from cryptoledger.adapters import get_adapter
         net = self.ctx.networks.get("bsc")
-        self.assertEqual(net.adapter, "nodereal")
+        self.assertEqual((net.adapter, net.provider, net.alchemy_network), ("alchemy", "alchemy", "bnb-mainnet"))
         a = get_adapter(self.ctx, net)
         self.assertEqual(a.validate_address("0x" + "AB" * 20), "0x" + "ab" * 20)
 
