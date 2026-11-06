@@ -150,3 +150,44 @@ class BinanceEarnPositionsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+DOGE = "0xba2ae424d960c26247dd6c32edc70b295c744c43"
+
+
+def limited_alchemy_handler(method, url, params, payload):
+    """A node with standard JSON-RPC only: the enhanced APIs answer 'method not supported'."""
+    m, p = payload["method"], payload["params"]
+    if m in ("alchemy_getAssetTransfers", "alchemy_getTokenBalances"):
+        return {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": f"Unsupported method: {m} on BNB_MAINNET"}}
+    if m == "eth_getBalance":
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(2 * 10 ** 17)}
+    if m == "eth_call":
+        to = p[0]["to"]
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(1234 * 10 ** 8) if to == DOGE else "0x0"}
+    return None
+
+
+class AlchemyFallbackTest(unittest.TestCase):
+    def setUp(self):
+        self.t = TempContext(FakeHttp().on("https://bnb-mainnet.g.alchemy.com", limited_alchemy_handler))
+        self.ctx = self.t.ctx
+        self.ctx.secrets.set("alchemy_api_key", KEY)
+        self.wallet = add_wallet(self.ctx, "bsc", ME)
+
+    def tearDown(self):
+        self.t.close()
+
+    def test_balances_without_enhanced_apis(self):
+        sync.sync_wallet(self.ctx, self.wallet, LOG)   # no exception: history missing, balances read
+        held = {r["asset_key"]: Decimal(r["amount"]) for r in self.ctx.db.query("SELECT * FROM current_balances")}
+        self.assertEqual(held, {"bsc:native": Decimal("0.2"), f"bsc:{DOGE}": Decimal(1234)})
+        doge = self.ctx.db.query_one("SELECT * FROM assets WHERE key=?", (f"bsc:{DOGE}",))
+        self.assertEqual((doge["symbol"], doge["decimals"], doge["binance_symbol"], doge["status"]), ("DOGE", 8, "DOGE", "known"))
+        self.assertIn("history not available", self.ctx.db.scalar("SELECT message FROM sync_log WHERE level='warn'"))
+
+    def test_key_problems_are_not_hidden(self):
+        self.ctx.secrets.delete("alchemy_api_key")
+        from cryptoledger.adapters.base import AdapterError
+        with self.assertRaises(AdapterError):
+            get_adapter(self.ctx, self.ctx.networks.get("bsc")).sync(self.wallet, {}, LOG)
