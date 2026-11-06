@@ -12,12 +12,13 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), BNB Smart Chain, Monad and Arc (Alchemy), Solana (Helius),
-  Ronin (Moralis), Tron, Bitcoin, Stellar, Solar (SXP), Binance (with Simple Earn rewards); manual accounts for anything else.
+  Etherscan-compatible explorer), BNB Smart Chain, Monad, Arc and Ronin (Alchemy), Solana (Helius),
+  Terra and Terra Classic (public LCD), Tron, Bitcoin, Stellar, Solar (SXP), Binance (with Simple
+  Earn rewards); manual accounts for anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → API providers and Price sources).
 - **Providers and networks you control**: add an API provider (any Etherscan-compatible,
-  Alchemy-compatible, Moralis, Esplora or Horizon service) or a new blockchain from Settings,
+  Alchemy-compatible, Cosmos SDK LCD, Esplora or Horizon service) or a new blockchain from Settings,
   with its key, limits and Test, and choose which provider reads each chain. No code.
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
@@ -89,16 +90,17 @@ python3 -m pip install -r requirements-optional.txt
    | Provider | Reads | Free? |
    |---|---|---|
    | Etherscan | Ethereum, Polygon, Arbitrum, Linea (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). BNB Smart Chain, Base, OP, Avalanche and Arc need a paid plan: read them with Alchemy instead |
-   | Alchemy | BNB Smart Chain, Monad, Arc, and any chain you point to it | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
+   | Alchemy | BNB Smart Chain, Monad, Arc, Ronin, and any chain you point to it | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
    | Solana (Helius) | Solana; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
    | mempool.space | Bitcoin | no key |
    | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
+   | Terra / Terra Classic (PublicNode) | Terra (LUNA) and Terra Classic (LUNC, USTC), staking included | no key |
 
-   Moralis (Ronin, now paid) and the Solar API appear once a wallet uses them. Binance account
+   The Solar API appears once a wallet uses it. Binance account
    keys (read-only) are entered per account on the Wallets page. **+ Add provider** adds any
    other service that speaks a supported type — Etherscan-compatible (Blockscout, Routescan,
-   Lineascan…), Alchemy-compatible, Moralis, Esplora or Horizon — with its key, limits and Test.
+   Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora or Horizon — with its key, limits and Test.
    No code, no request to anyone.
 
    **Networks**: every blockchain you can track and the provider that reads it. Change a chain's
@@ -216,6 +218,18 @@ check against chain state and flagged ⛔. The Alchemy name of each chain (bnb-m
 monad-mainnet, arc-mainnet…) is in Settings → Networks; if **Test** reports an error for a chain,
 check the name in your Alchemy dashboard and correct it there. On Arc the gas coin is USDC: its
 ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice.
+
+### Terra and Terra Classic
+
+Terra (LUNA) and Terra Classic (LUNC, USTC) are read from PublicNode's public APIs, no key: add
+your `terra1…` address on the Wallets page (the same address works on both chains: add it once
+per chain). The live balance includes staked and unbonding coins (still yours); staking rewards
+are imported as `reward` (Staking page). Public nodes keep only recent transactions, so the
+year-end balance of these chains comes from the balance read at each sync, a snapshot near the
+cutoff, or a manual entry (Year-end → Enter manually), never from a partial history. Terra
+Classic's old fiat stablecoins (KRTC, EUTC… the dust left by staking rewards) are ghost assets
+valued at €0. Other Cosmos SDK chains (Cosmos Hub, Osmosis…) can be added from Settings: a
+"Cosmos SDK LCD" provider and a network with its address prefix and native denom.
 
 ### Stellar
 

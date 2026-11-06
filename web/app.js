@@ -485,7 +485,7 @@
     const platforms = [...platformMap.values()].sort((a, b) => a.localeCompare(b));
     const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind && !n.hidden).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
-    const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / S… / Solana address', autocomplete: 'off', spellcheck: 'false' });
+    const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / G… / terra1… / Solana address', autocomplete: 'off', spellcheck: 'false' });
     const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
     const platform = el('input', { type: 'text', placeholder: platforms.length ? 'choose or type a new one' : 'e.g. MetaMask, Ledger, Binance', list: 'platform-list', autocomplete: 'off' });
     const portfolios = [...new Set(wallets.map((w) => w.portfolio))];
@@ -527,7 +527,7 @@
         const created = await api.post('/api/wallets', body);
         toast(`${created.length} wallet(s) added`);
         route();
-        if (confirm('Sync the new wallet(s) now?')) startJob('sync', { wallet_ids: created.map((w) => w.id) });
+        askSync(created);
       } catch (err) { toast(err.message, true); }
     } },
     el('div', { class: 'form-row' }, field('Network', netSel), field('Label', label),
@@ -562,6 +562,16 @@
           } }))))))
         : el('p', { class: 'muted', text: 'No wallets yet.' }));
     root.replaceChildren(card('Add a wallet or account', null, form), list);
+  }
+
+  // After adding wallets: sync now, or later with "Sync now".
+  function askSync(created) {
+    const ids = created.map((w) => w.id);
+    openModal(el('h2', { text: created.length > 1 ? `Sync the ${created.length} new wallets now?` : 'Sync the new wallet now?' }),
+      el('p', { class: 'help', text: 'Syncing reads the history and balances through the APIs (it uses calls within your limits). You can also do it later with "Sync now" or the Sync button of the wallet.' }),
+      el('div', { class: 'actions', style: 'justify-content:flex-end' },
+        el('button', { class: 'btn', type: 'button', text: 'No, later', onclick: closeModal }),
+        el('button', { class: 'btn primary', type: 'button', text: 'Yes', onclick: () => { closeModal(); startJob('sync', { wallet_ids: ids }); } })));
   }
 
   function editWallet(w, net) {
@@ -657,7 +667,7 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/', alchemy_api_key: 'https://dashboard.alchemy.com/signup', helius_api_key: 'https://dashboard.helius.dev/',
+      alchemy_api_key: 'https://dashboard.alchemy.com/signup', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
     const keyCell = (name, extra, link) => {
@@ -717,13 +727,13 @@
     // API providers: the services that read blockchains. Built-in ones plus the ones you add.
     const provTypes = {
       etherscan: 'Etherscan-compatible explorer API', alchemy: 'Alchemy-compatible (JSON-RPC + Transfers API)',
-      moralis: 'Moralis Web3 Data API', esplora: 'Esplora (Bitcoin)', horizon: 'Stellar Horizon',
+      cosmos: 'Cosmos SDK LCD (REST)', esplora: 'Esplora (Bitcoin)', horizon: 'Stellar Horizon',
     };
     const provDefaults = {
       etherscan: 'https://api.etherscan.io/v2/api', alchemy: 'https://{network}.g.alchemy.com/v2',
-      moralis: 'https://deep-index.moralis.io/api/v2.2', esplora: 'https://mempool.space/api', horizon: 'https://horizon.stellar.org',
+      cosmos: 'https://terra-lcd.publicnode.com', esplora: 'https://mempool.space/api', horizon: 'https://horizon.stellar.org',
     };
-    const provNeedsWallets = { moralis: true, solar: true };   // shown only once a wallet uses them
+    const provNeedsWallets = { solar: true };   // shown only once a wallet uses them
     const providerModal = (p) => {
       const name = el('input', { type: 'text', value: p ? p.name : '', placeholder: 'e.g. Lineascan, Blockscout Gnosis, My Alchemy' });
       const type = el('select', { disabled: Boolean(p && p.networks.length) }, Object.entries(provTypes).map(([k, l]) => el('option', { value: k, text: l, selected: p ? p.type === k : k === 'etherscan' })));
@@ -739,7 +749,7 @@
         typeHelp.textContent = {
           etherscan: 'Full history: transactions, internal transfers, tokens. Etherscan V2, Blockscout (…/api), Routescan, Lineascan, Monadscan…',
           alchemy: 'The URL contains {network}: each network gives its Alchemy name (e.g. bnb-mainnet, monad-mainnet). Native and token transfers, every token held now.',
-          moralis: 'Each network gives its Moralis chain (hex chain id, e.g. 0x7e4).',
+          cosmos: 'Any Cosmos SDK chain (Terra, Cosmos Hub, Osmosis…): its LCD/REST URL. Each network gives its address prefix and native denom.',
           esplora: 'Bitcoin: mempool.space, Blockstream or your own node.',
           horizon: 'Stellar: the public server or any Horizon.',
         }[type.value];
@@ -873,7 +883,7 @@
     const networkModal = (n) => {
       const custom = provs.filter((p) => provTypes[p.type]);
       const f = {};
-      ['id', 'name', 'chain_id', 'alchemy_network', 'native_symbol', 'native_name', 'native_decimals', 'native_coingecko', 'native_binance', 'tx_url', 'address_url', 'coingecko_platform', 'rpc_url']
+      ['id', 'name', 'chain_id', 'alchemy_network', 'bech32_prefix', 'native_denom', 'native_symbol', 'native_name', 'native_decimals', 'native_coingecko', 'native_binance', 'tx_url', 'address_url', 'coingecko_platform', 'rpc_url']
         .forEach((k) => { f[k] = el('input', { type: 'text', style: 'width:100%' }); });
       const prov = el('select', {}, custom.map((p) => el('option', { value: p.id, text: `${p.name} (${provTypes[p.type]})` })));
       const l2 = el('input', { type: 'checkbox' });
@@ -882,6 +892,7 @@
       f.native_coingecko.placeholder = 'xdai'; f.native_binance.placeholder = 'optional';
       f.tx_url.placeholder = 'https://gnosisscan.io/tx/{tx}'; f.address_url.placeholder = 'https://gnosisscan.io/address/{address}';
       f.coingecko_platform.placeholder = 'xdai'; f.rpc_url.placeholder = 'optional, for the 31/12 check';
+      f.bech32_prefix.placeholder = 'e.g. cosmos, osmo'; f.native_denom.placeholder = 'e.g. uatom, uosmo';
       if (n) {
         f.id.value = n.id; f.id.disabled = true; f.name.value = n.name || ''; f.chain_id.value = n.chain_id ?? '';
         f.alchemy_network.value = n.alchemy_network || ''; prov.value = n.provider || '';
@@ -890,17 +901,23 @@
         f.native_coingecko.value = nat.coingecko || ''; f.native_binance.value = nat.binance || '';
         f.tx_url.value = n.tx_url || ''; f.address_url.value = n.address_url || ''; f.coingecko_platform.value = n.coingecko_platform || '';
         f.rpc_url.value = n.rpc_url || ''; l2.checked = Boolean(n.l2);
+        f.bech32_prefix.value = n.bech32_prefix || ''; f.native_denom.value = n.native_denom || '';
       }
       const evmBox = el('div', { class: 'form' }, el('div', { class: 'form-row' }, field('Chain id', f.chain_id, 'From chainlist.org'), field('Alchemy name', f.alchemy_network, 'Only for an Alchemy provider')),
         el('div', { class: 'form-row' }, field('Archive node URL', f.rpc_url), field('CoinGecko platform id', f.coingecko_platform, 'To find token prices by contract')),
         el('label', { class: 'check' }, l2, 'Rollup (layer 2): flag fees that may miss the L1 data cost'));
-      const fam = () => { const t = provType[prov.value]; evmBox.classList.toggle('hidden', !['etherscan', 'alchemy', 'moralis'].includes(t)); };
+      const cosmosBox = el('div', { class: 'form-row' }, field('Address prefix', f.bech32_prefix, 'What addresses start with, before the 1'), field('Native denom', f.native_denom, 'Smallest unit of the native coin'));
+      const fam = () => {
+        const t = provType[prov.value];
+        evmBox.classList.toggle('hidden', !['etherscan', 'alchemy'].includes(t));
+        cosmosBox.classList.toggle('hidden', t !== 'cosmos');
+      };
       prov.addEventListener('change', fam); fam();
       openModal(el('h2', { text: n ? `Edit ${n.name}` : 'Add a network' }),
-        el('p', { class: 'help', text: 'Any EVM chain (with an Etherscan-compatible, Alchemy-compatible or Moralis provider), a Bitcoin-like chain (Esplora) or Stellar (Horizon). Add the provider first if it is not in the list.' }),
+        el('p', { class: 'help', text: 'Any EVM chain (Etherscan- or Alchemy-compatible provider), a Cosmos SDK chain (LCD), a Bitcoin-like chain (Esplora) or Stellar (Horizon). Add the provider first if it is not in the list.' }),
         el('div', { class: 'form' },
           el('div', { class: 'form-row' }, field('Id', f.id, 'lower-case, e.g. gnosis'), field('Name', f.name), field('Read by', prov)),
-          evmBox,
+          evmBox, cosmosBox,
           el('div', { class: 'form-row' }, field('Native coin symbol', f.native_symbol), field('Native coin name', f.native_name), field('Decimals', f.native_decimals)),
           el('div', { class: 'form-row' }, field('Native coin CoinGecko id', f.native_coingecko), field('Native coin Binance ticker', f.native_binance)),
           el('div', { class: 'form-row' }, field('Transaction link', f.tx_url, '{tx} is replaced by the hash'), field('Address link', f.address_url, '{address} is replaced by the address'))),

@@ -26,7 +26,7 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
   on state-changing requests. Secrets are never returned by the API.
 - **No long transactions around network calls:** the DB lock is shared with the UI threads.
 - **Providers are data, not code:** a new service that speaks a supported type (Etherscan-,
-  Alchemy-compatible, Moralis, Esplora, Horizon) is added from Settings → API providers, and a
+  Alchemy-compatible, Cosmos SDK LCD, Esplora, Horizon) is added from Settings → API providers, and a
   new chain from Settings → Networks. Write an adapter only for a new protocol, and register its
   type in `providers.TYPES` so its providers are addable from the UI (docs/ADDING_AN_ADAPTER.md).
 - **Brand in one place:** colours, font and radii are CSS variables in `web/brand.css`; never
@@ -38,7 +38,7 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
 
 | Path | Role |
 |---|---|
-| `cryptoledger/adapters/` | one module per protocol (evm, alchemy, moralis, solana, solar, stellar, tron, bitcoin, binance, manual) |
+| `cryptoledger/adapters/` | one module per protocol (evm, alchemy, cosmos, solana, solar, stellar, tron, bitcoin, binance, manual) |
 | `cryptoledger/providers.py` | API provider types and built-in providers; providers added in Settings live in the `providers` setting |
 | `cryptoledger/prices/` | Binance klines, CoinGecko, CoinMarketCap, ECB rates, demo prices |
 | `cryptoledger/ledger.py` | storing sync results, reconstructing balances |

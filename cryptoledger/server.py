@@ -261,7 +261,8 @@ class App:
             data = dict(json.loads(self.ctx.db.scalar("SELECT config FROM custom_networks WHERE id=?", (nid,)) or "{}"))
             flat = {"id": nid, "name": data.get("name"), "provider": data.get("provider"),
                     "chain_id": data.get("chain_id"), "alchemy_network": data.get("alchemy_network"),
-                    "moralis_chain": data.get("moralis_chain"), "tx_url": data.get("tx_url"),
+                    "bech32_prefix": data.get("bech32_prefix"), "native_denom": data.get("native_denom"),
+                    "tx_url": data.get("tx_url"),
                     "address_url": data.get("address_url"), "coingecko_platform": data.get("coingecko_platform"),
                     "rpc_url": data.get("rpc_url"), "l2": data.get("l2")}
             for k, v in (data.get("native") or {}).items():

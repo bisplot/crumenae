@@ -26,7 +26,6 @@ KNOWN = {
     "coinmarketcap_api_key": "CoinMarketCap API key",
     "trongrid_api_key": "TronGrid API key",
     "helius_api_key": "Helius API key (Solana, free plan available)",
-    "moralis_api_key": "Moralis API key (Ronin)",
     "alchemy_api_key": "Alchemy API key (BNB Smart Chain, Monad, Arc…; free plan, sign-up with e-mail or Google)",
     "solana_rpc_url": "Solana RPC URL (advanced: only if you use another provider than Helius)",
 }
