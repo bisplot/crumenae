@@ -150,3 +150,92 @@ class BinanceEarnPositionsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+DOGE = "0xba2ae424d960c26247dd6c32edc70b295c744c43"
+
+
+def limited_alchemy_handler(method, url, params, payload):
+    """A node with standard JSON-RPC only: the enhanced APIs answer 'method not supported'."""
+    m, p = payload["method"], payload["params"]
+    if m in ("alchemy_getAssetTransfers", "alchemy_getTokenBalances"):
+        return {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601, "message": f"Unsupported method: {m} on BNB_MAINNET"}}
+    if m == "eth_getBalance":
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(2 * 10 ** 17)}
+    if m == "eth_call":
+        to = p[0]["to"]
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(1234 * 10 ** 8) if to == DOGE else "0x0"}
+    return None
+
+
+class AlchemyFallbackTest(unittest.TestCase):
+    def setUp(self):
+        self.t = TempContext(FakeHttp().on("https://bnb-mainnet.g.alchemy.com", limited_alchemy_handler))
+        self.ctx = self.t.ctx
+        self.ctx.secrets.set("alchemy_api_key", KEY)
+        self.wallet = add_wallet(self.ctx, "bsc", ME)
+
+    def tearDown(self):
+        self.t.close()
+
+    def test_balances_without_enhanced_apis(self):
+        sync.sync_wallet(self.ctx, self.wallet, LOG)   # no exception: history missing, balances read
+        held = {r["asset_key"]: Decimal(r["amount"]) for r in self.ctx.db.query("SELECT * FROM current_balances")}
+        self.assertEqual(held, {"bsc:native": Decimal("0.2"), f"bsc:{DOGE}": Decimal(1234)})
+        doge = self.ctx.db.query_one("SELECT * FROM assets WHERE key=?", (f"bsc:{DOGE}",))
+        self.assertEqual((doge["symbol"], doge["decimals"], doge["binance_symbol"], doge["status"]), ("DOGE", 8, "DOGE", "known"))
+        self.assertIn("history not available", self.ctx.db.scalar("SELECT message FROM sync_log WHERE level='warn'"))
+
+    def test_key_problems_are_not_hidden(self):
+        self.ctx.secrets.delete("alchemy_api_key")
+        from cryptoledger.adapters.base import AdapterError
+        with self.assertRaises(AdapterError):
+            get_adapter(self.ctx, self.ctx.networks.get("bsc")).sync(self.wallet, {}, LOG)
+
+
+BROKEN = "0x" + "de" * 20   # a token contract that reverts on balanceOf
+
+
+def reverting_handler(method, url, params, payload):
+    m, p = payload["method"], payload["params"]
+    if m == "alchemy_getTokenBalances":
+        return {"jsonrpc": "2.0", "id": 1, "result": {"tokenBalances": []}}
+    if m == "eth_getBalance":
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(10 ** 18)}
+    if m == "eth_call":
+        if p[0]["to"] == BROKEN:
+            return {"jsonrpc": "2.0", "id": 1, "error": {"code": 3, "message": "execution reverted"}}
+        return {"jsonrpc": "2.0", "id": 1, "result": hex(5 * 10 ** 18)}
+    return None
+
+
+class AlchemyRobustnessTest(unittest.TestCase):
+    def test_broken_token_does_not_block_balances(self):
+        t = TempContext(FakeHttp().on("https://bnb-mainnet.g.alchemy.com", reverting_handler))
+        try:
+            ctx = t.ctx
+            ctx.secrets.set("alchemy_api_key", KEY)
+            w = add_wallet(ctx, "bsc", ME)
+            ctx.db.executemany("INSERT INTO assets(key, network, symbol, decimals, contract, status) VALUES(?,?,?,?,?,?)",
+                               [(f"bsc:{BROKEN}", "bsc", "BAD", 18, BROKEN, "unmapped"),
+                                (f"bsc:{USDT}", "bsc", "USDT", 18, USDT, "known")])
+            logs = []
+            bal, _ = get_adapter(ctx, ctx.networks.get("bsc")).current_balances(
+                w, [f"bsc:{BROKEN}", f"bsc:{USDT}"], logs.append)
+            self.assertEqual(bal, {"bsc:native": Decimal(1), f"bsc:{USDT}": Decimal(5)})
+            self.assertTrue(any("skipped" in m for m in logs))
+        finally:
+            t.close()
+
+    def test_spam_names_and_ronin_prefix(self):
+        from cryptoledger.adapters.alchemy import looks_like_spam
+        for name in ("GasDAO.cc", "1Gas.org", "Visit claim-x.example", "https://x.example", "$ CLAIM REWARDS"):
+            self.assertTrue(looks_like_spam(name), name)
+        for name in ("DOGE", "PancakeSwap Token", "Coinbase Wrapped BTC", "MELD"):
+            self.assertFalse(looks_like_spam(name), name)
+        t = TempContext(offline=True)
+        try:
+            a = get_adapter(t.ctx, t.ctx.networks.get("bsc"))
+            self.assertEqual(a.validate_address("ronin:" + "AB" * 20), "0x" + "ab" * 20)
+        finally:
+            t.close()

@@ -10,6 +10,7 @@ past block (year-end cross-check): standard JSON-RPC on the same endpoint.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,9 +20,16 @@ from ..http import HttpError
 from ..util import scaled
 from . import register
 from .base import AdapterError, AssetInfo, Logger, Movement, SyncResult
-from .evm import EvmAdapter
+from .evm import BALANCE_OF, EvmAdapter
 
 DECIMALS = "0x313ce567"    # decimals()
+# Airdropped scam tokens advertise a website in their name or symbol ("GasDAO.cc", "Visit x.io").
+SPAM_NAME = re.compile(r"(\.(com|io|org|net|cc|xyz|app|finance|site|top|vip|pro|live|fi|gg|me)\b)|https?://|www\.|\bvisit\b|\bclaim\b|\breward",
+                       re.IGNORECASE)
+
+
+def looks_like_spam(*texts: str) -> bool:
+    return any(t and SPAM_NAME.search(t) for t in texts)
 ALCHEMY_TEMPLATE = "https://{network}.g.alchemy.com/v2"
 
 
@@ -45,6 +53,12 @@ class AlchemyAdapter(EvmAdapter):
     @property
     def has_history(self) -> bool:  # type: ignore[override]
         return True
+
+    def validate_address(self, address: str) -> str:
+        address = address.strip()
+        if address.lower().startswith("ronin:"):      # Ronin Wallet shows "ronin:<hex>"
+            address = "0x" + address.split(":", 1)[1]
+        return super().validate_address(address)
 
     def _key(self) -> Optional[str]:
         return self.secret(f"{self.network.explorer_key or 'alchemy'}_api_key")
@@ -146,12 +160,23 @@ class AlchemyAdapter(EvmAdapter):
         nat_dec = native.decimals or 18
         log(f"{wallet['label']}: reading {self.network.name} transfers from block {start} (Alchemy)")
         rows: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
-        for field in ("fromAddress", "toAddress"):
-            for t in self._transfers(field, addr, start):
-                k = (str(t.get("hash", "")).lower(), t.get("category"), str(t.get("from", "")).lower(),
-                     str(t.get("to", "")).lower(), str(t.get("contractAddress", "")).lower(), str(t.get("value")),
-                     t.get("logIndex"), t.get("traceIndex") or t.get("traceAddress"))
-                rows[k] = t   # a transfer to yourself comes back in both queries
+        try:
+            for field in ("fromAddress", "toAddress"):
+                for t in self._transfers(field, addr, start):
+                    k = (str(t.get("hash", "")).lower(), t.get("category"), str(t.get("from", "")).lower(),
+                         str(t.get("to", "")).lower(), str(t.get("contractAddress", "")).lower(), str(t.get("value")),
+                         t.get("logIndex"), t.get("traceIndex") or t.get("traceAddress"))
+                    rows[k] = t   # a transfer to yourself comes back in both queries
+        except AdapterError as e:
+            if _key_problem(e):
+                raise
+            # The provider answers but has no transfers API for this chain: keep going with the
+            # live balances (read next by the sync), and say why the history is missing.
+            result.warnings.append(f"{self.network.name}: transaction history not available from this provider "
+                                   f"({e}). Live balances are still read; year-end values need a snapshot near "
+                                   "the cutoff or a manual entry.")
+            log(f"{wallet['label']}: ⚠ no transaction history ({e}); reading live balances only")
+            return result
         transfers = sorted(rows.values(), key=lambda t: (_int(t.get("blockNum")), str(t.get("hash"))))
         log(f"{wallet['label']}: {len(transfers)} transfers")
 
@@ -193,6 +218,8 @@ class AlchemyAdapter(EvmAdapter):
                     continue
                 asset = seen_assets.get(f"{self.network.id}:{contract}") or assets_mod.token_asset(
                     self.ctx, self.network, contract, str(t.get("asset") or ""), "", dec)
+                if asset.status == "unmapped" and looks_like_spam(asset.symbol, asset.name):
+                    asset.status = "spam"
                 seen_assets[asset.key] = asset
                 key = asset.key
                 amount = scaled(raw, asset.decimals if asset.decimals is not None else dec)
@@ -246,16 +273,71 @@ class AlchemyAdapter(EvmAdapter):
         infos: List[AssetInfo] = [native]
         found: Dict[str, Tuple[int, AssetInfo]] = {}
         # Every token held now, without reading the history.
-        found = self._alchemy_token_balances(wallet["address"].lower(), log)
+        try:
+            found = self._alchemy_token_balances(wallet["address"].lower(), log)
+        except AdapterError as e:
+            if _key_problem(e):
+                raise
+            log(f"{wallet['label']}: token list not available from this provider ({e}); "
+                "checking the known tokens of this chain one by one")
+            found = self._builtin_token_balances(wallet["address"].lower(), tokens)
         infos += [info for _, info in found.values()]
         found_keys = {info.key for _, info in found.values()}
         bal = self.balance_at(wallet, None, [native.key] + [k for k in tokens if k not in found_keys], log)
         if bal is None:
-            raise AdapterError(f"{self.network.name}: live balances could not be read")
+            raise AdapterError(f"{self.network.name}: live balance of the native coin could not be read")
         for raw, info in found.values():
             if info.decimals is not None:
                 bal[info.key] = scaled(raw, info.decimals)
         return bal, infos
+
+    def balance_at(self, wallet: Dict[str, Any], ts: Optional[int], asset_keys: List[str],
+                   log: Logger) -> Optional[Dict[str, Decimal]]:
+        """Native coin and token balances at a block (ts) or now (ts None). A token whose contract
+        cannot answer balanceOf (broken or self-destructed spam) is skipped, never fatal."""
+        if not self._rpc_url():
+            return None
+        addr = wallet["address"].lower()
+        native = assets_mod.native_asset(self.network)
+        try:
+            tag = "latest" if ts is None else hex(self.block_at(ts))
+            out: Dict[str, Decimal] = {native.key: scaled(_int(self._call("eth_getBalance", [addr, tag])),
+                                                          native.decimals or 18)}
+        except (AdapterError, HttpError, ValueError, TypeError) as e:
+            log(f"{wallet['label']}: chain-state read failed ({e}); the node may not keep old blocks")
+            return None
+        decimals = {r["key"]: r["decimals"] for r in self.ctx.db.query(
+            "SELECT key, decimals FROM assets WHERE network=?", (self.network.id,))}
+        skipped = 0
+        for key in asset_keys:
+            if key == native.key or not key.startswith(self.network.id + ":") or decimals.get(key) is None:
+                continue
+            contract = key.split(":", 1)[1]
+            if contract in self._ignored():
+                continue
+            try:
+                raw = self._call("eth_call", [{"to": contract, "data": BALANCE_OF + addr[2:].rjust(64, "0")}, tag])
+            except AdapterError:
+                skipped += 1
+                continue
+            out[key] = scaled(_int(raw) if raw and raw != "0x" else 0, decimals[key])
+        if skipped:
+            log(f"{wallet['label']}: {skipped} token contract(s) did not answer balanceOf and were skipped")
+        return out
+
+    def _builtin_token_balances(self, address: str, skip: List[str]) -> Dict[str, Tuple[int, AssetInfo]]:
+        """balanceOf for each token of the built-in list (config/tokens.json) of this chain:
+        standard JSON-RPC, available on every node."""
+        out: Dict[str, Tuple[int, AssetInfo]] = {}
+        for contract in (self.ctx.tokens.get(self.network.id) or {}):
+            info = assets_mod.token_asset(self.ctx, self.network, contract)
+            if info.key in skip or contract in self._ignored() or info.decimals is None:
+                continue
+            raw = self._call("eth_call", [{"to": contract, "data": BALANCE_OF + address[2:].rjust(64, "0")}, "latest"])
+            value = _int(raw) if raw and raw != "0x" else 0
+            if value:
+                out[contract] = (value, info)
+        return out
 
     def _alchemy_token_balances(self, address: str, log: Logger) -> Dict[str, Tuple[int, AssetInfo]]:
         out: Dict[str, Tuple[int, AssetInfo]] = {}
@@ -284,6 +366,8 @@ class AlchemyAdapter(EvmAdapter):
                     dec = meta.get("decimals")
                     info = assets_mod.token_asset(self.ctx, self.network, contract, str(meta.get("symbol") or ""),
                                                   str(meta.get("name") or ""), int(dec) if dec is not None else None)
+                    if info.status == "unmapped" and looks_like_spam(info.symbol, info.name):
+                        info.status = "spam"
                 out[contract] = (raw, info)
             page_key = res.get("pageKey")
             if not page_key:
@@ -316,3 +400,9 @@ def _from_alchemy(t: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "value": raw, "asset": t.get("asset"), "hash": t.get("hash"), "blockTimeStamp": ts,
             "contractAddress": raw_c.get("address") if cat == "20" else None,
             "decimal": dec if cat == "20" else None, "logIndex": log_index}
+
+
+def _key_problem(e: Exception) -> bool:
+    """Missing or refused key: the user must fix it, never hide it behind a fallback."""
+    text = str(e).lower()
+    return "key missing" in text or "refused the api key" in text
