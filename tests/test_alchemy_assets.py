@@ -239,3 +239,23 @@ class AlchemyRobustnessTest(unittest.TestCase):
             self.assertEqual(a.validate_address("ronin:" + "AB" * 20), "0x" + "ab" * 20)
         finally:
             t.close()
+
+
+class AssetWalletsTest(unittest.TestCase):
+    def test_wallet_labels_per_asset(self):
+        t = TempContext(offline=True)
+        try:
+            ctx = t.ctx
+            a = add_wallet(ctx, "ethereum", "0x" + "a" * 40, label="MetaMask")
+            b = add_wallet(ctx, "ethereum", "0x" + "b" * 40, label="Ledger")
+            ctx.db.execute("INSERT INTO assets(key, network, symbol, status) VALUES('ethereum:native','ethereum','ETH','known')")
+            ctx.db.execute("INSERT INTO movements(wallet_id, uid, ts, asset_key, amount, kind) VALUES(?,?,?,?,?,?)",
+                           (b["id"], "m1", 1, "ethereum:native", "1", "in"))
+            ctx.db.execute("INSERT INTO current_balances(wallet_id, asset_key, amount, fetched_at) VALUES(?,?,?,?)",
+                           (a["id"], "ethereum:native", "2", 1))
+            ctx.db.execute("INSERT INTO current_balances(wallet_id, asset_key, amount, fetched_at) VALUES(?,?,?,?)",
+                           (b["id"], "ethereum:native", "0", 1))
+            row = next(r for r in views.asset_list(ctx) if r["key"] == "ethereum:native")
+            self.assertEqual([(w["label"], w["held"]) for w in row["wallets"]], [("MetaMask", True), ("Ledger", False)])
+        finally:
+            t.close()
