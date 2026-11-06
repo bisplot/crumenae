@@ -231,6 +231,12 @@ class BinanceAdapter(Adapter):
             totals[info.key] = totals.get(info.key, ZERO) + amount
 
         earn_ok = True
+        earn: Dict[str, Decimal] = {}   # Simple Earn positions, listed on the Staking page
+
+        def add_earn(ticker: str, amount: Decimal) -> None:
+            add(ticker, amount)
+            if amount:
+                earn[ticker] = earn.get(ticker, ZERO) + amount
         try:
             page, rows = 1, []
             while True:
@@ -241,10 +247,13 @@ class BinanceAdapter(Adapter):
                     break
                 page += 1
             for r in rows:
-                add(r["asset"], D(r.get("totalAmount")))
+                add_earn(r["asset"], D(r.get("totalAmount")))
             data = self._signed(wallet, "GET", "/sapi/v1/simple-earn/locked/position", {"size": 100})
             for r in data.get("rows") or []:
-                add(r["asset"], D(r.get("amount")))
+                add_earn(r["asset"], D(r.get("amount")))
+            import json
+            self.ctx.db.set_meta(f"earn_positions:{wallet['id']}", json.dumps(
+                {"at": int(time.time()), "positions": {k: str(v) for k, v in sorted(earn.items())}}))
         except AdapterError as e:
             earn_ok = False
             log(f"{wallet['label']}: Simple Earn positions unavailable ({e})")

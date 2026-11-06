@@ -63,7 +63,7 @@ class App:
         r("GET", r"/api/settings", self.get_settings)
         r("PUT", r"/api/settings", self.put_settings)
         r("PUT", r"/api/secrets", self.put_secrets)
-        r("POST", r"/api/jobs/(?P<kind>sync|snapshot|prices|recompute)", self.start_job)
+        r("POST", r"/api/jobs/(?P<kind>sync|snapshot|prices|recompute|assets)", self.start_job)
         r("GET", r"/api/jobs/current", self.current_job)
         r("GET", r"/api/years/(?P<year>\d{4})", self.year)
         r("GET", r"/api/report/(?P<year>\d{4})", self.report_json)
@@ -370,6 +370,9 @@ class App:
         if kind == "sync":
             ids = [int(x) for x in body.get("wallet_ids") or []]
             fn = lambda log: sync.run_sync(ctx, log, ids or None, bool(body.get("full")))  # noqa: E731
+        elif kind == "assets":
+            ids = [int(x) for x in body.get("wallet_ids") or []]
+            fn = lambda log: sync.load_assets(ctx, log, ids or None)  # noqa: E731
         elif kind == "snapshot":
             fn = lambda log: sync.take_snapshot(ctx, log, source="live")  # noqa: E731
         elif kind == "prices":

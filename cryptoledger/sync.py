@@ -60,6 +60,44 @@ def ensure_assets(ctx, wallet: Dict[str, Any], network) -> int:
     return len(infos)
 
 
+def load_assets(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = None) -> Dict[str, Any]:
+    """"Load all" on the Assets page: live balances only (tokens held now), no transaction
+    history, so it costs a few calls per wallet instead of one per transaction. Assets moved
+    in the past are rebuilt from the stored history without any call."""
+    prices = PriceService(ctx)
+    wallets = [w for w in ctx.wallets(active_only=True) if not wallet_ids or w["id"] in wallet_ids]
+    loaded = errors = 0
+    for w in wallets:
+        try:
+            network = ctx.networks.get(w["network"])
+        except KeyError:
+            continue
+        adapter = get_adapter(ctx, network)
+        if ctx.offline or adapter.kind == "manual":
+            ensure_assets(ctx, w, network)
+            continue
+        try:
+            balances, infos = adapter.current_balances(w, ledger.known_asset_keys(ctx, w["id"]), log)
+            assets_mod.upsert(ctx, infos)
+            ledger.store_current(ctx, w["id"], balances, now())
+            ensure_assets(ctx, w, network)
+            held = sum(1 for v in balances.values() if v)
+            loaded += 1
+            log(f"{w['label']}: {held} assets held now")
+        except Exception as e:  # keep going with the other wallets
+            errors += 1
+            log(f"{w['label']}: ✖ {e}")
+    if ctx.offline:
+        log("Offline/demo mode: asset list rebuilt from stored data, no API called.")
+    else:
+        lookup_unknown_tokens(ctx, prices, log)
+        refresh_prices(ctx, prices, log)
+    n = ctx.db.scalar("SELECT COUNT(*) FROM assets") or 0
+    log(f"Done: {n} assets, {loaded} wallet(s) read, {errors} error(s). Transactions were not read: "
+        "use Sync now for the history.")
+    return {"assets": n, "errors": errors}
+
+
 def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = None,
              full: bool = False) -> Dict[str, Any]:
     prices = PriceService(ctx)
@@ -122,6 +160,8 @@ def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:
         return None
     if net.adapter == "solana":
         url = get_adapter(ctx, net)._url()
+    elif net.adapter == "nodereal":
+        url = get_adapter(ctx, net)._rpc_url() or net.explorer_api or ""
     elif net.adapter == "binance":
         url = net.explorer_api or "https://api.binance.com"
     else:

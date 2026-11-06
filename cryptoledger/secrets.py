@@ -28,6 +28,7 @@ KNOWN = {
     "helius_api_key": "Helius API key (Solana, free plan available)",
     "moralis_api_key": "Moralis API key (Ronin)",
     "nodereal_api_key": "NodeReal MegaNode API key (BNB Smart Chain, free plan available)",
+    "alchemy_api_key": "Alchemy API key (BNB Smart Chain, free plan, sign-up with e-mail or Google)",
     "solana_rpc_url": "Solana RPC URL (advanced: only if you use another provider than Helius)",
 }
 

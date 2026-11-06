@@ -12,7 +12,7 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), BNB Smart Chain (NodeReal), Solana (Helius), Ronin (Moralis),
+  Etherscan-compatible explorer), BNB Smart Chain (Alchemy or NodeReal), Solana (Helius), Ronin (Moralis),
   Tron, Bitcoin, Solar (SXP), Binance (with Simple Earn rewards); manual accounts for anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → Blockchain APIs and Price sources).
@@ -88,7 +88,8 @@ python3 -m pip install -r requirements-optional.txt
    | Etherscan | Ethereum, Polygon, Arbitrum (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). Base, OP and Avalanche need a paid Etherscan plan: or point them to a free explorer (Blockscout/Routescan) in Blockchain endpoints |
    | Solana (Helius) | Solana wallets; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron wallets (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/): about 15 calls/s, 100,000/day |
-   | BNB Smart Chain (NodeReal) | BSC wallets (BNB and BEP-20 tokens) | Yes, [nodereal.io/meganode](https://nodereal.io/meganode): free plan, 10M compute units/month. BNB Chain's replacement for the BscScan API; Etherscan's free plan does not cover BSC |
+   | BNB Smart Chain (Alchemy) | BSC wallets (BNB and BEP-20 tokens) | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup): free plan, sign-up with e-mail or Google. Etherscan's free plan does not cover BSC |
+   | BNB Smart Chain (NodeReal) | the same, as an alternative (only one is needed) | Yes, [nodereal.io/meganode](https://nodereal.io/meganode): free plan, sign-up with GitHub or Discord |
 
    The Ronin (Moralis) row appears only once you add a Ronin wallet (Moralis is now paid).
    Bitcoin and Solar need no key. Binance account keys (read-only) are entered per
@@ -113,18 +114,27 @@ python3 -m pip install -r requirements-optional.txt
    in your balances and the RW, valued at the price they had while they traded and at €0 once
    there is no market, without the ⛔ "no price" flag; they have their own **Ghost** tab. **Clear all**
    empties the list (your mappings and spam marks too; wallets, transactions and year-end values
-   stay); **Load all** rebuilds it from your wallets with a full sync of every wallet.
+   stay); **Load all** reads the tokens each wallet holds now, without the transactions (a few
+   calls per wallet instead of one per transaction); assets moved in the past are rebuilt from
+   the history already stored. Use **Sync now** for new transactions.
 6. **Year-end**: check each wallet's balance source and flags, enter manual balances where an
    API cannot help, then download the report.
 7. **Transactions**: a compact list, one line per movement. Hover the time for the seconds, the
    wallet for its network and the tx link for the full hash and the counterparty. Change the
-   category in place.
+   category in place. Spam is hidden by default: choose **All, spam included** or **spam** in
+   the category filter to see it.
 8. **Staking**: your staking positions and the rewards of each fiscal year (see below).
 
 ### Staking
 
 Staked coins are still yours: they belong in the RW and the IC at their year-end value, and
 rewards are income at their EUR value on the day received (which becomes their cost).
+
+**What is automatic**: Binance Simple Earn positions (listed on the Staking page from the
+account's live balances) and their rewards (imported by each sync); on-chain movements you set
+to `reward`. **What is manual**: staking without an API (Ledger Live, other exchanges) and native
+staking whose rewards arrive without a transaction (Solana stake accounts, rebasing tokens such
+as stETH): there you enter the year-end balance, and rewards if you want them listed.
 
 - **Positions**: any wallet can be marked **Staking position** (Wallets → Edit). For staking
   without an API (inside Ledger Live, an exchange Earn product…) press **+ Add position** on the
@@ -175,21 +185,30 @@ Good to know:
 - *"Helius refused the API key (401)"*: the key is wrong or was revoked. Copy it again from the
   Helius dashboard and press **Test**.
 
-### BNB Smart Chain with NodeReal
+### BNB Smart Chain with Alchemy (or NodeReal)
 
-The BscScan API closed in December 2025 and Etherscan's free plan does not cover BSC, so BSC is
-read through NodeReal MegaNode, the replacement recommended by BNB Chain.
+The BscScan API closed in December 2025 and Etherscan's free plan does not cover BSC. BSC is read
+through **Alchemy** (free plan, sign-up with e-mail or Google) or, if you prefer, **NodeReal
+MegaNode** (free plan, sign-up with GitHub or Discord). One of the two is enough; with both,
+Alchemy is used.
 
-1. Sign up at [nodereal.io/meganode](https://nodereal.io/meganode) (free plan) and create an
-   API key for BNB Smart Chain mainnet in the dashboard.
-2. **Settings → Blockchain APIs → BNB Smart Chain (NodeReal)**: paste the key, **Save**, **Test**.
+1. Sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup) and create an app
+   with **BNB Smart Chain** (Mainnet) enabled; copy its API key.
+2. **Settings → Blockchain APIs → BNB Smart Chain (Alchemy)**: paste the key, **Save**, **Test**.
 3. Add your BSC address (0x…, the same as on Ethereum) on the **Wallets** page and **Sync now**.
 
-The app reads BNB, internal and BEP-20 transfers (`nr_getAssetTransfers`), the gas of the
-transactions you sent (one receipt each) and live balances. The free plan has 10M compute units
-per month and 150 per second; the row's speed limit defaults to 5 calls/s. Year-end balances are
-also read from chain state at the cutoff block when your plan allows archive reads, and any
-difference with the history is flagged ⛔.
+With Alchemy the app reads BNB and BEP-20 transfers (`alchemy_getAssetTransfers`), the gas of the
+transactions you sent (one receipt each), and lists every token held now
+(`alchemy_getTokenBalances`, also used by Assets → **Load all**). Alchemy has no internal
+transfers on BSC: BNB received from a contract (e.g. a DEX refund) is caught by the year-end
+check against chain state and flagged ⛔ until you add a snapshot.
+
+NodeReal instead: create a key at [nodereal.io/meganode](https://nodereal.io/meganode) and paste
+it in the **BNB Smart Chain (NodeReal)** row (leave the Alchemy row empty). It reads internal
+transfers too (`nr_getAssetTransfers`).
+
+Year-end balances are also read from chain state at the cutoff block when your plan allows
+archive reads, and any difference with the history is flagged ⛔.
 
 ### Tron with TronGrid
 

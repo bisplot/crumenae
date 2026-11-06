@@ -29,6 +29,7 @@ HOST_INTERVALS = {
     "data-api.binance.vision": 0.05,
     "api.binance.com": 0.1,
     "bsc-mainnet.nodereal.io": 0.2,
+    "bnb-mainnet.g.alchemy.com": 0.1,
     "data-api.ecb.europa.eu": 0.2,
 }
 DEFAULT_INTERVAL = 0.2
