@@ -197,8 +197,24 @@ def asset_list(ctx) -> List[Dict[str, Any]]:
         "SELECT a.*, (SELECT COUNT(*) FROM movements m WHERE m.asset_key=a.key) AS movements,"
         " (SELECT GROUP_CONCAT(c.amount) FROM current_balances c WHERE c.asset_key=a.key) AS held"
         " FROM assets a ORDER BY (a.status='unmapped') DESC, a.network, a.symbol")
+    # Wallets linked to each asset: those holding it now first, then those that moved it or
+    # have it in a snapshot / manual entry.
+    labels = {w["id"]: w["label"] for w in ctx.wallets()}
+    holding: Dict[str, set] = defaultdict(set)
+    for c in ctx.db.query("SELECT wallet_id, asset_key, amount FROM current_balances"):
+        if D(c["amount"]) != 0:
+            holding[c["asset_key"]].add(c["wallet_id"])
+    linked: Dict[str, set] = defaultdict(set)
+    for c in ctx.db.query("SELECT DISTINCT wallet_id, asset_key FROM movements"
+                          " UNION SELECT DISTINCT wallet_id, asset_key FROM snapshots"
+                          " UNION SELECT wallet_id, asset_key FROM current_balances"):
+        linked[c["asset_key"]].add(c["wallet_id"])
     for r in rows:
         r["held"] = dstr(sum((D(x) for x in (r["held"] or "").split(",") if x), ZERO))
+        now = holding.get(r["key"], set())
+        r["wallets"] = [{"id": wid, "label": labels[wid], "held": True} for wid in sorted(now, key=lambda i: labels.get(i, "")) if wid in labels] + \
+            [{"id": wid, "label": labels[wid], "held": False} for wid in sorted(linked.get(r["key"], set()) - now,
+                                                                              key=lambda i: labels.get(i, "")) if wid in labels]
     return rows
 
 

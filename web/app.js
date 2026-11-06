@@ -627,7 +627,7 @@
     root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
       el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances, valued at the price they had while they traded and at €0 once there is no market. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
-      table(['Asset', 'Network', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
+      table(['Asset', 'Network', 'Wallets', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
         const bn = el('input', { type: 'text', value: a.binance_symbol || '', placeholder: 'e.g. ETH', style: 'width:90px' });
         const upd = async (body) => {
@@ -641,6 +641,10 @@
           el('td', {}, el('strong', { text: a.symbol }), el('div', { class: 'muted small', text: a.name || '' }),
             a.contract ? el('div', { class: 'mono small muted', text: short(a.contract, 8, 6), title: a.contract }) : null),
           el('td', { class: 'small', text: a.network }),
+          el('td', { class: 'small wrap', style: 'max-width:220px' }, (a.wallets || []).length
+            ? (a.wallets || []).map((w, i) => [i ? ', ' : '', el('span', { class: w.held ? '' : 'muted', text: w.label,
+              title: w.held ? 'Holds it now' : 'Moved it in the past (or a snapshot / manual entry), not held now' })])
+            : el('span', { class: 'muted', text: '—' })),
           el('td', { class: 'num', text: qty(a.held) }),
           el('td', {}, badge(a.status === 'ghost' ? '👻 ghost' : a.status, statusKind[a.status])),
           el('td', {}, a.fiat ? el('span', { class: 'muted', text: 'fiat (ECB)' }) : cg),
