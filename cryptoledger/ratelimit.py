@@ -19,9 +19,6 @@ from .http import HttpError
 SERVICES: Dict[str, Dict[str, Any]] = {
     "etherscan": {"label": "Etherscan (EVM chains)", "hosts": ["api.etherscan.io"],
                   "rate": 3, "unit": "second", "per_day": 100000, "hint": "Free: 3 calls/s, 100,000 calls/day"},
-    "moralis": {"label": "Moralis (Ronin)", "hosts": ["deep-index.moralis.io"],
-                "rate": 5, "unit": "second", "per_day": None,
-                "hint": "Free plan is metered in compute units per day: see your Moralis dashboard"},
     "alchemy": {"label": "Alchemy (BNB Smart Chain, Monad, Arc…)", "hosts": ["*.g.alchemy.com"],
                 "rate": 10, "unit": "second", "per_day": None,
                 "hint": "Free plan: monthly compute units (about 120 per transfers call); see your Alchemy dashboard"},
@@ -34,6 +31,10 @@ SERVICES: Dict[str, Dict[str, Any]] = {
                  "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free key at trongrid.io: ~15 calls/s, 100,000/day; without a key calls may be refused"},
     "esplora": {"label": "mempool.space / Blockstream (Bitcoin)", "hosts": ["mempool.space", "blockstream.info"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "terra_lcd": {"label": "Terra LCD (PublicNode)", "hosts": ["terra-lcd.publicnode.com"],
+                  "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "terra_classic_lcd": {"label": "Terra Classic LCD (PublicNode)", "hosts": ["terra-classic-lcd.publicnode.com"],
+                          "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "horizon": {"label": "Stellar Horizon", "hosts": ["horizon.stellar.org"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "solar": {"label": "Solar API (SXP)", "hosts": ["sxp.mainnet.sh"],
@@ -59,7 +60,7 @@ UNITS = {"second": 1, "minute": 60}   # seconds per unit
 
 
 # API key (secret name) of each service, and services that provide prices rather than wallet data.
-SECRET_OF = {"etherscan": "etherscan_api_key", "moralis": "moralis_api_key", "alchemy": "alchemy_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
+SECRET_OF = {"etherscan": "etherscan_api_key", "alchemy": "alchemy_api_key", "helius": "helius_api_key", "trongrid": "trongrid_api_key", "coingecko": "coingecko_api_key",
              "coinmarketcap": "coinmarketcap_api_key"}
 PRICE_SERVICES = ("binance_data", "coingecko", "coinmarketcap", "ecb")
 

@@ -25,9 +25,10 @@ TYPES: Dict[str, Dict[str, Any]] = {
                 "custom": True, "default_url": "https://{network}.g.alchemy.com/v2",
                 "help": "{network} is replaced by each network's Alchemy name (e.g. bnb-mainnet). History of "
                         "native and token transfers, every token held now."},
-    "moralis": {"label": "Moralis Web3 Data API", "family": "evm", "adapter": "moralis", "custom": True,
-                "default_url": "https://deep-index.moralis.io/api/v2.2",
-                "help": "Each network gives its Moralis chain (hex chain id)."},
+    "cosmos": {"label": "Cosmos SDK LCD (REST)", "family": "cosmos", "adapter": "cosmos", "custom": True,
+               "default_url": "https://terra-lcd.publicnode.com",
+               "help": "Any Cosmos SDK chain (Terra, Terra Classic, Cosmos Hub, Osmosis…): its LCD/REST URL. "
+                       "Each network gives its address prefix and native denom."},
     "esplora": {"label": "Esplora (Bitcoin)", "family": "bitcoin", "adapter": "bitcoin", "custom": True,
                 "default_url": "https://mempool.space/api", "help": "mempool.space, Blockstream or your own node."},
     "horizon": {"label": "Stellar Horizon", "family": "stellar", "adapter": "stellar", "custom": True,
@@ -37,7 +38,7 @@ TYPES: Dict[str, Dict[str, Any]] = {
     "ark": {"label": "ARK/Solar API", "family": "solar", "adapter": "solar", "custom": False, "default_url": ""},
 }
 
-ADAPTER_FAMILY = {"evm": "evm", "alchemy": "evm", "moralis": "evm", "bitcoin": "bitcoin", "stellar": "stellar",
+ADAPTER_FAMILY = {"evm": "evm", "alchemy": "evm", "bitcoin": "bitcoin", "stellar": "stellar", "cosmos": "cosmos",
                   "solana": "solana", "tron": "tron", "solar": "solar"}
 
 # Built-in providers. Their key names are the historical secret names.
@@ -60,8 +61,11 @@ BUILTIN: List[Dict[str, Any]] = [
      "needs_key": False, "link": "", "hint": "Public, no key."},
     {"id": "horizon", "name": "Stellar Horizon (public)", "type": "horizon", "base_url": "https://horizon.stellar.org",
      "needs_key": False, "link": "", "hint": "Public Stellar API run by the Stellar Development Foundation, no key."},
-    {"id": "moralis", "name": "Moralis", "type": "moralis", "base_url": "https://deep-index.moralis.io/api/v2.2",
-     "needs_key": True, "link": "https://admin.moralis.com/", "hint": "Paid plans. Used for Ronin."},
+    {"id": "terra_lcd", "name": "Terra (PublicNode)", "type": "cosmos", "base_url": "https://terra-lcd.publicnode.com",
+     "needs_key": False, "link": "", "hint": "Public Terra (LUNA) API, no key."},
+    {"id": "terra_classic_lcd", "name": "Terra Classic (PublicNode)", "type": "cosmos",
+     "base_url": "https://terra-classic-lcd.publicnode.com", "needs_key": False, "link": "",
+     "hint": "Public Terra Classic (LUNC, USTC) API, no key."},
     {"id": "solar", "name": "Solar API (SXP)", "type": "ark", "base_url": "https://sxp.mainnet.sh/api",
      "needs_key": False, "link": "", "hint": "Public, no key."},
 ]

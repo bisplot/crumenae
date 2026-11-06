@@ -1,5 +1,5 @@
 {
-  "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see cryptoledger/providers.py); change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in cryptoledger/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
+  "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see cryptoledger/providers.py); change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in cryptoledger/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); bech32_prefix / native_denom / denoms = Cosmos SDK chains; chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
   "ethereum": {
     "name": "Ethereum",
     "adapter": "evm",
@@ -147,16 +147,16 @@
   },
   "ronin": {
     "name": "Ronin",
-    "adapter": "moralis",
+    "adapter": "alchemy",
+    "provider": "alchemy",
     "chain_id": 2020,
-    "moralis_chain": "0x7e4",
-    "explorer_api": "https://deep-index.moralis.io/api/v2.2",
-    "explorer_key": "moralis",
+    "alchemy_network": "ronin-mainnet",
+    "explorer_api": "https://{network}.g.alchemy.com/v2",
+    "explorer_key": "alchemy",
     "tx_url": "https://app.roninchain.com/tx/{tx}",
     "address_url": "https://app.roninchain.com/address/{address}",
     "coingecko_platform": "ronin",
-    "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"},
-    "provider": "moralis"
+    "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"}
   },
   "solana": {
     "name": "Solana",
@@ -178,6 +178,52 @@
     "coingecko_platform": "tron",
     "native": {"symbol": "TRX", "name": "Tron", "decimals": 6, "coingecko": "tron", "binance": "TRX"},
     "provider": "trongrid"
+  },
+  "terra": {
+    "name": "Terra (LUNA)",
+    "adapter": "cosmos",
+    "provider": "terra_lcd",
+    "explorer_api": "https://terra-lcd.publicnode.com",
+    "bech32_prefix": "terra",
+    "native_denom": "uluna",
+    "tx_url": "https://www.mintscan.io/terra/tx/{tx}",
+    "address_url": "https://www.mintscan.io/terra/address/{address}",
+    "native": {"symbol": "LUNA", "name": "Terra", "decimals": 6, "coingecko": "terra-luna-2", "binance": "LUNA"}
+  },
+  "terra_classic": {
+    "name": "Terra Classic (LUNC)",
+    "adapter": "cosmos",
+    "provider": "terra_classic_lcd",
+    "explorer_api": "https://terra-classic-lcd.publicnode.com",
+    "bech32_prefix": "terra",
+    "native_denom": "uluna",
+    "denoms": {
+      "uusd": {"symbol": "USTC", "name": "TerraClassicUSD", "decimals": 6, "coingecko": "terrausd", "binance": "USTC"},
+      "uaud": {"symbol": "AUTC", "name": "Terra Classic AU stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ucad": {"symbol": "CATC", "name": "Terra Classic CA stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uchf": {"symbol": "CHTC", "name": "Terra Classic CH stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ucny": {"symbol": "CNTC", "name": "Terra Classic CN stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "udkk": {"symbol": "DKTC", "name": "Terra Classic DK stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ueur": {"symbol": "EUTC", "name": "Terra Classic EU stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ugbp": {"symbol": "GBTC", "name": "Terra Classic GB stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uhkd": {"symbol": "HKTC", "name": "Terra Classic HK stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uidr": {"symbol": "IDTC", "name": "Terra Classic ID stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uinr": {"symbol": "INTC", "name": "Terra Classic IN stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ujpy": {"symbol": "JPTC", "name": "Terra Classic JP stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "ukrw": {"symbol": "KRTC", "name": "Terra Classic KR stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "umnt": {"symbol": "MNTC", "name": "Terra Classic MN stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "umyr": {"symbol": "MYTC", "name": "Terra Classic MY stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "unok": {"symbol": "NOTC", "name": "Terra Classic NO stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uphp": {"symbol": "PHTC", "name": "Terra Classic PH stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "usdr": {"symbol": "SDTC", "name": "Terra Classic SD stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "usek": {"symbol": "SETC", "name": "Terra Classic SE stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "usgd": {"symbol": "SGTC", "name": "Terra Classic SG stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "uthb": {"symbol": "THTC", "name": "Terra Classic TH stablecoin (legacy)", "decimals": 6, "status": "ghost"},
+      "utwd": {"symbol": "TWTC", "name": "Terra Classic TW stablecoin (legacy)", "decimals": 6, "status": "ghost"}
+    },
+    "tx_url": "https://finder.terra-classic.hexxagon.io/mainnet/tx/{tx}",
+    "address_url": "https://finder.terra-classic.hexxagon.io/mainnet/address/{address}",
+    "native": {"symbol": "LUNC", "name": "Terra Classic", "decimals": 6, "coingecko": "terra-luna", "binance": "LUNC"}
   },
   "solar": {
     "name": "Solar (SXP)",

@@ -15,7 +15,7 @@ from .paths import CONFIG_DIR
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
 OVERRIDABLE = ("explorer_api", "explorer_key", "rpc_url", "chainid_param")
 # Settings a built-in network accepts from the Networks table.
-EDITABLE = ("provider", "alchemy_network", "moralis_chain", "hidden") + OVERRIDABLE
+EDITABLE = ("provider", "alchemy_network", "hidden") + OVERRIDABLE
 
 
 def apply_provider(cfg: Dict[str, Any], provider: Optional[Dict[str, Any]]) -> None:
@@ -30,7 +30,7 @@ def apply_provider(cfg: Dict[str, Any], provider: Optional[Dict[str, Any]]) -> N
         return   # Solana, Tron, Solar: their adapters know their endpoints
     cfg["adapter"] = t["adapter"]
     cfg["explorer_api"] = provider["base_url"]
-    if provider["type"] in ("etherscan", "alchemy", "moralis"):
+    if provider["type"] in ("etherscan", "alchemy"):
         cfg["explorer_key"] = provider["id"]
     if provider["type"] == "etherscan":
         cfg["chainid_param"] = bool(provider.get("chainid_param"))
@@ -87,7 +87,7 @@ class NetworkRegistry:
         provs = {p["id"]: p for p in providers_mod.all_providers(self.settings)}
         for nid, net in nets.items():
             ov = overrides.get(nid) or {}
-            for k in ("provider", "alchemy_network", "moralis_chain", "hidden"):
+            for k in ("provider", "alchemy_network", "hidden"):
                 if k in ov and ov[k] not in (None, ""):
                     net.cfg[k] = ov[k]
             apply_provider(net.cfg, provs.get(net.cfg.get("provider")))
@@ -103,9 +103,9 @@ class NetworkRegistry:
         raise KeyError(f"unknown network '{network_id}'")
 
     def add_custom(self, data: Dict[str, Any], update: bool = False) -> Network:
-        """Add (or edit) a network served by any provider: an EVM chain (Etherscan-compatible,
-        Alchemy-compatible or Moralis provider), a Bitcoin-like chain (Esplora) or Stellar
-        (Horizon). No code needed."""
+        """Add (or edit) a network served by any provider: an EVM chain (Etherscan- or
+        Alchemy-compatible provider), a Cosmos SDK chain (LCD), a Bitcoin-like chain (Esplora)
+        or Stellar (Horizon). No code needed."""
         nid = str(data.get("id", "")).strip().lower()
         if not _ID_RE.match(nid):
             raise ValueError("id: 2-32 chars, lower-case letters, digits, '-' or '_'")
@@ -181,7 +181,7 @@ class NetworkRegistry:
             "native": {
                 "symbol": symbol,
                 "name": str(data.get("native_name") or symbol).strip(),
-                "decimals": int(data.get("native_decimals") or {"evm": 18, "bitcoin": 8, "stellar": 7}[family]),
+                "decimals": int(data.get("native_decimals") or {"evm": 18, "bitcoin": 8, "stellar": 7, "cosmos": 6}[family]),
                 "coingecko": str(data.get("native_coingecko", "")).strip() or None,
                 "binance": str(data.get("native_binance", "")).strip().upper() or None,
             },
@@ -195,13 +195,18 @@ class NetworkRegistry:
                 cfg["alchemy_network"] = str(data.get("alchemy_network") or "").strip()
                 if not re.match(r"^[a-z0-9-]{3,40}$", cfg["alchemy_network"]):
                     raise ValueError("Alchemy network name, e.g. monad-mainnet (shown in your Alchemy dashboard)")
-            if provider["type"] == "moralis":
-                cfg["moralis_chain"] = str(data.get("moralis_chain") or hex(cfg["chain_id"]))
             rpc = str(data.get("rpc_url", "")).strip()
             if rpc and not rpc.startswith(("https://", "http://")):
                 raise ValueError("the archive RPC URL must start with https://")
             cfg["rpc_url"] = rpc
             cfg["l2"] = bool(data.get("l2"))
+        if family == "cosmos":
+            cfg["bech32_prefix"] = str(data.get("bech32_prefix") or "").strip().lower()
+            cfg["native_denom"] = str(data.get("native_denom") or "").strip()
+            if not re.match(r"^[a-z]{1,20}$", cfg["bech32_prefix"]):
+                raise ValueError("address prefix, e.g. terra, cosmos, osmo")
+            if not re.match(r"^[a-zA-Z][a-zA-Z0-9/:._-]{1,127}$", cfg["native_denom"]):
+                raise ValueError("native denom, e.g. uluna, uatom, uosmo")
         for url in (cfg["tx_url"], cfg["address_url"]):
             if url and not url.startswith(("https://", "http://")):
                 raise ValueError("explorer links must start with https://")

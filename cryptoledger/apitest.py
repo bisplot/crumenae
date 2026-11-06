@@ -97,14 +97,6 @@ def test_ecb(ctx) -> Dict[str, Any]:
     return _result(False, "ECB answered without rates.", "free")
 
 
-def test_moralis(ctx) -> Dict[str, Any]:
-    key = ctx.secrets.get("moralis_api_key")
-    if not key:
-        return _result(False, "No Moralis key saved.", "none")
-    data = ctx.http.get_json("https://deep-index.moralis.io/api/v2.2/web3/version", headers={"X-API-Key": key})
-    return _result(True, f"Key accepted (API {data.get('version', '?')}).", "1 call")
-
-
 def _networks_of(ctx, provider_id: str):
     return [n for n in ctx.networks.all() if n.provider == provider_id and not n.hidden]
 
@@ -144,9 +136,12 @@ def test_provider(ctx, provider_id: str) -> Dict[str, Any]:
             return _result(False, f"{p['name']} answered with an error on {sub}: {(data or {}).get('error')} "
                                   "(is this chain enabled on your Alchemy app?)", "1 call")
         return _result(True, f"Key accepted on {net.name if net else sub}: block {int(data['result'], 16):,}.", "1 call")
-    if t == "moralis":
-        data = ctx.http.get_json(base + "/web3/version", headers={"X-API-Key": key or ""})
-        return _result(True, f"Key accepted (API {data.get('version', '?')}).", "1 call")
+    if t == "cosmos":
+        data = ctx.http.get_json(base + "/cosmos/base/tendermint/v1beta1/blocks/latest")
+        height = (((data or {}).get("block") or {}).get("header") or {}).get("height")
+        if height:
+            return _result(True, f"{p['name']} answers: block {int(height):,}.", "1 call")
+        return _result(False, f"{p['name']} answered without a block height.", "1 call")
     if t == "esplora":
         height = ctx.http.get_json(base + "/blocks/tip/height")
         return _result(True, f"{p['name']} answers: block {height:,}.", "1 call")
@@ -168,7 +163,7 @@ def test_trongrid(ctx) -> Dict[str, Any]:
 
 TESTS = {"etherscan": test_etherscan, "solana": test_solana, "coingecko": test_coingecko,
          "coinmarketcap": test_coinmarketcap, "binance_data": test_binance_data, "ecb": test_ecb,
-         "moralis": test_moralis, "trongrid": test_trongrid, "helius": test_solana}
+         "trongrid": test_trongrid, "helius": test_solana}
 
 
 def run(ctx, service: str) -> Dict[str, Any]:

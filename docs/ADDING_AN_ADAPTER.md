@@ -19,7 +19,7 @@ Supported types (`cryptoledger/providers.py: TYPES`):
 |---|---|---|---|
 | Etherscan-compatible | any EVM chain: transactions, internal transfers, tokens | Etherscan V2 `https://api.etherscan.io/v2/api` (one key, `chainid` sent), Blockscout `https://<chain>.blockscout.com/api` (no key), Routescan `https://api.routescan.io/v2/network/mainnet/evm/<chainId>/etherscan/api` | `evm` |
 | Alchemy-compatible | any EVM chain the provider serves: native and token transfers, tokens held now | Alchemy `https://{network}.g.alchemy.com/v2` (`{network}` = the chain's Alchemy name) | `alchemy` |
-| Moralis | any EVM chain Moralis serves | `https://deep-index.moralis.io/api/v2.2` (each network gives its hex chain id) | `moralis` |
+| Cosmos SDK LCD | any Cosmos SDK chain: transfers, fees, staking rewards, balances with staked coins | PublicNode `https://terra-lcd.publicnode.com`, any chain's LCD/REST (each network gives its address prefix and native denom) | `cosmos` |
 | Esplora | Bitcoin | mempool.space, Blockstream, your own node | `bitcoin` |
 | Horizon | Stellar | `https://horizon.stellar.org` or any Horizon | `stellar` |
 
@@ -34,7 +34,7 @@ Assets page → enter the CoinGecko id or the Binance ticker. To ship it for eve
 ## 3. A new protocol or exchange: one Python class
 
 Needed only when a service speaks a protocol none of the types above understands (e.g. a
-Cosmos or Cardano API, a new exchange's account API). Write the adapter below; to make its
+Cardano API, a new exchange's account API). Write the adapter below; to make its
 providers addable from the UI too, add its type to `TYPES` in `cryptoledger/providers.py`
 (label, family, adapter id, default URL) and a branch in `apitest.test_provider` for its Test.
 

@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 
 from cryptoledger import ledger
-from cryptoledger.adapters import AdapterError, get_adapter
+from cryptoledger.adapters import get_adapter
 from cryptoledger.b58 import b58check_encode
 from cryptoledger.http import HttpClient, _redact
 from cryptoledger.ratelimit import DailyLimitReached, RateLimiter, utc_day
@@ -118,76 +118,16 @@ OTHER = "0x" + "2" * 40
 AXS = "0x97a9107c1793bc407d6f527b77e7fff4d812bece"
 
 
-def moralis_handler(method, url, params, payload):
-    assert params["chain"] == "0x7e4"
-    if url.endswith(f"/{ME}"):
-        return {"cursor": None, "result": [
-            {"hash": "0xA1", "from_address": OTHER, "to_address": ME, "value": "5000000000000000000",
-             "receipt_gas_used": "21000", "gas_price": "20000000000", "receipt_status": "1",
-             "block_timestamp": "2025-03-01T10:00:00.000Z", "block_number": "100"},
-            {"hash": "0xA2", "from_address": ME, "to_address": OTHER, "value": "1000000000000000000",
-             "receipt_gas_used": "21000", "gas_price": "20000000000", "receipt_status": "1",
-             "block_timestamp": "2025-04-01T10:00:00.000Z", "block_number": "200",
-             "internal_transactions": [{"from": OTHER, "to": ME, "value": "200000000000000000"}]},
-            {"hash": "0xA3", "from_address": ME, "to_address": OTHER, "value": "3000000000000000000",
-             "receipt_gas_used": "30000", "gas_price": "20000000000", "receipt_status": "0",
-             "block_timestamp": "2025-05-01T10:00:00.000Z", "block_number": "300"}]}
-    if url.endswith(f"/{ME}/erc20/transfers"):
-        return {"cursor": None, "result": [
-            {"transaction_hash": "0xB1", "address": AXS, "from_address": OTHER, "to_address": ME, "value": "7000000000000000000",
-             "token_symbol": "AXS", "token_name": "Axie Infinity Shard", "token_decimals": "18", "log_index": 4,
-             "block_timestamp": "2025-06-01T10:00:00.000Z", "block_number": "400", "possible_spam": False},
-            {"transaction_hash": "0xB2", "address": "0x" + "9" * 40, "from_address": OTHER, "to_address": ME,
-             "value": "1", "token_symbol": "FREE", "token_name": "claim", "token_decimals": "0", "log_index": 1,
-             "block_timestamp": "2025-06-02T10:00:00.000Z", "block_number": "410", "possible_spam": True}]}
-    if url.endswith("/dateToBlock"):
-        return {"block": 501, "timestamp": int(params["date"]) + 3}
-    if url.endswith(f"/{ME}/balance"):
-        return {"balance": "4198980000000000000" if params.get("to_block") == 500 else "4000000000000000000"}
-    if url.endswith(f"/{ME}/erc20"):
-        return [{"token_address": AXS, "symbol": "AXS", "name": "Axie Infinity Shard", "decimals": 18,
-                 "balance": "7000000000000000000", "possible_spam": False}]
-    return None
-
-
-class MoralisRoninTest(unittest.TestCase):
-    def setUp(self):
-        self.t = TempContext(FakeHttp().on("https://deep-index.moralis.io/api/v2.2", moralis_handler))
-        self.ctx = self.t.ctx
-        self.ctx.secrets.set("moralis_api_key", "K")
-        self.adapter = get_adapter(self.ctx, self.ctx.networks.get("ronin"))
-        self.wallet = add_wallet(self.ctx, "ronin", ME)
-
-    def tearDown(self):
-        self.t.close()
-
-    def test_ronin_prefix_address(self):
-        self.assertEqual(self.adapter.validate_address("ronin:" + "A" * 40), "0x" + "a" * 40)
-
-    def test_sync_balances_and_cutoff_block(self):
-        res = self.adapter.sync(self.wallet, {}, LOG)
-        by = {m.uid: m for m in res.movements}
-        self.assertEqual(by["0xa1:in"].amount, Decimal("5"))
-        self.assertEqual(by["0xa2:out"].amount, Decimal("-1"))
-        self.assertEqual(by["0xa2:fee"].amount, Decimal("-0.00042"))
-        self.assertEqual(by["0xa2:int:0:in"].amount, Decimal("0.2"))
-        self.assertNotIn("0xa3:out", by)                      # failed: only the fee
-        self.assertEqual(by["0xa3:fee"].amount, Decimal("-0.0006"))
-        self.assertEqual(by["0xb1:log:4:in"].amount, Decimal("7"))
-        statuses = {a.symbol: a.status for a in res.assets}
-        self.assertEqual(statuses["FREE"], "spam")             # Moralis possible_spam
-        self.assertEqual(res.state["last_block"], 410)
-        ledger.store_sync_result(self.ctx, self.wallet, res)
-        bal, _ = ledger.reconstruct(self.ctx, self.wallet["id"], 2_000_000_000)
-        self.assertEqual(bal["ronin:native"], Decimal("4.19898"))  # 5 - 1 + 0.2 - fees (incl. failed tx)
-        at = self.adapter.balance_at(self.wallet, 1767221999, [], LOG)
-        self.assertEqual(at["ronin:native"], Decimal("4.19898"))   # closest block was after: used block 500
-        self.assertEqual(at[f"ronin:{AXS}"], Decimal("7"))
-
-    def test_missing_key(self):
-        self.ctx.secrets.delete("moralis_api_key")
-        with self.assertRaises(AdapterError):
-            self.adapter.sync(self.wallet, {}, LOG)
+class RoninOnAlchemyTest(unittest.TestCase):
+    def test_ronin_uses_alchemy(self):
+        t = TempContext(offline=True)
+        try:
+            net = t.ctx.networks.get("ronin")
+            self.assertEqual((net.adapter, net.provider, net.alchemy_network), ("alchemy", "alchemy", "ronin-mainnet"))
+            a = get_adapter(t.ctx, net)
+            self.assertEqual(a.validate_address("ronin:" + "A" * 40), "0x" + "a" * 40)
+        finally:
+            t.close()
 
 
 SOLAR_ME = b58check_encode(bytes([63]) + bytes(range(20)))
