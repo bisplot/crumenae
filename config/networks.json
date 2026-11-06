@@ -1,5 +1,5 @@
 {
-  "_comment": "Built-in networks. Override a URL per network from Settings, or add an Etherscan-compatible EVM chain from the UI without touching this file. Fields: adapter = module in cryptoledger/adapters; explorer_key = name of the API-key secret (<explorer_key>_api_key); chainid_param = send chainid (Etherscan V2 multichain).",
+  "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see cryptoledger/providers.py); change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in cryptoledger/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
   "ethereum": {
     "name": "Ethereum",
     "adapter": "evm",
@@ -11,14 +11,17 @@
     "address_url": "https://etherscan.io/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "ethereum",
-    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
+    "provider": "etherscan"
   },
   "bsc": {
     "name": "BNB Smart Chain (BSC)",
-    "adapter": "nodereal",
+    "adapter": "alchemy",
+    "provider": "alchemy",
     "chain_id": 56,
-    "explorer_api": "https://bsc-mainnet.nodereal.io/v1",
-    "explorer_key": "nodereal",
+    "alchemy_network": "bnb-mainnet",
+    "explorer_api": "https://{network}.g.alchemy.com/v2",
+    "explorer_key": "alchemy",
     "tx_url": "https://bscscan.com/tx/{tx}",
     "address_url": "https://bscscan.com/address/{address}",
     "rpc_url": "",
@@ -36,7 +39,8 @@
     "address_url": "https://polygonscan.com/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "polygon-pos",
-    "native": {"symbol": "POL", "name": "POL (ex-MATIC)", "decimals": 18, "coingecko": "polygon-ecosystem-token", "binance": "POL"}
+    "native": {"symbol": "POL", "name": "POL (ex-MATIC)", "decimals": 18, "coingecko": "polygon-ecosystem-token", "binance": "POL"},
+    "provider": "etherscan"
   },
   "arbitrum": {
     "name": "Arbitrum One",
@@ -50,7 +54,8 @@
     "address_url": "https://arbiscan.io/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "arbitrum-one",
-    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
+    "provider": "etherscan"
   },
   "optimism": {
     "name": "OP Mainnet",
@@ -64,7 +69,8 @@
     "address_url": "https://optimistic.etherscan.io/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "optimistic-ethereum",
-    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
+    "provider": "etherscan"
   },
   "base": {
     "name": "Base",
@@ -78,7 +84,8 @@
     "address_url": "https://basescan.org/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "base",
-    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
+    "provider": "etherscan"
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
@@ -91,7 +98,52 @@
     "address_url": "https://snowscan.xyz/address/{address}",
     "rpc_url": "",
     "coingecko_platform": "avalanche",
-    "native": {"symbol": "AVAX", "name": "Avalanche", "decimals": 18, "coingecko": "avalanche-2", "binance": "AVAX"}
+    "native": {"symbol": "AVAX", "name": "Avalanche", "decimals": 18, "coingecko": "avalanche-2", "binance": "AVAX"},
+    "provider": "etherscan"
+  },
+  "linea": {
+    "name": "Linea",
+    "adapter": "evm",
+    "provider": "etherscan",
+    "chain_id": 59144,
+    "explorer_api": "https://api.etherscan.io/v2/api",
+    "explorer_key": "etherscan",
+    "chainid_param": true,
+    "l2": true,
+    "tx_url": "https://lineascan.build/tx/{tx}",
+    "address_url": "https://lineascan.build/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "linea",
+    "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"}
+  },
+  "monad": {
+    "name": "Monad",
+    "adapter": "alchemy",
+    "provider": "alchemy",
+    "chain_id": 143,
+    "alchemy_network": "monad-mainnet",
+    "explorer_api": "https://{network}.g.alchemy.com/v2",
+    "explorer_key": "alchemy",
+    "tx_url": "https://monadscan.com/tx/{tx}",
+    "address_url": "https://monadscan.com/address/{address}",
+    "rpc_url": "",
+    "coingecko_platform": "monad",
+    "native": {"symbol": "MON", "name": "Monad", "decimals": 18, "coingecko": "monad", "binance": "MON"}
+  },
+  "arc": {
+    "name": "Arc",
+    "adapter": "alchemy",
+    "provider": "alchemy",
+    "alchemy_network": "arc-mainnet",
+    "alchemy_internal": true,
+    "explorer_api": "https://{network}.g.alchemy.com/v2",
+    "explorer_key": "alchemy",
+    "ignore_tokens": ["0x3600000000000000000000000000000000000000"],
+    "tx_url": "",
+    "address_url": "",
+    "rpc_url": "",
+    "coingecko_platform": "",
+    "native": {"symbol": "USDC", "name": "USDC (Arc gas)", "decimals": 18, "coingecko": "usd-coin", "binance": "USDC"}
   },
   "ronin": {
     "name": "Ronin",
@@ -103,7 +155,8 @@
     "tx_url": "https://app.roninchain.com/tx/{tx}",
     "address_url": "https://app.roninchain.com/address/{address}",
     "coingecko_platform": "ronin",
-    "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"}
+    "native": {"symbol": "RON", "name": "Ronin", "decimals": 18, "coingecko": "ronin", "binance": "RONIN"},
+    "provider": "moralis"
   },
   "solana": {
     "name": "Solana",
@@ -112,7 +165,8 @@
     "tx_url": "https://explorer.solana.com/tx/{tx}",
     "address_url": "https://explorer.solana.com/address/{address}",
     "coingecko_platform": "solana",
-    "native": {"symbol": "SOL", "name": "Solana", "decimals": 9, "coingecko": "solana", "binance": "SOL"}
+    "native": {"symbol": "SOL", "name": "Solana", "decimals": 9, "coingecko": "solana", "binance": "SOL"},
+    "provider": "helius"
   },
   "tron": {
     "name": "Tron",
@@ -122,7 +176,8 @@
     "tx_url": "https://tronscan.org/#/transaction/{tx}",
     "address_url": "https://tronscan.org/#/address/{address}",
     "coingecko_platform": "tron",
-    "native": {"symbol": "TRX", "name": "Tron", "decimals": 6, "coingecko": "tron", "binance": "TRX"}
+    "native": {"symbol": "TRX", "name": "Tron", "decimals": 6, "coingecko": "tron", "binance": "TRX"},
+    "provider": "trongrid"
   },
   "solar": {
     "name": "Solar (SXP)",
@@ -130,7 +185,8 @@
     "explorer_api": "https://sxp.mainnet.sh/api",
     "tx_url": "https://solarscan.com/transaction/{tx}",
     "address_url": "https://solarscan.com/wallet/{address}",
-    "native": {"symbol": "SXP", "name": "Solar", "decimals": 8, "coingecko": "swipe", "binance": "SXP"}
+    "native": {"symbol": "SXP", "name": "Solar", "decimals": 8, "coingecko": "swipe", "binance": "SXP"},
+    "provider": "solar"
   },
   "bitcoin": {
     "name": "Bitcoin",
@@ -138,7 +194,17 @@
     "explorer_api": "https://mempool.space/api",
     "tx_url": "https://mempool.space/tx/{tx}",
     "address_url": "https://mempool.space/address/{address}",
-    "native": {"symbol": "BTC", "name": "Bitcoin", "decimals": 8, "coingecko": "bitcoin", "binance": "BTC"}
+    "native": {"symbol": "BTC", "name": "Bitcoin", "decimals": 8, "coingecko": "bitcoin", "binance": "BTC"},
+    "provider": "esplora"
+  },
+  "stellar": {
+    "name": "Stellar",
+    "adapter": "stellar",
+    "provider": "horizon",
+    "explorer_api": "https://horizon.stellar.org",
+    "tx_url": "https://stellar.expert/explorer/public/tx/{tx}",
+    "address_url": "https://stellar.expert/explorer/public/account/{address}",
+    "native": {"symbol": "XLM", "name": "Stellar Lumens", "decimals": 7, "coingecko": "stellar", "binance": "XLM"}
   },
   "binance": {
     "name": "Binance (exchange account)",

@@ -483,7 +483,7 @@
       if (v && !platformMap.has(v.toLowerCase())) platformMap.set(v.toLowerCase(), v);
     });
     const platforms = [...platformMap.values()].sort((a, b) => a.localeCompare(b));
-    const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind).map((n) => el('option', { value: n.id, text: n.name })));
+    const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind && !n.hidden).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
     const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / S… / Solana address', autocomplete: 'off', spellcheck: 'false' });
     const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
@@ -505,10 +505,10 @@
       const n = byId[netSel.value];
       addrField.classList.toggle('hidden', !n || !n.needs_address);
       credField.classList.toggle('hidden', !n || !(n.credentials || []).length);
-      const isEvm = n && n.adapter === 'evm';
+      const isEvm = n && n.family === 'evm';
       evmField.classList.toggle('hidden', !isEvm);
       if (isEvm) {
-        evmBox.replaceChildren(...nets.filter((x) => x.adapter === 'evm' && x.id !== n.id).map((x) =>
+        evmBox.replaceChildren(...nets.filter((x) => x.family === 'evm' && !x.hidden && x.id !== n.id).map((x) =>
           el('label', { class: 'chip' }, el('input', { type: 'checkbox', value: x.id }), x.name)));
       }
     }
@@ -520,7 +520,7 @@
       const n = byId[netSel.value];
       if (!n) { toast('Choose a network', true); return; }
       const extra = [...evmBox.querySelectorAll('input:checked')].map((i) => i.value);
-      const body = { networks: [n.id, ...(n.adapter === 'evm' ? extra : [])], address: addr.value.trim(), label: label.value.trim(),
+      const body = { networks: [n.id, ...(n.family === 'evm' ? extra : [])], address: addr.value.trim(), label: label.value.trim(),
         portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked, staking: stakingBox.checked };
       if ((n.credentials || []).length) { body.api_key = keyIn.value.trim(); body.api_secret = secretIn.value.trim(); }
       try {
@@ -645,8 +645,7 @@
   }
 
   async function pageSettings(root) {
-    const [cfg, nets, limits, myWallets] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits'), api.get('/api/wallets')]);
-    const usedNetworks = new Set(myWallets.map((w) => w.network));
+    const [cfg, nets, limits, provs] = await Promise.all([api.get('/api/settings'), api.get('/api/networks'), api.get('/api/limits'), api.get('/api/providers')]);
     const s = cfg.settings;
     const saveSettings = async (body) => { try { await api.put('/api/settings', body); toast('Settings saved'); await refreshStatus(); route(); } catch (e) { toast(e.message, true); } };
 
@@ -658,20 +657,20 @@
     const keyLinks = {
       etherscan_api_key: 'https://etherscan.io/myapikey', coingecko_api_key: 'https://www.coingecko.com/en/api/pricing',
       coinmarketcap_api_key: 'https://coinmarketcap.com/api/', trongrid_api_key: 'https://www.trongrid.io/',
-      moralis_api_key: 'https://admin.moralis.com/', nodereal_api_key: 'https://nodereal.io/meganode', alchemy_api_key: 'https://dashboard.alchemy.com/signup', helius_api_key: 'https://dashboard.helius.dev/',
+      moralis_api_key: 'https://admin.moralis.com/', alchemy_api_key: 'https://dashboard.alchemy.com/signup', helius_api_key: 'https://dashboard.helius.dev/',
     };
     const cgPlan = el('select', { 'aria-label': 'CoinGecko plan' }, ['demo', 'pro'].map((p) => el('option', { value: p, text: p === 'demo' ? 'Demo plan (free)' : 'Pro plan (paid)', selected: s.coingecko_plan === p })));
-    const keyCell = (name, extra) => {
+    const keyCell = (name, extra, link) => {
       const info = cfg.secrets[name] || {};
       secretInputs[name] = el('input', { type: 'password', autocomplete: 'off', placeholder: info.source ? `saved (${info.source}) — type to replace` : 'paste key', style: 'width:100%;min-width:180px' });
       return el('div', { style: 'display:grid;gap:4px' },
         el('div', { class: 'actions' }, info.source ? badge(info.source === 'keychain' ? 'saved · keychain' : `saved · ${info.source}`, 'ok') : badge('not set'),
-          keyLinks[name] ? el('a', { class: 'small', href: keyLinks[name], target: '_blank', rel: 'noopener noreferrer', text: 'get one →' }) : null,
+          (link || keyLinks[name]) ? el('a', { class: 'small', href: link || keyLinks[name], target: '_blank', rel: 'noopener noreferrer', text: 'get one →' }) : null,
           info.source && info.source !== 'env' ? el('button', { class: 'btn small ghost danger', type: 'button', text: 'Remove', onclick: async () => {
             try { await api.put('/api/secrets', { [name]: '' }); toast('Removed'); route(); } catch (e) { toast(e.message, true); } } }) : null),
         secretInputs[name], extra || null);
     };
-    const serviceRow = ({ limitId, label, hint, secret, testId, keyNote, extra }) => {
+    const serviceRow = ({ limitId, label, hint, secret, testId, keyNote, extra, link, actions }) => {
       const l = byId[limitId];
       const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:80px', 'aria-label': 'Calls' });
       const unit = el('select', { 'aria-label': 'Per' },
@@ -692,12 +691,12 @@
       } });
       return el('tr', {},
         el('td', {}, el('strong', { text: label || l.label }), el('div', { class: 'help', text: hint || l.hint })),
-        el('td', { style: 'min-width:220px' }, secret ? keyCell(secret, extra) : el('span', { class: 'muted small', text: keyNote || 'no key needed' })),
+        el('td', { style: 'min-width:220px' }, secret ? keyCell(secret, extra, link) : el('span', { class: 'muted small', text: keyNote || 'no key needed' })),
         el('td', {}, el('div', { class: 'actions', style: 'flex-wrap:nowrap' }, ps, unit)),
         el('td', {}, pd),
         el('td', { class: 'num' }, full ? badge(`${fmtInt(l.used_today)} · cap reached`, 'err')
           : `${fmtInt(l.used_today)}${l.per_day ? ' / ' + fmtInt(l.per_day) : ''}`),
-        el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' }, testBtn,
+        el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' }, testBtn, actions || null,
           el('button', { class: 'btn small ghost', type: 'button', text: 'Default', title: `Limits: ${l.default_rate ?? '—'} per ${l.default_unit}, ${l.default_per_day ?? '—'}/day`,
             onclick: () => { ps.value = l.default_rate ?? ''; unit.value = l.default_unit; pd.value = l.default_per_day ?? ''; } })), result));
     };
@@ -715,20 +714,77 @@
       } catch (e) { toast(e.message, true); }
     };
 
-    // Blockchain APIs: Etherscan, Solana, Tron, Alchemy and NodeReal (BSC, one is enough); Ronin only with Ronin wallets.
-    const chainRows = [
-      serviceRow({ limitId: 'etherscan', label: 'Etherscan', hint: 'Ethereum, Polygon, Arbitrum (one key). Free: 3 calls/s, 100,000/day. Base, OP and Avalanche need a paid plan or a free explorer in Blockchain endpoints.', secret: 'etherscan_api_key', testId: 'etherscan' }),
-      serviceRow({ limitId: 'helius', label: 'Solana (Helius)', hint: 'Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used.', secret: 'helius_api_key', testId: 'solana' }),
-    ];
-    chainRows.push(serviceRow({ limitId: 'trongrid', label: 'Tron (TronGrid)', hint: 'Free key at trongrid.io: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls.', secret: 'trongrid_api_key', testId: 'trongrid' }));
-    chainRows.push(serviceRow({ limitId: 'alchemy', label: 'BNB Smart Chain (Alchemy)', hint: 'Free key at alchemy.com (sign up with e-mail or Google): create an app with BNB Smart Chain enabled. Etherscan\'s free plan does not cover BSC.', secret: 'alchemy_api_key', testId: 'alchemy' }));
-    chainRows.push(serviceRow({ limitId: 'nodereal', label: 'BNB Smart Chain (NodeReal)', hint: 'Alternative to Alchemy (sign-up with GitHub or Discord), used only when no Alchemy key is saved. Free plan: 10M compute units/month.', secret: 'nodereal_api_key', testId: 'nodereal' }));
-    if (byId.moralis && byId.moralis.wallets) chainRows.push(serviceRow({ limitId: 'moralis', label: 'Ronin (Moralis)', secret: 'moralis_api_key', testId: 'moralis' }));
-    const keysCard = card('Blockchain APIs', badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
-      el('p', { class: 'help', text: 'Where wallet balances and transactions are read. Keys stay on this computer; only public addresses are sent. Enter your plan\'s speed limit (per second or per minute) and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC). Empty = no limit. "Test" makes one call to check the service and your key, and says what it cost.' }),
-      table(serviceHead, chainRows),
+    // API providers: the services that read blockchains. Built-in ones plus the ones you add.
+    const provTypes = {
+      etherscan: 'Etherscan-compatible explorer API', alchemy: 'Alchemy-compatible (JSON-RPC + Transfers API)',
+      moralis: 'Moralis Web3 Data API', esplora: 'Esplora (Bitcoin)', horizon: 'Stellar Horizon',
+    };
+    const provDefaults = {
+      etherscan: 'https://api.etherscan.io/v2/api', alchemy: 'https://{network}.g.alchemy.com/v2',
+      moralis: 'https://deep-index.moralis.io/api/v2.2', esplora: 'https://mempool.space/api', horizon: 'https://horizon.stellar.org',
+    };
+    const provNeedsWallets = { moralis: true, solar: true };   // shown only once a wallet uses them
+    const providerModal = (p) => {
+      const name = el('input', { type: 'text', value: p ? p.name : '', placeholder: 'e.g. Lineascan, Blockscout Gnosis, My Alchemy' });
+      const type = el('select', { disabled: Boolean(p && p.networks.length) }, Object.entries(provTypes).map(([k, l]) => el('option', { value: k, text: l, selected: p ? p.type === k : k === 'etherscan' })));
+      const url = el('input', { type: 'text', value: p ? p.base_url : provDefaults.etherscan, style: 'width:100%' });
+      const key = el('input', { type: 'password', autocomplete: 'off', placeholder: p && p.secret_source ? 'saved — type to replace' : 'paste the key (if the service needs one)' });
+      const needsKey = el('input', { type: 'checkbox', checked: p ? p.needs_key : true });
+      const chainid = el('input', { type: 'checkbox', checked: p ? p.chainid_param : true });
+      const chainidRow = el('label', { class: 'check' }, chainid, 'Send the chain id with each call (Etherscan V2 multichain)');
+      const link = el('input', { type: 'text', value: p ? p.link || '' : '', placeholder: 'https://… (where to get a key, optional)' });
+      const typeHelp = el('div', { class: 'help' });
+      const refresh = () => {
+        chainidRow.classList.toggle('hidden', type.value !== 'etherscan');
+        typeHelp.textContent = {
+          etherscan: 'Full history: transactions, internal transfers, tokens. Etherscan V2, Blockscout (…/api), Routescan, Lineascan, Monadscan…',
+          alchemy: 'The URL contains {network}: each network gives its Alchemy name (e.g. bnb-mainnet, monad-mainnet). Native and token transfers, every token held now.',
+          moralis: 'Each network gives its Moralis chain (hex chain id, e.g. 0x7e4).',
+          esplora: 'Bitcoin: mempool.space, Blockstream or your own node.',
+          horizon: 'Stellar: the public server or any Horizon.',
+        }[type.value];
+      };
+      type.addEventListener('change', () => { if (!p) url.value = provDefaults[type.value]; refresh(); });
+      refresh();
+      openModal(el('h2', { text: p ? `Edit ${p.name}` : 'Add an API provider' }),
+        el('p', { class: 'help', text: 'Any service that speaks one of these types can be added without code. Then point networks to it in the Networks table.' }),
+        el('div', { class: 'form' },
+          el('div', { class: 'form-row' }, field('Name', name), field('Type', type)), typeHelp,
+          field('Base URL', url),
+          el('div', { class: 'form-row' }, field('API key', key, 'Stored in your OS keychain or data/secrets.json, never in the browser.'), field('Where to get a key', link)),
+          el('label', { class: 'check' }, needsKey, 'The service needs a key'), chainidRow),
+        el('div', { class: 'actions', style: 'justify-content:flex-end' },
+          el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }),
+          el('button', { class: 'btn primary', type: 'button', text: p ? 'Save' : 'Add provider', onclick: async () => {
+            const body = { name: name.value.trim(), type: type.value, base_url: url.value.trim(), needs_key: needsKey.checked, chainid_param: chainid.checked, link: link.value.trim() };
+            if (key.value.trim()) body.key = key.value.trim();
+            try {
+              await (p ? api.put(`/api/providers/${p.id}`, body) : api.post('/api/providers', body));
+              closeModal(); toast(p ? 'Provider saved' : 'Provider added: press Test, then point networks to it'); route();
+            } catch (e) { toast(e.message, true); }
+          } })));
+    };
+    const providerRows = provs.filter((p) => !p.builtin || !provNeedsWallets[p.id] || p.wallets).map((p) => serviceRow({
+      limitId: p.id, label: p.name,
+      hint: [p.hint, p.builtin ? '' : provTypes[p.type], p.networks.length ? 'Reads: ' + p.networks.map((n) => n.name).join(', ') : 'No network uses it yet'].filter(Boolean).join(' · '),
+      secret: p.needs_key || p.secret_source || ['helius', 'trongrid'].includes(p.id) ? p.secret : null, testId: p.id,
+      keyNote: 'no key needed', link: p.link,
+      actions: p.builtin ? null : [
+        el('button', { class: 'btn small ghost', type: 'button', text: 'Edit', onclick: () => providerModal(p) }),
+        el('button', { class: 'btn small ghost danger', type: 'button', text: 'Remove', disabled: !p.removable,
+          title: p.removable ? 'Remove this provider and its key' : 'Networks use it: point them to another provider first',
+          onclick: async () => {
+            if (!confirm(`Remove ${p.name} and its key?`)) return;
+            try { await api.del(`/api/providers/${p.id}`); toast('Removed'); route(); } catch (e) { toast(e.message, true); }
+          } })],
+    }));
+    const keysCard = card('API providers', el('div', { class: 'actions' },
+      badge(`keys stored in: ${cfg.secrets_backend === 'keychain' ? 'OS keychain' : 'data/secrets.json'}`, cfg.secrets_backend === 'keychain' ? 'ok' : 'warn'),
+      el('button', { class: 'btn small primary', type: 'button', text: '+ Add provider', onclick: () => providerModal(null) })),
+      el('p', { class: 'help', text: 'The services that read your wallets. Keys stay on this computer; only public addresses are sent. Set your plan\'s speed limit and daily calls: the app stays within them and stops calling a service once its daily cap is used (counters reset at 00:00 UTC; empty = no limit). "Test" makes one cheap call and says what it cost. Add any other provider that speaks a supported type with "+ Add provider", then choose it for a network below.' }),
+      table(serviceHead, providerRows),
       el('div', { class: 'actions', style: 'margin-top:12px;justify-content:flex-end' },
-        el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveKeysAndLimits() })));
+        el('button', { class: 'btn primary', type: 'button', text: 'Save keys and limits', onclick: () => saveKeysAndLimits() })));
 
     // Fiscal year
     const tz = el('input', { type: 'text', value: s.timezone });
@@ -781,50 +837,101 @@
         el('button', { class: 'btn', type: 'button', text: 'Take a snapshot now', onclick: () => startJob('snapshot') }),
         el('button', { class: 'btn primary', type: 'button', text: 'Save', onclick: () => saveSettings({ auto_snapshot: auto.checked, snapshot_tolerance_seconds: tol.value, ic_rate: ic.value.trim() }) }))));
 
-    // Networks
-    const overrides = JSON.parse(JSON.stringify(s.network_overrides || {}));
-    // Etherscan chains, Solana and Tron always; other blockchains only once you track a wallet on them.
-    const netRows = nets.filter((n) => ['evm', 'solana', 'tron', 'nodereal'].includes(n.adapter)
-      || (['moralis', 'bitcoin', 'solar'].includes(n.adapter) && usedNetworks.has(n.id))).map((n) => {
-      const api_ = el('input', { type: 'text', value: n.explorer_api || '', placeholder: n.adapter === 'solana' ? '(set by the Solana key above)' : 'none', disabled: n.adapter === 'solana', style: 'width:100%' });
-      api_.addEventListener('change', () => { overrides[n.id] = Object.assign(overrides[n.id] || {}, { explorer_api: api_.value.trim() }); });
+    // Networks: which provider reads each blockchain; add, hide or remove networks.
+    const familyOf = (n) => n.family || '';
+    const provFamily = Object.fromEntries(provs.map((p) => [p.id, p.family]));
+    const provType = Object.fromEntries(provs.map((p) => [p.id, p.type]));
+    const netEdits = {};
+    const netRows = nets.filter((n) => n.kind === 'chain').map((n) => {
+      const choices = provs.filter((p) => p.family === familyOf(n));
+      const pSel = el('select', { 'aria-label': 'Provider', disabled: choices.length < 2 },
+        choices.map((p) => el('option', { value: p.id, text: p.name, selected: p.id === n.provider })));
+      const alch = el('input', { type: 'text', value: n.alchemy_network || '', placeholder: 'e.g. eth-mainnet', style: 'width:140px', 'aria-label': 'Alchemy name' });
+      const alchWrap = el('div', { class: 'small' }, alch);
+      const showAlch = () => alchWrap.classList.toggle('hidden', provType[pSel.value] !== 'alchemy');
+      showAlch();
+      const visible = el('input', { type: 'checkbox', checked: !n.hidden, disabled: n.wallets > 0, title: n.wallets ? 'Wallets use this network' : 'Show in the Wallets list' });
       const rpcName = `rpc_url:${n.id}`;
-      const rpc = ['evm', 'nodereal'].includes(n.adapter) ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'archive RPC (optional)'), style: 'width:100%' }) : null;
+      const rpc = familyOf(n) === 'evm' ? el('input', { type: 'password', autocomplete: 'off', placeholder: cfg.secrets[rpcName] && cfg.secrets[rpcName].source ? 'saved' : (n.rpc_url || 'optional'), style: 'width:100%' }) : null;
       if (rpc) rpc.dataset.secret = rpcName;
-      return el('tr', {},
-        el('td', {}, el('strong', { text: n.name }), el('div', { class: 'muted small', text: `${n.id} · ${n.adapter}${n.chain_id ? ' · chain ' + n.chain_id : ''}${n.builtin ? '' : ' · custom'}` })),
-        el('td', { style: 'min-width:260px' }, api_),
-        el('td', { style: 'min-width:200px' }, rpc || el('span', { class: 'muted small', text: '—' })),
-        el('td', {}, n.builtin ? null : el('button', { class: 'btn small danger', type: 'button', text: 'Delete', onclick: async () => {
-          try { await api.del(`/api/networks/${n.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); } } })));
+      const mark = () => { netEdits[n.id] = { provider: pSel.value, alchemy_network: alch.value.trim(), hidden: !visible.checked }; };
+      pSel.addEventListener('change', () => { showAlch(); mark(); });
+      alch.addEventListener('input', mark);
+      visible.addEventListener('change', mark);
+      return el('tr', { class: n.hidden ? 'muted' : '' },
+        el('td', {}, el('strong', { text: n.name }), el('div', { class: 'muted small', text: `${n.id}${n.chain_id ? ' · chain ' + n.chain_id : ''}${n.builtin ? '' : ' · added by you'}${n.wallets ? ' · ' + n.wallets + ' wallet(s)' : ''}` })),
+        el('td', {}, pSel, alchWrap),
+        el('td', { style: 'min-width:180px' }, rpc || el('span', { class: 'muted small', text: '—' })),
+        el('td', {}, el('label', { class: 'check' }, visible, 'shown')),
+        el('td', {}, n.builtin ? null : el('div', { class: 'actions', style: 'justify-content:flex-end;flex-wrap:nowrap' },
+          el('button', { class: 'btn small ghost', type: 'button', text: 'Edit', onclick: () => networkModal(n) }),
+          el('button', { class: 'btn small ghost danger', type: 'button', text: 'Delete', disabled: n.wallets > 0, onclick: async () => {
+            if (!confirm(`Delete the network ${n.name}?`)) return;
+            try { await api.del(`/api/networks/${n.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); } } }))));
     });
-    const netTable = table(['Blockchain', 'API address', 'Archive node URL (optional)', ''], netRows);
-    const nf = {};
-    ['id', 'name', 'chain_id', 'native_symbol', 'explorer_api', 'explorer_key', 'native_coingecko', 'native_binance', 'coingecko_platform', 'tx_url'].forEach((k) => { nf[k] = el('input', { type: 'text', style: 'width:100%' }); });
-    nf.id.placeholder = 'gnosis'; nf.chain_id.placeholder = '100'; nf.native_symbol.placeholder = 'XDAI';
-    nf.explorer_api.placeholder = 'https://api.etherscan.io/v2/api'; nf.explorer_key.placeholder = 'etherscan (secret name prefix) or empty';
-    nf.tx_url.placeholder = 'https://gnosisscan.io/tx/{tx}';
-    const networksCard = card('Blockchain endpoints (advanced)', null,
-      el('p', { class: 'help', text: 'The address each blockchain is read from. Leave them as they are: change one only if a provider moves its address, or if your Etherscan plan does not cover a chain (then put an Etherscan-compatible explorer such as Blockscout or Routescan for that chain). Archive node URL: optional, lets the app read each balance directly at the 31/12 block to double-check the transaction history.' }),
+    const netTable = table(['Network', 'Read by', 'Archive node URL', 'Wallets list', ''], netRows);
+    const networkModal = (n) => {
+      const custom = provs.filter((p) => provTypes[p.type]);
+      const f = {};
+      ['id', 'name', 'chain_id', 'alchemy_network', 'native_symbol', 'native_name', 'native_decimals', 'native_coingecko', 'native_binance', 'tx_url', 'address_url', 'coingecko_platform', 'rpc_url']
+        .forEach((k) => { f[k] = el('input', { type: 'text', style: 'width:100%' }); });
+      const prov = el('select', {}, custom.map((p) => el('option', { value: p.id, text: `${p.name} (${provTypes[p.type]})` })));
+      const l2 = el('input', { type: 'checkbox' });
+      Object.assign(f.id, { placeholder: 'gnosis' }); f.name.placeholder = 'Gnosis'; f.chain_id.placeholder = '100';
+      f.alchemy_network.placeholder = 'gnosis-mainnet'; f.native_symbol.placeholder = 'XDAI'; f.native_decimals.placeholder = 'auto';
+      f.native_coingecko.placeholder = 'xdai'; f.native_binance.placeholder = 'optional';
+      f.tx_url.placeholder = 'https://gnosisscan.io/tx/{tx}'; f.address_url.placeholder = 'https://gnosisscan.io/address/{address}';
+      f.coingecko_platform.placeholder = 'xdai'; f.rpc_url.placeholder = 'optional, for the 31/12 check';
+      if (n) {
+        f.id.value = n.id; f.id.disabled = true; f.name.value = n.name || ''; f.chain_id.value = n.chain_id ?? '';
+        f.alchemy_network.value = n.alchemy_network || ''; prov.value = n.provider || '';
+        const nat = n.native || {};
+        f.native_symbol.value = nat.symbol || ''; f.native_name.value = nat.name || ''; f.native_decimals.value = nat.decimals ?? '';
+        f.native_coingecko.value = nat.coingecko || ''; f.native_binance.value = nat.binance || '';
+        f.tx_url.value = n.tx_url || ''; f.address_url.value = n.address_url || ''; f.coingecko_platform.value = n.coingecko_platform || '';
+        f.rpc_url.value = n.rpc_url || ''; l2.checked = Boolean(n.l2);
+      }
+      const evmBox = el('div', { class: 'form' }, el('div', { class: 'form-row' }, field('Chain id', f.chain_id, 'From chainlist.org'), field('Alchemy name', f.alchemy_network, 'Only for an Alchemy provider')),
+        el('div', { class: 'form-row' }, field('Archive node URL', f.rpc_url), field('CoinGecko platform id', f.coingecko_platform, 'To find token prices by contract')),
+        el('label', { class: 'check' }, l2, 'Rollup (layer 2): flag fees that may miss the L1 data cost'));
+      const fam = () => { const t = provType[prov.value]; evmBox.classList.toggle('hidden', !['etherscan', 'alchemy', 'moralis'].includes(t)); };
+      prov.addEventListener('change', fam); fam();
+      openModal(el('h2', { text: n ? `Edit ${n.name}` : 'Add a network' }),
+        el('p', { class: 'help', text: 'Any EVM chain (with an Etherscan-compatible, Alchemy-compatible or Moralis provider), a Bitcoin-like chain (Esplora) or Stellar (Horizon). Add the provider first if it is not in the list.' }),
+        el('div', { class: 'form' },
+          el('div', { class: 'form-row' }, field('Id', f.id, 'lower-case, e.g. gnosis'), field('Name', f.name), field('Read by', prov)),
+          evmBox,
+          el('div', { class: 'form-row' }, field('Native coin symbol', f.native_symbol), field('Native coin name', f.native_name), field('Decimals', f.native_decimals)),
+          el('div', { class: 'form-row' }, field('Native coin CoinGecko id', f.native_coingecko), field('Native coin Binance ticker', f.native_binance)),
+          el('div', { class: 'form-row' }, field('Transaction link', f.tx_url, '{tx} is replaced by the hash'), field('Address link', f.address_url, '{address} is replaced by the address'))),
+        el('div', { class: 'actions', style: 'justify-content:flex-end' },
+          el('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: closeModal }),
+          el('button', { class: 'btn primary', type: 'button', text: n ? 'Save' : 'Add network', onclick: async () => {
+            const body = Object.fromEntries(Object.entries(f).map(([k, i]) => [k, i.value.trim()]));
+            body.provider = prov.value; body.l2 = l2.checked;
+            try {
+              await (n ? api.put(`/api/networks/${n.id}`, body) : api.post('/api/networks', body));
+              closeModal(); toast(n ? 'Network saved' : 'Network added: it is now in the Wallets list'); route();
+            } catch (e) { toast(e.message, true); }
+          } })));
+    };
+    const networksCard = card('Networks', el('button', { class: 'btn small primary', type: 'button', text: '+ Add network', onclick: () => networkModal(null) }),
+      el('p', { class: 'help', text: 'The blockchains you can track, and which API provider reads each one. Change the provider of a chain (e.g. Arbitrum from Etherscan to Alchemy), hide the ones you do not use from the Wallets list, or add a new chain with "+ Add network". Archive node URL (optional): lets the app read each balance directly at the 31/12 block to double-check the history. After changing the provider of a chain that already has wallets, use Assets → Clear all and Sync now so the history is read again by the new provider.' }),
       netTable,
-      el('div', { class: 'actions', style: 'margin-top:12px' }, el('button', { class: 'btn primary', type: 'button', text: 'Save endpoints', onclick: async () => {
+      el('div', { class: 'actions', style: 'margin-top:12px;justify-content:flex-end' }, el('button', { class: 'btn primary', type: 'button', text: 'Save networks', onclick: async () => {
         try {
-          await api.put('/api/settings', { network_overrides: overrides });
+          for (const [nid, body] of Object.entries(netEdits)) {
+            const n = nets.find((x) => x.id === nid);
+            if (provType[body.provider] !== 'alchemy') delete body.alchemy_network;
+            if (n && !n.builtin) { await api.put(`/api/networks/${nid}`, body); continue; }
+            await api.put(`/api/networks/${nid}`, body);
+          }
           const sec = {};
           netTable.querySelectorAll('input[data-secret]').forEach((i) => { if (i.value.trim()) sec[i.dataset.secret] = i.value.trim(); });
           if (Object.keys(sec).length) await api.put('/api/secrets', sec);
-          toast('Endpoints saved'); route();
+          toast('Networks saved'); route();
         } catch (e) { toast(e.message, true); }
-      } })),
-      el('h3', { style: 'margin-top:18px', text: 'Add another EVM blockchain (no code needed)' }),
-      el('div', { class: 'form', style: 'margin-top:8px' },
-        el('div', { class: 'form-row' }, field('Id', nf.id), field('Name', nf.name), field('Chain id', nf.chain_id), field('Native symbol', nf.native_symbol)),
-        el('div', { class: 'form-row' }, field('Explorer API URL', nf.explorer_api), field('API key name', nf.explorer_key), field('Tx link template', nf.tx_url)),
-        el('div', { class: 'form-row' }, field('Native coin CoinGecko id', nf.native_coingecko), field('Native coin Binance ticker', nf.native_binance), field('CoinGecko platform id', nf.coingecko_platform)),
-        el('div', { class: 'actions' }, el('button', { class: 'btn', type: 'button', text: 'Add network', onclick: async () => {
-          const body = Object.fromEntries(Object.entries(nf).map(([k, i]) => [k, i.value.trim()]));
-          try { await api.post('/api/networks', body); toast('Network added'); route(); } catch (e) { toast(e.message, true); }
-        } }))));
+      } })));
 
     const about = card('About this installation', null, el('div', { class: 'small', style: 'display:grid;gap:4px' },
       el('div', {}, 'Version ', el('strong', { text: state.status.version }), ` · Python ${state.status.python}`),

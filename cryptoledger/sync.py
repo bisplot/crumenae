@@ -160,7 +160,7 @@ def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:
         return None
     if net.adapter == "solana":
         url = get_adapter(ctx, net)._url()
-    elif net.adapter == "nodereal":
+    elif net.adapter == "alchemy":
         url = get_adapter(ctx, net)._rpc_url() or net.explorer_api or ""
     elif net.adapter == "binance":
         url = net.explorer_api or "https://api.binance.com"
