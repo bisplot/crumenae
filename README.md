@@ -125,8 +125,9 @@ python3 -m pip install -r requirements-optional.txt
 5. **Assets**: tokens the app does not know are listed here. Map them to a CoinGecko id or a
    Binance ticker, or mark them as spam (airdropped scam tokens are common: ignored everywhere).
    Mark real tokens that can no longer be traded (delisted, dead projects) as **ghost**: they stay
-   in your balances and the RW, valued at the price they had while they traded and at €0 once
-   there is no market, without the ⛔ "no price" flag; they have their own **Ghost** tab. **Clear all**
+   in your balances and the RW, valued at the price they had while they traded (or their live
+   price if a market still exists) and at €0 once there is no market, without the ⛔ "no price"
+   flag; they have their own **Ghost** tab and are left off the Dashboard, like spam. **Clear all**
    empties the list (your mappings and spam marks too; wallets, transactions and year-end values
    stay); **Load all** reads the tokens each wallet holds now, without the transactions (a few
    calls per wallet instead of one per transaction); assets moved in the past are rebuilt from

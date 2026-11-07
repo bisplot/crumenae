@@ -1,6 +1,7 @@
 """Asset identity and price mapping."""
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Iterable, Optional
 
 from .models import AssetInfo
@@ -86,6 +87,15 @@ def is_priced(asset: Optional[Dict[str, Any]]) -> bool:
     if not asset or asset["status"] in ("spam", "ignored"):
         return False
     return asset["status"] == "ghost" or bool(asset.get("fiat") or asset.get("coingecko_id") or asset.get("binance_symbol"))
+
+
+# Airdropped scam tokens advertise a website in their name or symbol ("GasDAO.cc", "Visit x.io").
+SPAM_NAME = re.compile(r"(\.(com|io|org|net|cc|xyz|app|finance|site|top|vip|pro|live|fi|gg|me)\b)|https?://|www\.|\bvisit\b|\bclaim\b|\breward",
+                       re.IGNORECASE)
+
+
+def looks_like_spam(*texts: str) -> bool:
+    return any(t and SPAM_NAME.search(t) for t in texts)
 
 
 def is_hidden(asset: Optional[Dict[str, Any]]) -> bool:

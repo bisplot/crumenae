@@ -190,7 +190,9 @@ def write_exports(ctx, log: Callable[[str], None]) -> None:
 def refresh_prices(ctx, prices: PriceService, log: Callable[[str], None]) -> int:
     rows = ctx.db.query(
         "SELECT DISTINCT a.* FROM current_balances c JOIN assets a ON a.key=c.asset_key"
-        " WHERE CAST(c.amount AS REAL) != 0")
+        " WHERE CAST(c.amount AS REAL) != 0 AND a.status NOT IN ('spam','ignored')")
+    if rows and not ctx.offline:
+        log(f"Live prices for {len(rows)} assets…")
     got = prices.refresh_current({r["key"]: r for r in rows})
     log(f"Live prices: {len(got)}/{len(rows)} assets priced")
     return len(got)
@@ -199,8 +201,14 @@ def refresh_prices(ctx, prices: PriceService, log: Callable[[str], None]) -> int
 def lookup_unknown_tokens(ctx, prices: PriceService, log: Callable[[str], None]) -> None:
     """Map unknown tokens to CoinGecko by contract address (reliable, unlike tickers)."""
     rows = ctx.db.query(
-        "SELECT a.* FROM assets a WHERE a.status='unmapped' AND a.contract IS NOT NULL"
+        "SELECT a.* FROM assets a WHERE (a.status='unmapped' OR (a.status='ghost' AND a.coingecko_id IS NULL"
+        " AND a.binance_symbol IS NULL)) AND a.contract IS NOT NULL"
         " AND EXISTS (SELECT 1 FROM current_balances c WHERE c.asset_key=a.key AND CAST(c.amount AS REAL) != 0)")
+    todo = [a for a in rows if not ctx.db.get_meta(f"cg_lookup:{a['key']}")][:MAX_CONTRACT_LOOKUPS_PER_RUN]
+    if todo:
+        tip = "" if ctx.secrets.get("coingecko_api_key") else \
+            " (without a CoinGecko key this is slow: a free Demo key speeds it up, Settings → Price sources)"
+        log(f"Looking up {len(todo)} unknown token(s) on CoinGecko by contract{tip}…")
     done = 0
     for a in rows:
         if done >= MAX_CONTRACT_LOOKUPS_PER_RUN:
@@ -222,8 +230,9 @@ def lookup_unknown_tokens(ctx, prices: PriceService, log: Callable[[str], None])
             break
         ctx.db.set_meta(marker, str(now()))
         if found:
-            ctx.db.execute("UPDATE assets SET coingecko_id=?, symbol=?, name=?, status='known', updated_at=?"
-                           " WHERE key=? AND status='unmapped'",
+            ctx.db.execute("UPDATE assets SET coingecko_id=?, symbol=?, name=?, updated_at=?,"
+                           " status=CASE WHEN status='unmapped' THEN 'known' ELSE status END"
+                           " WHERE key=? AND status IN ('unmapped','ghost')",
                            (found["id"], found["symbol"] or a["symbol"], found["name"] or a["name"], now(), a["key"]))
             ctx.mark_yearend_stale(f"token {found['symbol'] or a['symbol']} mapped to a price")
             log(f"Mapped token {found['symbol']} → CoinGecko '{found['id']}'")

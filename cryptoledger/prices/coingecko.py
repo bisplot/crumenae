@@ -70,6 +70,8 @@ class CoinGeckoPrices:
             prices.update(data)
         for key, a in assets.items():
             p = prices.get(a.get("coingecko_id") or "")
+            if p and p.get("last_updated_at") and now_ts - int(p["last_updated_at"]) > 7 * 86400:
+                continue   # not updated for a week: no live market (dead or delisted coin)
             if p and p.get("eur") is not None:
                 out[key] = PriceResult(Decimal(str(p["eur"])), f"coingecko {a['coingecko_id']} EUR",
                                        int(p.get("last_updated_at") or now_ts))

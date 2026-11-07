@@ -30,6 +30,9 @@ def kline(close, open_ms):
 
 
 def market_handler(method, url, params, payload):
+    if "data-api.binance.vision" in url and url.endswith("/ticker/price"):
+        return [{"symbol": "ETHEUR", "price": "2500.50"}, {"symbol": "SOLUSDT", "price": "118"},
+                {"symbol": "BTCEUR", "price": "80000"}]
     if "data-api.binance.vision" in url:
         sym, start = params["symbol"], int(params["startTime"])
         if sym == "ETHEUR":

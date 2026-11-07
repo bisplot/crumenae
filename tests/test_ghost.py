@@ -62,7 +62,7 @@ class GhostAssetTest(unittest.TestCase):
         self.ctx.db.execute("INSERT INTO prices(price_key, ts, price_eur, source, price_ts, fetched_at)"
                             " VALUES('cg:deadcoin', 1000, '2.5', 'coingecko', 1000, 1)")
         self.assertEqual(ps.price_at(a, 1000).price, Decimal("2.5"))
-        # ...otherwise EUR 0, and today it is always EUR 0.
+        # ...otherwise EUR 0; today too, unless a live market exists (offline here).
         self.assertEqual(ps.price_at(a, 2000).price, 0)
         self.assertEqual(ps.latest(a).price, 0)
         self.assertEqual(ps.refresh_current({DEAD: a}), {})
