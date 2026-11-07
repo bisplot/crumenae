@@ -1004,18 +1004,40 @@
   }
 
   // ---------------------------------------------------------------- jobs
+  const JOB_NAMES = { sync: 'Sync', recompute: 'Recompute year-end', assets: 'Load assets', snapshot: 'Snapshot', prices: 'Prices' };
+  const fmtDuration = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   function showJob(job) {
     const box = $('#job');
     if (!job) return;
     box.classList.remove('hidden');
-    $('#job-title').textContent = `${job.kind[0].toUpperCase()}${job.kind.slice(1)} ${job.running ? '— running…' : job.error ? '— failed' : '— done'}`;
+    const status = job.running ? 'running' : job.error ? 'failed' : 'done';
+    $('#job-icon').className = 'job-icon ' + status;
+    $('#job-icon').title = { running: 'Running', done: 'Done', failed: 'Failed' }[status];
+    $('#job-bar').className = 'job-bar ' + status;
+    $('#job-title').textContent = JOB_NAMES[job.kind] || job.kind;
+    // The latest step under the title, so progress is visible even with the log scrolled.
+    const last = [...job.log].reverse().find((l) => l.trim()) || (job.running ? 'Starting…' : '');
+    $('#job-step').textContent = job.error && !job.running ? job.error : last;
+    // Elapsed time: ticks every second while running (client clock), final duration when done.
+    clearInterval(state.jobClock);
+    if (job.running) {
+      if (state.jobKey !== job.started_at) { state.jobKey = job.started_at; state.jobStart = Date.now(); }
+      const tick = () => { $('#job-time').textContent = fmtDuration((Date.now() - state.jobStart) / 1000); };
+      tick();
+      state.jobClock = setInterval(tick, 1000);
+    } else if (job.finished_at && job.started_at) {
+      $('#job-time').textContent = fmtDuration(job.finished_at - job.started_at);
+    }
     const pre = $('#job-log');
+    const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 30;
     pre.textContent = job.log.join('\n');
-    pre.scrollTop = pre.scrollHeight;
+    if (atBottom) pre.scrollTop = pre.scrollHeight;   // follow the log unless you scrolled up to read
     $('#sync-btn').disabled = job.running;
     $('#recompute-btn').disabled = job.running;
     $('#sync-btn').textContent = job.running && job.kind === 'sync' ? 'Syncing…' : 'Sync now';
     $('#recompute-btn').textContent = job.running && job.kind === 'recompute' ? 'Recomputing…' : 'Recompute year-end';
+    $('#sync-btn').classList.toggle('busy', job.running && job.kind === 'sync');
+    $('#recompute-btn').classList.toggle('busy', job.running && job.kind === 'recompute');
   }
   async function startJob(kind, body) {
     try { showJob(await api.post(`/api/jobs/${kind}`, body || {})); pollJob(); } catch (e) { toast(e.message, true); }
@@ -1029,7 +1051,7 @@
         if (job && job.running) pollJob();
         else { toast(job && job.error ? 'Job failed: ' + job.error : 'Done', Boolean(job && job.error)); await refreshStatus(); route(); }
       } catch (e) { pollJob(); }
-    }, 1200);
+    }, 800);
   }
   $('#job-close').addEventListener('click', () => $('#job').classList.add('hidden'));
   $('#sync-btn').addEventListener('click', () => startJob('sync'));

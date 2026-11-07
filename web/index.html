@@ -48,9 +48,17 @@
   </div>
   <div id="job" class="job hidden" role="status">
     <div class="job-head">
-      <strong id="job-title">Sync</strong>
+      <div class="job-status">
+        <span id="job-icon" class="job-icon" aria-hidden="true"></span>
+        <div class="job-text">
+          <strong id="job-title">Sync</strong>
+          <div id="job-step" class="job-step"></div>
+        </div>
+      </div>
+      <span id="job-time" class="job-time"></span>
       <button class="btn ghost small" id="job-close" type="button">Hide</button>
     </div>
+    <div id="job-bar" class="job-bar"></div>
     <pre id="job-log"></pre>
   </div>
   <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
