@@ -44,7 +44,14 @@ instead. Fiat balances on exchanges are converted with ECB rates; EUR is 1.
 **Ghost tokens** (Assets page): real tokens that can no longer be traded. They stay in the
 balances; a price is still looked up through their mapping (if any) for moments when they
 traded, otherwise the value is €0 with source `ghost (no market)` and an ℹ flag instead of ⛔.
-Current values are always €0. Clear the mapping to force €0 for every date.
+Live prices are looked up for them too (one Binance ticker call, then CoinGecko): the current
+value is that price when a market still exists (CoinGecko quotes older than 7 days are ignored),
+else €0. Clear the mapping to force €0 for every date. Ghost and spam tokens are not shown on
+the Dashboard (its total excludes them); year-end values still include ghost tokens.
+
+**Live prices** (each sync): Binance first, with one call for all symbols (EUR pair, inverted
+EUR pair, or a USD stablecoin pair converted at the ECB rate), then CoinGecko for the rest. An
+asset no source can price is remembered for 24 hours and not asked again in that time.
 
 Tokens are matched to prices by **contract address** (built-in list, then CoinGecko's contract
 lookup), never by ticker: scam tokens often copy real tickers. Unmatched tokens are not valued

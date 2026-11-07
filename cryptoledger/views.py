@@ -40,12 +40,19 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
     per_wallet: Dict[int, Dict[str, Any]] = defaultdict(lambda: {"value": ZERO, "unpriced": 0})
     unpriced: List[Dict[str, Any]] = []
     price_time = None
+    ghosts, likely_spam = set(), set()
     for r in rows:
         amount = D(r["amount"])
         if amount == 0:
             continue
         a = all_assets.get(r["asset_key"]) or {"key": r["asset_key"], "symbol": r["asset_key"], "status": "unmapped"}
         if assets_mod.is_hidden(a):
+            continue
+        if a.get("status") == "ghost":   # no longer traded: kept for year-end, left off the dashboard
+            ghosts.add(assets_mod.group_key(a))
+            continue
+        if a.get("status") == "unmapped" and assets_mod.looks_like_spam(a.get("symbol"), a.get("name")):
+            likely_spam.add(r["asset_key"])   # not marked yet, but its name advertises a website
             continue
         pr = prices.latest(a) if assets_mod.is_priced(a) else None
         g = assets_mod.group_key(a)
@@ -113,7 +120,7 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
     return {
         "total_now": dstr(total), "price_time": price_time, "holdings": holding_list,
         "wallets": wallet_list, "series": series, "last_year": last_year, "flags": flags[:50],
-        "unpriced": unpriced, "portfolios": portfolios(ctx),
+        "unpriced": unpriced, "ghost_hidden": len(ghosts), "spam_hidden": len(likely_spam), "portfolios": portfolios(ctx),
         "last_sync": ctx.db.scalar("SELECT MAX(last_sync_at) FROM wallets"),
         "demo": ctx.db.get_meta("demo") == "1",
     }

@@ -80,14 +80,38 @@ class BinancePrices:
         return eur, note
 
     def current(self, assets: Dict[str, Dict], now_ts: int) -> Dict[str, PriceResult]:
+        """Live prices of every asset from ONE call (/api/v3/ticker/price, all pairs), instead of
+        up to six candle requests per asset."""
+        wanted = {k: a for k, a in assets.items() if self.can_price(a)}
+        if not wanted:
+            return {}
+        try:
+            rows = self.ctx.http.get_json(BASE + "/api/v3/ticker/price")
+        except HttpError as e:
+            raise AdapterError(f"Binance ticker prices: {e}")
+        book = {r["symbol"]: Decimal(str(r["price"])) for r in rows or [] if r.get("symbol") and r.get("price")}
         out: Dict[str, PriceResult] = {}
-        for key, a in assets.items():
-            if not self.can_price(a):
-                continue
-            try:
-                r = self.price_at(a, now_ts - 60)
-            except AdapterError:
-                continue
-            if r:
-                out[key] = r
+        usd_rate = None
+        for key, a in wanted.items():
+            sym = a["binance_symbol"].upper()
+            if sym == "EUR":
+                out[key] = PriceResult(Decimal(1), "fixed", now_ts, "EUR")
+            elif book.get(sym + "EUR"):
+                out[key] = PriceResult(book[sym + "EUR"], f"binance {sym}EUR live", now_ts)
+            elif book.get("EUR" + sym):
+                out[key] = PriceResult(Decimal(1) / book["EUR" + sym], f"binance 1/EUR{sym} live", now_ts)
+            else:
+                quote = next((q for q in USD_QUOTES if q != sym and book.get(sym + q)), None)
+                if not quote:
+                    continue
+                if usd_rate is None:
+                    try:
+                        usd_rate = self.usd_to_eur(Decimal(1), now_ts, quote)
+                    except AdapterError:
+                        usd_rate = False
+                if not usd_rate:
+                    continue
+                out[key] = PriceResult(book[sym + quote] * usd_rate[0], f"binance {sym}{quote} live × {usd_rate[1]}",
+                                       now_ts, f"{quote} treated as 1 USD"
+                                       if self.ctx.settings.get("usd_to_eur") == "ecb" else "")
         return out

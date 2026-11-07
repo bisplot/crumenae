@@ -10,7 +10,6 @@ past block (year-end cross-check): standard JSON-RPC on the same endpoint.
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,13 +22,7 @@ from .base import AdapterError, AssetInfo, Logger, Movement, SyncResult
 from .evm import BALANCE_OF, EvmAdapter
 
 DECIMALS = "0x313ce567"    # decimals()
-# Airdropped scam tokens advertise a website in their name or symbol ("GasDAO.cc", "Visit x.io").
-SPAM_NAME = re.compile(r"(\.(com|io|org|net|cc|xyz|app|finance|site|top|vip|pro|live|fi|gg|me)\b)|https?://|www\.|\bvisit\b|\bclaim\b|\breward",
-                       re.IGNORECASE)
-
-
-def looks_like_spam(*texts: str) -> bool:
-    return any(t and SPAM_NAME.search(t) for t in texts)
+looks_like_spam = assets_mod.looks_like_spam
 ALCHEMY_TEMPLATE = "https://{network}.g.alchemy.com/v2"
 
 

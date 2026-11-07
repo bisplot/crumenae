@@ -144,8 +144,10 @@ class PriceService:
         remaining: Dict[str, Dict[str, Any]] = {}
         for key, a in assets.items():
             ident = identity(a)
-            if not ident or a.get("status") in ("spam", "ignored", "ghost"):
-                continue   # a ghost token has no market today: valued by latest() at EUR 0
+            if not ident or a.get("status") in ("spam", "ignored"):
+                continue   # ghost coins are looked up too: if a market exists, its price is used
+            if self._recent_miss(ident, now_ts):
+                continue   # no provider had a price in the last 24 h: not asked again yet
             cached = self._cached(ident, bucket)
             if cached:
                 results[key] = cached
@@ -175,13 +177,27 @@ class PriceService:
                 results[key] = r
                 self._store(identity(remaining[key]), bucket, r, live=True)
                 remaining.pop(key, None)
+        for a in remaining.values():   # no provider prices these: remember it for a day
+            self.ctx.db.set_meta(f"live_miss:{identity(a)}", str(now_ts))
         return results
+
+    MISS_TTL = 24 * 3600
+
+    def _recent_miss(self, ident: str, now_ts: int) -> bool:
+        raw = self.ctx.db.get_meta(f"live_miss:{ident}")
+        return bool(raw) and now_ts - int(raw) < self.MISS_TTL
 
     def latest(self, asset: Optional[Dict[str, Any]]) -> Optional[PriceResult]:
         """Most recent cached price (live first), without network calls."""
-        if (asset or {}).get("status") == "ghost":
-            return ghost_price(now())
         ident = identity(asset)
+        if (asset or {}).get("status") == "ghost":
+            # A ghost coin uses a live price of the last 2 days if one exists, otherwise EUR 0.
+            row = self.ctx.db.query_one(
+                "SELECT * FROM prices WHERE price_key=? AND note LIKE 'live%' AND fetched_at>=? "
+                "ORDER BY COALESCE(price_ts, ts) DESC LIMIT 1", (ident or "", now() - 2 * 86400)) if ident else None
+            if row:
+                return PriceResult(D(row["price_eur"]), row["source"], row["price_ts"] or row["ts"], row["note"])
+            return ghost_price(now())
         if not ident or (asset or {}).get("status") in ("spam", "ignored"):
             return None
         if ident == "fiat:EUR":

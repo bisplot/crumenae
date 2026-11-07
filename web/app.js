@@ -188,7 +188,10 @@
         el('span', { class: 'num muted' }, pct(t.value / now)))))) : el('p', { class: 'muted', text: 'No priced holdings yet.' }));
 
     const colorOf = new Map(top.map((t) => [t.label, t.color]));
-    const holdings = card('Holdings', el('span', { class: 'muted small', text: 'same coin on several chains is grouped' }),
+    const holdingsNote = el('span', { class: 'muted small' }, 'same coin on several chains is grouped',
+      d.ghost_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets?filter=ghost', text: `${d.ghost_hidden} ghost coin${d.ghost_hidden > 1 ? 's' : ''} hidden` })) : null,
+      d.spam_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets', text: `${d.spam_hidden} likely spam hidden` })) : null);
+    const holdings = card('Holdings', holdingsNote,
       table(['Asset', '#Quantity', '#Price', '#Value', '#Share'], d.holdings.map((h) => el('tr', {},
         el('td', {}, el('span', { class: 'dot', style: `background:${colorOf.get(h.symbol) || cssVar('--c8')}` }), el('strong', { text: h.symbol }),
           ' ', el('span', { class: 'muted small', text: h.name !== h.symbol ? h.name : '' })),
@@ -625,7 +628,7 @@
         catch (e) { toast(e.message, true); }
       } });
     root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
-      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances, valued at the price they had while they traded and at €0 once there is no market. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
+      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances and year-end values (valued at their live price if a market still exists, else €0) but are left off the Dashboard. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', 'Wallets', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
