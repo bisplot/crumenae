@@ -26,6 +26,9 @@
     return node;
   }
   const el = (tag, attrs, ...children) => build(document.createElement(tag), attrs, children);
+  // Replace a node's children. Unlike the DOM's replaceChildren(), it skips null/false and flattens
+  // arrays (replaceChildren would print them as the text "null" or "[object HTMLOptionElement]").
+  const fill = (node, ...children) => { node.replaceChildren(); return build(node, null, children); };
   const svg = (tag, attrs, ...children) => build(document.createElementNS(SVGNS, tag), attrs, children);
   const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -78,7 +81,7 @@
   }
   function openModal(...children) {
     const card = $('#modal-card');
-    card.replaceChildren(...children);
+    fill(card, ...children);
     $('#modal').classList.remove('hidden');
     const first = card.querySelector('input, select, textarea');
     if (first) first.focus();
@@ -160,7 +163,7 @@
     const d = await api.get('/api/dashboard' + pf());
     fillPortfolios(d.portfolios);
     if (!d.wallets.length) {
-      root.replaceChildren(card(null, null, el('div', { class: 'empty' },
+      fill(root, card(null, null, el('div', { class: 'empty' },
         el('h2', { text: 'No wallets yet' }),
         el('p', { text: 'Add your addresses and accounts, choose their network, then press Sync. Balances and transactions are read from public APIs and converted to EUR.' }),
         el('a', { class: 'btn primary', href: '#/wallets', text: 'Add a wallet' }),
@@ -215,7 +218,7 @@
     const flags = d.flags.length ? card('Needs attention', null, el('div', { class: 'flags' },
       d.flags.map((f) => el('div', { class: 'flag' + (f.level === 'error' ? ' error' : ''), text: f.text })))) : null;
 
-    root.replaceChildren(kpis, flags || '', el('div', { class: 'grid two' }, allocation, holdings),
+    fill(root, kpis, flags || '', el('div', { class: 'grid two' }, allocation, holdings),
       el('div', { class: 'grid two-even' }, yearsCard, walletsCard));
   }
 
@@ -287,7 +290,7 @@
             el('td', { class: 'small muted wrap' }, a.price_source || '—', a.price_ts ? el('div', { text: new Date(a.price_ts * 1000).toISOString().replace('.000', '') }) : null)))))
           : el('p', { class: 'muted small', text: 'No balance at this cutoff.' }));
     });
-    root.replaceChildren(head, exportsCard, rwCard, ...walletCards);
+    fill(root, head, exportsCard, rwCard, ...walletCards);
   }
 
   function manualModal(w, year) {
@@ -358,7 +361,7 @@
     let tq;
     qIn.addEventListener('input', () => { clearTimeout(tq); tq = setTimeout(() => load(true), 300); });
     more.addEventListener('click', () => load(false));
-    root.replaceChildren(card(null, null,
+    fill(root, card(null, null,
       el('div', { class: 'actions', style: 'margin-bottom:12px' }, wSel, ySel, cSel, qIn, el('span', { style: 'flex:1' }), info, exportLink),
       el('div', { class: 'table-wrap' }, el('table', { class: 'compact' },
         el('thead', {}, el('tr', {}, ['Time (local)', 'Wallet', 'Asset', '#Amount', '#Value €', 'Category', 'Tx'].map((h) =>
@@ -473,7 +476,7 @@
             try { await api.del(`/api/staking/rewards/${r.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); }
           } }) : null))), 'compact')) : null,
       addForm);
-    root.replaceChildren(head, posCard, rewardsCard);
+    fill(root, head, posCard, rewardsCard);
   }
 
   async function pageWallets(root) {
@@ -511,7 +514,7 @@
       const isEvm = n && n.family === 'evm';
       evmField.classList.toggle('hidden', !isEvm);
       if (isEvm) {
-        evmBox.replaceChildren(...nets.filter((x) => x.family === 'evm' && !x.hidden && x.id !== n.id).map((x) =>
+        fill(evmBox, ...nets.filter((x) => x.family === 'evm' && !x.hidden && x.id !== n.id).map((x) =>
           el('label', { class: 'chip' }, el('input', { type: 'checkbox', value: x.id }), x.name)));
       }
     }
@@ -564,7 +567,7 @@
             try { await api.del(`/api/wallets/${w.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); }
           } }))))))
         : el('p', { class: 'muted', text: 'No wallets yet.' }));
-    root.replaceChildren(card('Add a wallet or account', null, form), list);
+    fill(root, card('Add a wallet or account', null, form), list);
   }
 
   // After adding wallets: sync now, or later with "Sync now".
@@ -627,7 +630,7 @@
         try { const r = await api.post('/api/assets/clear'); toast(`${r.cleared} assets cleared. Press "Load all" to rebuild them from your wallets.`); await refreshStatus(); route(); }
         catch (e) { toast(e.message, true); }
       } });
-    root.replaceChildren(card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
+    fill(root, card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
       el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances and year-end values (valued at their live price if a market still exists, else €0) but are left off the Dashboard. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', 'Wallets', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
@@ -966,7 +969,7 @@
       el('p', { class: 'help', text: 'Delete everything and start over as after the first installation: wallets, transactions, assets, prices, year-end values, settings, API keys, exports and reports. It cannot be undone: back up the data folder first if you may need it.' }),
       el('div', { class: 'actions' }, el('button', { class: 'btn danger', type: 'button', text: 'Reset everything…', onclick: openReset })));
     resetCard.classList.add('danger-zone');
-    root.replaceChildren(keysCard, pricesCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), networksCard, about, resetCard);
+    fill(root, keysCard, pricesCard, el('div', { class: 'grid two-even' }, fyCard, snapCard), networksCard, about, resetCard);
   }
 
   async function openReset() {
@@ -1068,7 +1071,7 @@
   function fillPortfolios(list) {
     const sel = $('#portfolio');
     const current = state.portfolio;
-    sel.replaceChildren(el('option', { value: '', text: 'All' }), (list || []).map((p) => el('option', { value: p, text: p, selected: p === current })));
+    fill(sel, el('option', { value: '', text: 'All' }), (list || []).map((p) => el('option', { value: p, text: p, selected: p === current })));
   }
   $('#portfolio').addEventListener('change', (e) => {
     state.portfolio = e.target.value;
@@ -1086,9 +1089,9 @@
     $('#page-title').textContent = PAGES[page][0];
     document.title = `${PAGES[page][0]} · CryptoLedger`;
     const root = $('#page');
-    if (!root.children.length) root.replaceChildren(el('p', { class: 'muted', text: 'Loading…' }));
+    if (!root.children.length) fill(root, el('p', { class: 'muted', text: 'Loading…' }));
     try { await PAGES[page][1](root, params); }
-    catch (e) { root.replaceChildren(card('Something went wrong', null, el('p', { class: 'neg', text: e.message }))); }
+    catch (e) { fill(root, card('Something went wrong', null, el('p', { class: 'neg', text: e.message }))); }
   }
 
   // ---------------------------------------------------------------- theme (dark-first, see docs/BRAND.md)
@@ -1113,12 +1116,12 @@
   async function refreshStatus() {
     state.status = await api.get('/api/status');
     const st = state.status;
-    $('#sidebar-foot').replaceChildren(
+    fill($('#sidebar-foot'),
       st.demo ? badge('DEMO DATA', 'warn') : null,
       el('div', { text: `v${st.version} · ${st.timezone}` }),
       el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }),
       themeToggle());
-    $('#banner').replaceChildren(st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
+    fill($('#banner'), st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
     const rb = $('#recompute-btn');
     rb.classList.toggle('attention', Boolean(st.yearend_stale) || !st.yearend_computed_at);
     rb.title = st.yearend_stale ? `Out of date: ${st.yearend_stale}` : st.yearend_computed_at
