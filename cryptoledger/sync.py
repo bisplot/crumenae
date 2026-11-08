@@ -65,6 +65,8 @@ def ensure_assets(ctx, wallet: Dict[str, Any], network) -> int:
         prefix, rest = key.split(":", 1)
         if rest == "native" and network.native:
             infos.append(assets_mod.native_asset(network))
+        elif rest.startswith("stake:") and network.native:
+            infos.append(assets_mod.staked_asset(network, rest[len("stake:"):]))
         elif network.kind in ("exchange", "manual"):
             infos.append(assets_mod.ticker_asset(ctx, prefix, rest))
         elif not rest.startswith("trc10:"):
