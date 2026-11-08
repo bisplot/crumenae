@@ -252,24 +252,14 @@ def staking(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
     by_id = {w["wallet"]["id"]: w for w in detail["wallets"]}
     positions = []
     manual_wallets = []
-    for w in ctx.wallets(portfolio=portfolio):
+    wallets = ctx.wallets(portfolio=portfolio)
+    for w in wallets:
         try:
             kind = get_adapter(ctx, ctx.networks.get(w["network"])).kind
         except KeyError:
             kind = ""
         if kind == "manual":
             manual_wallets.append({"id": w["id"], "label": w["label"], "staking": bool(w["staking"])})
-        earn_raw = ctx.db.get_meta(f"earn_positions:{w['id']}") if w["network"] == "binance" else None
-        if earn_raw:
-            import json
-            earn = json.loads(earn_raw)
-            if earn.get("positions"):
-                positions.append({
-                    "wallet": _wallet_public(ctx, w), "assets": [], "source": "", "flags": [], "value": None,
-                    "complete": False, "manual": False, "auto": "Binance Simple Earn",
-                    "current": [{"asset_key": f"binance:{t}", "symbol": t, "amount": a}
-                                for t, a in earn["positions"].items()],
-                    "current_at": earn.get("at")})
         if not w["staking"]:
             continue
         item = by_id.get(w["id"]) or {"wallet": _wallet_public(ctx, w), "assets": [], "source": "",
@@ -281,6 +271,7 @@ def staking(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
                                " LEFT JOIN assets a ON a.key=c.asset_key WHERE c.wallet_id=? AND c.amount<>'0'",
                                (w["id"],))]
         positions.append(item)
+    staked = staked_now(ctx, wallets)
 
     cal = ctx.calendar
     sql = ("SELECT m.id, m.uid, m.ts, m.amount, m.asset_key, m.value_eur, m.price_source, m.note, m.tx_hash,"
@@ -311,8 +302,40 @@ def staking(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
     return {
         "year": year, "cutoff_local": detail["cutoff_local"], "years": detail["years"],
         "positions": positions, "staked_value_eur": dstr(staked_eur),
+        "staked": staked, "staked_now_eur": dstr(sum((D(p["value_now"]) for p in staked if p["value_now"]), ZERO)),
         "rewards": rewards, "reward_totals": [dict(t, amount=dstr(t["amount"]), value_eur=dstr(t["value_eur"]))
                                               for t in sorted(totals.values(), key=lambda t: -t["value_eur"])],
         "rewards_value_eur": dstr(total_eur), "rewards_unvalued": unvalued,
         "manual_wallets": manual_wallets,
     }
+
+
+def staked_now(ctx, wallets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Coins staked now, found automatically: positions read at each sync (Terra, Tron, Binance
+    Earn…) and liquid-staking tokens held (stETH, rETH, mSOL…, "staking" in config/tokens.json)."""
+    prices = PriceService(ctx)
+    all_assets = assets_mod.all_assets(ctx)
+    by_id = {w["id"]: w for w in wallets}
+    rows = [dict(r) for r in ctx.db.query("SELECT * FROM staking_positions ORDER BY wallet_id, protocol, validator")
+            if r["wallet_id"] in by_id]
+    liquid = {f"{net}:{contract}": info["staking"] for net, toks in ctx.tokens.items() if isinstance(toks, dict)
+              for contract, info in toks.items() if isinstance(info, dict) and info.get("staking")}
+    if liquid:
+        marks = ",".join("?" * len(liquid))
+        for c in ctx.db.query(f"SELECT * FROM current_balances WHERE asset_key IN ({marks})", list(liquid)):
+            if c["wallet_id"] in by_id and D(c["amount"]) != 0:
+                rows.append({"wallet_id": c["wallet_id"], "asset_key": c["asset_key"], "protocol": liquid[c["asset_key"]],
+                             "validator": "liquid staking token", "staked": c["amount"], "unbonding": "0",
+                             "pending_rewards": "0", "fetched_at": c["fetched_at"]})
+    out = []
+    for r in rows:
+        a = all_assets.get(r["asset_key"]) or {"key": r["asset_key"], "symbol": r["asset_key"], "status": "unmapped"}
+        amount = D(r["staked"]) + D(r["unbonding"])
+        pr = prices.latest(a) if assets_mod.is_priced(a) else None
+        value = amount * pr.price if pr and pr.price is not None else None
+        out.append({"wallet": _wallet_public(ctx, by_id[r["wallet_id"]]), "asset_key": r["asset_key"],
+                    "symbol": a.get("symbol") or r["asset_key"], "protocol": r["protocol"], "validator": r["validator"],
+                    "staked": dstr(D(r["staked"])), "unbonding": dstr(D(r["unbonding"])),
+                    "pending_rewards": dstr(D(r["pending_rewards"])),
+                    "value_now": dstr(value) if value is not None else None, "fetched_at": r["fetched_at"]})
+    return out

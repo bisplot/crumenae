@@ -29,12 +29,25 @@ def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: b
     balances, infos = adapter.current_balances(wallet, ledger.known_asset_keys(ctx, wallet["id"]), log)
     assets_mod.upsert(ctx, infos)
     ledger.store_current(ctx, wallet["id"], balances, now())
+    store_staking(ctx, adapter, wallet, log)
     ensure_assets(ctx, wallet, network)
     ctx.db.execute("UPDATE wallets SET last_sync_at=?, last_error=NULL WHERE id=?", (now(), wallet["id"]))
     log(f"{wallet['label']}: {added} new movements, {sum(1 for v in balances.values() if v)} assets held now")
     if added or res.snapshots:
         ctx.mark_yearend_stale(f"new data from {wallet['label']}")
     return added
+
+
+def store_staking(ctx, adapter, wallet: Dict[str, Any], log: Callable[[str], None]) -> None:
+    """Staking positions read live (after current_balances). A failed read keeps the last one."""
+    try:
+        positions = adapter.staking_positions(wallet, log)
+    except AdapterError as e:
+        log(f"{wallet['label']}: staking positions not read ({e})")
+        return
+    ledger.store_staking(ctx, wallet["id"], positions, now())
+    if positions:
+        log(f"{wallet['label']}: {len(positions)} staking position(s)")
 
 
 def ensure_assets(ctx, wallet: Dict[str, Any], network) -> int:

@@ -10,7 +10,7 @@ from . import assets as assets_mod
 from . import classify, ledger, yearend
 from .b58 import b58encode
 from .context import Context
-from .models import AssetInfo, Movement, Snapshot, SyncResult
+from .models import AssetInfo, Movement, Snapshot, StakePosition, SyncResult
 from .prices import PriceService
 from .util import now
 
@@ -109,6 +109,10 @@ def seed(ctx: Context) -> None:
     ledger.store_sync_result(ctx, binance, SyncResult(movements=bmoves, snapshots=snaps))
     ledger.store_current(ctx, binance["id"], {bn["BTC"].key: D("0.041"), bn["ETH"].key: D("0.95"),
                                               bn["BNB"].key: D("2.1"), bn["EUR"].key: D("180")}, now())
+    # Found automatically at each sync (Staking page → Staked now): part of the balances above.
+    ledger.store_staking(ctx, binance["id"], [
+        StakePosition(bn["ETH"].key, D("0.5"), protocol="Binance Simple Earn", validator="Flexible"),
+        StakePosition(bn["BNB"].key, D("1.0"), protocol="Binance Simple Earn", validator="Locked")], now())
 
     cal = ctx.calendar
     for year, holdings in ((2022, {"DOT": "100"}), (2023, {"DOT": "100", "ADA": "1500"}),
