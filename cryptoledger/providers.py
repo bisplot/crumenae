@@ -45,15 +45,18 @@ ADAPTER_FAMILY = {"evm": "evm", "alchemy": "evm", "bitcoin": "bitcoin", "stellar
 BUILTIN: List[Dict[str, Any]] = [
     {"id": "etherscan", "name": "Etherscan", "type": "etherscan", "base_url": "https://api.etherscan.io/v2/api",
      "needs_key": True, "chainid_param": True, "link": "https://etherscan.io/myapikey",
-     "hint": "One key for Ethereum, Polygon, Arbitrum, Linea… Free: 3 calls/s, 100,000/day. BNB Smart Chain, "
-             "Base, OP, Avalanche and Arc need a paid plan: use Alchemy for those."},
+     "hint": "Optional. The most complete history (internal transfers on every chain, failed transactions) for "
+             "Ethereum, Polygon, Arbitrum and Linea: used there automatically once its key is saved. Free: 3 calls/s, "
+             "100,000/day; other chains need a paid plan."},
     {"id": "alchemy", "name": "Alchemy", "type": "alchemy", "base_url": "https://{network}.g.alchemy.com/v2",
      "needs_key": True, "link": "https://dashboard.alchemy.com/signup",
-     "hint": "Free plan, sign-up with e-mail or Google. One key for BNB Smart Chain, Monad, Arc… (enable each "
-             "chain on your Alchemy app)."},
+     "hint": "Recommended: one free key reads every EVM chain (Ethereum, Polygon, Arbitrum, Optimism, Base, "
+             "Avalanche, Linea, BNB Smart Chain, Monad, Arc, Ronin) and Solana. Sign up with e-mail or Google and "
+             "enable each chain on your Alchemy app."},
     {"id": "helius", "name": "Solana (Helius)", "type": "solana", "base_url": "https://mainnet.helius-rpc.com",
      "needs_key": False, "link": "https://dashboard.helius.dev/",
-     "hint": "Free plan: 10 calls/s, monthly credits. Without a key the slow public Solana endpoint is used."},
+     "hint": "Optional. Free plan: 10 calls/s, monthly credits. Without a Helius key Solana is read through "
+             "your Alchemy key, or the slow public Solana endpoint if you have neither."},
     {"id": "trongrid", "name": "Tron (TronGrid)", "type": "trongrid", "base_url": "https://api.trongrid.io",
      "needs_key": False, "link": "https://www.trongrid.io/",
      "hint": "Free key: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls."},

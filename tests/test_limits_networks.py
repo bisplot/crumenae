@@ -196,6 +196,7 @@ class ServiceSyncTest(unittest.TestCase):
         t = TempContext(offline=True)
         try:
             ctx = t.ctx
+            ctx.secrets.set("etherscan_api_key", "E")   # only an Etherscan key: Ethereum and Base use it
             eth = add_wallet(ctx, "ethereum", "0x" + "a" * 40)
             base = add_wallet(ctx, "base", "0x" + "a" * 40)
             sol = add_wallet(ctx, "solana", "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T")

@@ -75,10 +75,13 @@ class SecretStore:
             return "file"
         return None
 
+    version = 0   # bumped on every change, so caches of "is this key saved?" know to refresh
+
     def set(self, name: str, value: Optional[str]) -> None:
         if not value:
             self.delete(name)
             return
+        self.version += 1
         if self._keyring is not None:
             self._keyring.set_password(SERVICE, name, value)
             return
@@ -88,6 +91,7 @@ class SecretStore:
             self._write_file(data)
 
     def delete(self, name: str) -> None:
+        self.version += 1
         if self._keyring is not None:
             try:
                 self._keyring.delete_password(SERVICE, name)

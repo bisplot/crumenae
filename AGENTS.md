@@ -29,6 +29,10 @@ EUR at the time, and computes balances at each fiscal-year cutoff (23:59:59 loca
   Alchemy-compatible, Cosmos SDK LCD, Esplora, Horizon) is added from Settings → API providers, and a
   new chain from Settings → Networks. Write an adapter only for a new protocol, and register its
   type in `providers.TYPES` so its providers are addable from the UI (docs/ADDING_AN_ADAPTER.md).
+- **One free key to start:** every built-in EVM chain must work with an Alchemy key alone.
+  `auto_providers` in `config/networks.json` picks the first provider whose key is saved
+  (Etherscan where its free plan works); a choice in Settings wins. EVM readers stamp
+  `state["reader"]` and resume after the last block when the reader changes (`evm.resume_block`).
 - **Brand in one place:** colours, font and radii are CSS variables in `web/brand.css`; never
   hard-code them in `web/style.css` or `web/app.js`. Logo and icons are files in `web/`. Follow
   [docs/BRAND.md](docs/BRAND.md) (primary actions `.btn.primary`, exports `.btn.highlight`).

@@ -23,7 +23,7 @@ class Context:
         self.db = Database(str(self.data_dir / "cryptoledger.db"))
         self.settings = Settings(self.db)
         self.secrets = SecretStore(self.data_dir, backend=secrets_backend)
-        self.networks = NetworkRegistry(self.db, self.settings)
+        self.networks = NetworkRegistry(self.db, self.settings, self.secrets)
         self.http = http or HttpClient()
         from .ratelimit import RateLimiter
         self.limiter = RateLimiter(self.db, self.settings)

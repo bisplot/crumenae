@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from . import providers as providers_mod
@@ -72,10 +73,32 @@ def load_json(name: str) -> Dict[str, Any]:
 
 
 class NetworkRegistry:
-    def __init__(self, db, settings):
+    def __init__(self, db, settings, secrets=None):
         self.db = db
         self.settings = settings
+        self.secrets = secrets
         self._builtin = load_json("networks.json")
+        self._keys: Dict[str, bool] = {}
+        self._keys_seen = (-1, 0.0)
+
+    def _has_key(self, provider_id: str) -> bool:
+        """Is the API key of this provider saved? Cached (the OS keychain is slow) until a key is
+        saved or deleted, and at most a minute (a key changed outside the app)."""
+        if self.secrets is None:
+            return False
+        version, at = self._keys_seen
+        if version != self.secrets.version or time.monotonic() - at > 60:
+            self._keys, self._keys_seen = {}, (self.secrets.version, time.monotonic())
+        if provider_id not in self._keys:
+            self._keys[provider_id] = bool(self.secrets.get(providers_mod.secret_name(provider_id)))
+        return self._keys[provider_id]
+
+    def _auto_provider(self, cfg: Dict[str, Any]) -> Optional[str]:
+        """No provider chosen in Settings: the first of "auto_providers" whose key is saved."""
+        for pid in cfg.get("auto_providers") or []:
+            if self._has_key(pid):
+                return pid
+        return None
 
     def all(self) -> List[Network]:
         nets: Dict[str, Network] = {}
@@ -90,6 +113,9 @@ class NetworkRegistry:
             for k in ("provider", "alchemy_network", "hidden"):
                 if k in ov and ov[k] not in (None, ""):
                     net.cfg[k] = ov[k]
+            if net.cfg.get("auto_providers") and not ov.get("provider"):
+                net.cfg["provider_auto"] = True
+                net.cfg["provider"] = self._auto_provider(net.cfg) or net.cfg.get("provider")
             apply_provider(net.cfg, provs.get(net.cfg.get("provider")))
             for k in OVERRIDABLE:
                 if k in ov and ov[k] not in (None, ""):

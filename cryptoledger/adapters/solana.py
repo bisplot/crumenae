@@ -27,6 +27,7 @@ TOKEN_PROGRAMS = (
 )
 SIG_PAGE = 1000
 HELIUS_URL = "https://mainnet.helius-rpc.com/?api-key="
+ALCHEMY_URL = "https://solana-mainnet.g.alchemy.com/v2/"
 
 
 @register
@@ -43,15 +44,22 @@ class SolanaAdapter(Adapter):
         return address
 
     # --- RPC --------------------------------------------------------------------
-    def _url(self) -> str:
-        """Explicit RPC URL > Helius API key > public endpoint."""
+    def _endpoint(self) -> Tuple[str, str]:
+        """(URL, who answers): explicit RPC URL > Helius key > Alchemy key (the same key as the EVM
+        chains; Solana must be enabled on your Alchemy app) > slow public endpoint."""
         explicit = self.secret("solana_rpc_url")
         if explicit:
-            return explicit
+            return explicit, "your Solana RPC"
         key = self.secret("helius_api_key")
         if key:
-            return HELIUS_URL + urllib.parse.quote(key, safe="")
-        return self.network.rpc_url
+            return HELIUS_URL + urllib.parse.quote(key, safe=""), "Helius"
+        key = self.secret("alchemy_api_key")
+        if key:
+            return ALCHEMY_URL + urllib.parse.quote(key, safe=""), "Alchemy"
+        return self.network.rpc_url, "the public Solana RPC"
+
+    def _url(self) -> str:
+        return self._endpoint()[0]
 
     def _rpc(self, method: str, params: List[Any]) -> Any:
         for attempt in range(4):
@@ -59,9 +67,11 @@ class SolanaAdapter(Adapter):
                 resp = self.ctx.http.post_json(self._url(), {"jsonrpc": "2.0", "id": 1,
                                                              "method": method, "params": params})
             except HttpError as e:
-                if e.status in (401, 403) and self.secret("helius_api_key"):
-                    raise AdapterError(f"Helius refused the API key ({e.status}): check it in Settings → "
-                                       "Blockchain APIs and press Test")
+                who = self._endpoint()[1]
+                if e.status in (401, 403) and who in ("Helius", "Alchemy"):
+                    hint = " and that Solana is enabled on your Alchemy app" if who == "Alchemy" else ""
+                    raise AdapterError(f"{who} refused the API key ({e.status}): check it in Settings → "
+                                       f"API providers{hint}, then press Test")
                 raise AdapterError(f"Solana RPC {method}: {e}")
             err = resp.get("error")
             if not err:
