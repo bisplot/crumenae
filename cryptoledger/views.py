@@ -18,6 +18,7 @@ def _wallet_public(ctx, w: Dict[str, Any]) -> Dict[str, Any]:
     out["platform_display"] = default_platform(ctx, w)
     out["bollo_applied"] = bool(w["bollo_applied"])
     out["active"] = bool(w["active"])
+    out["lost"] = bool(w["lost"])
     try:
         net = ctx.networks.get(w["network"])
         out["network_name"] = net.name
@@ -32,7 +33,10 @@ def _wallet_public(ctx, w: Dict[str, Any]) -> Dict[str, Any]:
 def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
     prices = PriceService(ctx)
     all_assets = assets_mod.all_assets(ctx)
-    wallets = ctx.wallets(portfolio=portfolio)
+    in_scope = ctx.wallets(portfolio=portfolio)
+    # Lost wallets (keys or access lost) stay in the year-end values but not on the Dashboard.
+    wallets = [w for w in in_scope if not w["lost"]]
+    lost_count = len(in_scope) - len(wallets)
     ids = {w["id"] for w in wallets}
     rows = [r for r in ctx.db.query("SELECT * FROM current_balances") if r["wallet_id"] in ids]
 
@@ -78,13 +82,14 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
         h["share"] = float(h["value"] / total) if total else 0.0
         h["amount"], h["value"] = dstr(h["amount"]), dstr(h["value"])
 
+    lost_ids = {w["id"] for w in in_scope if w["lost"]}   # year-end totals still include them
     years = sorted({r["fiscal_year"] for r in ctx.db.query("SELECT DISTINCT fiscal_year FROM year_end")})
     series = []
     year_values: Dict[int, Dict[int, Dict[str, Any]]] = {}
     for y in years:
         totals = yearend.wallet_totals(ctx, y)
         year_values[y] = totals
-        vals = [t for wid, t in totals.items() if wid in ids]
+        vals = [t for wid, t in totals.items() if wid in ids or wid in lost_ids]
         series.append({"year": y, "value": dstr(sum((t["value"] for t in vals), ZERO)),
                        "complete": all(t["complete"] for t in vals)})
     last_year = years[-1] if years else None
@@ -120,7 +125,8 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
     return {
         "total_now": dstr(total), "price_time": price_time, "holdings": holding_list,
         "wallets": wallet_list, "series": series, "last_year": last_year, "flags": flags[:50],
-        "unpriced": unpriced, "ghost_hidden": len(ghosts), "spam_hidden": len(likely_spam), "portfolios": portfolios(ctx),
+        "unpriced": unpriced, "ghost_hidden": len(ghosts), "spam_hidden": len(likely_spam),
+        "lost_hidden": lost_count, "portfolios": portfolios(ctx),
         "last_sync": ctx.db.scalar("SELECT MAX(last_sync_at) FROM wallets"),
         "demo": ctx.db.get_meta("demo") == "1",
     }
@@ -161,13 +167,17 @@ def year_detail(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, An
 
 def transactions(ctx, wallet_id: Optional[int] = None, year: Optional[int] = None,
                  category: Optional[str] = None, q: Optional[str] = None, portfolio: Optional[str] = None,
-                 limit: int = 200, offset: int = 0) -> Dict[str, Any]:
+                 limit: int = 200, offset: int = 0, lost: bool = False) -> Dict[str, Any]:
     sql = (" FROM movements m JOIN wallets w ON w.id=m.wallet_id LEFT JOIN assets a ON a.key=m.asset_key"
            " WHERE 1=1")
     params: List[Any] = []
     if wallet_id:
         sql += " AND m.wallet_id=?"
         params.append(wallet_id)
+    elif lost:
+        sql += " AND w.lost=1"          # the "Lost wallets" choice
+    else:
+        sql += " AND w.lost=0"          # lost wallets hidden unless chosen
     if portfolio:
         sql += " AND w.portfolio=?"
         params.append(portfolio)
@@ -207,21 +217,30 @@ def asset_list(ctx) -> List[Dict[str, Any]]:
     # Wallets linked to each asset: those holding it now first, then those that moved it or
     # have it in a snapshot / manual entry.
     labels = {w["id"]: w["label"] for w in ctx.wallets()}
+    lost = {w["id"] for w in ctx.wallets() if w["lost"]}
     holding: Dict[str, set] = defaultdict(set)
+    held_lost: Dict[str, Any] = defaultdict(lambda: ZERO)
     for c in ctx.db.query("SELECT wallet_id, asset_key, amount FROM current_balances"):
         if D(c["amount"]) != 0:
             holding[c["asset_key"]].add(c["wallet_id"])
+            if c["wallet_id"] in lost:
+                held_lost[c["asset_key"]] += D(c["amount"])
     linked: Dict[str, set] = defaultdict(set)
     for c in ctx.db.query("SELECT DISTINCT wallet_id, asset_key FROM movements"
                           " UNION SELECT DISTINCT wallet_id, asset_key FROM snapshots"
                           " UNION SELECT wallet_id, asset_key FROM current_balances"):
         linked[c["asset_key"]].add(c["wallet_id"])
     for r in rows:
-        r["held"] = dstr(sum((D(x) for x in (r["held"] or "").split(",") if x), ZERO))
+        # "held" counts the wallets you can use; what lost wallets hold is apart ("held_lost").
+        r["held"] = dstr(sum((D(x) for x in (r["held"] or "").split(",") if x), ZERO) - held_lost[r["key"]])
+        r["held_lost"] = dstr(held_lost[r["key"]])
         now = holding.get(r["key"], set())
-        r["wallets"] = [{"id": wid, "label": labels[wid], "held": True} for wid in sorted(now, key=lambda i: labels.get(i, "")) if wid in labels] + \
-            [{"id": wid, "label": labels[wid], "held": False} for wid in sorted(linked.get(r["key"], set()) - now,
-                                                                              key=lambda i: labels.get(i, "")) if wid in labels]
+        r["wallets"] = [{"id": wid, "label": labels[wid], "held": True, "lost": wid in lost}
+                        for wid in sorted(now, key=lambda i: labels.get(i, "")) if wid in labels] + \
+            [{"id": wid, "label": labels[wid], "held": False, "lost": wid in lost}
+             for wid in sorted(linked.get(r["key"], set()) - now, key=lambda i: labels.get(i, "")) if wid in labels]
+        # Linked only to lost wallets: listed under Assets → Lost, not "Held & to map".
+        r["lost_only"] = bool(r["wallets"]) and all(w["lost"] for w in r["wallets"])
     return rows
 
 

@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     created_at    INTEGER NOT NULL,
     last_sync_at  INTEGER,
     last_error    TEXT,
-    staking       INTEGER NOT NULL DEFAULT 0   -- a staking position (shown on the Staking page)
+    staking       INTEGER NOT NULL DEFAULT 0,  -- a staking position (shown on the Staking page)
+    lost          INTEGER NOT NULL DEFAULT 0   -- keys/access lost: off the Dashboard, still in year-end values
 );
 CREATE UNIQUE INDEX IF NOT EXISTS wallets_uniq ON wallets(network, address, label);
 
@@ -190,6 +191,7 @@ class Database:
     ADDED_COLUMNS = (
         ("wallets", "platform", "TEXT NOT NULL DEFAULT ''"),
         ("wallets", "staking", "INTEGER NOT NULL DEFAULT 0"),
+        ("wallets", "lost", "INTEGER NOT NULL DEFAULT 0"),
         ("movements", "from_address", "TEXT NOT NULL DEFAULT ''"),
         ("movements", "to_address", "TEXT NOT NULL DEFAULT ''"),
     )

@@ -162,7 +162,7 @@
   async function pageDashboard(root) {
     const d = await api.get('/api/dashboard' + pf());
     fillPortfolios(d.portfolios);
-    if (!d.wallets.length) {
+    if (!d.wallets.length && !d.lost_hidden) {
       fill(root, card(null, null, el('div', { class: 'empty' },
         el('h2', { text: 'No wallets yet' }),
         el('p', { text: 'Add your addresses and accounts, choose their network, then press Sync. Balances and transactions are read from public APIs and converted to EUR.' }),
@@ -179,7 +179,7 @@
       kpi(d.last_year ? `At 31/12/${d.last_year} 23:59:59` : 'Last year-end', lastSeries ? eur(lastSeries.value) : '—',
         lastSeries ? (lastSeries.complete ? 'all wallets valued' : '⚠ incomplete: see Year-end') : 'not computed yet'),
       kpi('Change since year-end', change === null ? '—' : (change >= 0 ? '+' : '') + pct(change), last ? `${eur(now - last)}` : '', change === null ? '' : change >= 0 ? 'pos' : 'neg'),
-      kpi('Wallets', String(d.wallets.length), `last sync ${when(d.last_sync)}`));
+      kpi('Wallets', String(d.wallets.length), `last sync ${when(d.last_sync)}` + (d.lost_hidden ? ` · ${d.lost_hidden} lost not shown` : '')));
 
     const items = d.holdings.filter((h) => Number(h.value) > 0);
     const top = items.slice(0, 7).map((h, i) => ({ label: h.symbol, value: Number(h.value), color: cssVar(COLORS[i]) }));
@@ -193,7 +193,8 @@
     const colorOf = new Map(top.map((t) => [t.label, t.color]));
     const holdingsNote = el('span', { class: 'muted small' }, 'same coin on several chains is grouped',
       d.ghost_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets?filter=ghost', text: `${d.ghost_hidden} ghost coin${d.ghost_hidden > 1 ? 's' : ''} hidden` })) : null,
-      d.spam_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets', text: `${d.spam_hidden} likely spam hidden` })) : null);
+      d.spam_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets', text: `${d.spam_hidden} likely spam hidden` })) : null,
+      d.lost_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets?filter=lost', text: `${d.lost_hidden} lost wallet${d.lost_hidden > 1 ? 's' : ''} hidden` })) : null);
     const holdings = card('Holdings', holdingsNote,
       table(['Asset', '#Quantity', '#Price', '#Value', '#Share'], d.holdings.map((h) => el('tr', {},
         el('td', {}, el('span', { class: 'dot', style: `background:${colorOf.get(h.symbol) || cssVar('--c8')}` }), el('strong', { text: h.symbol }),
@@ -274,7 +275,7 @@
       const canManual = true;
       return el('div', { class: 'card wallet-card' },
         el('div', { class: 'wallet-head' },
-          el('div', {}, el('h3', { text: w.wallet.label }),
+          el('div', {}, el('h3', {}, w.wallet.label, w.wallet.lost ? [' ', badge('lost', 'lost')] : null),
             el('div', { class: 'muted small' }, `${w.wallet.network_name}${w.wallet.address ? ' · ' + short(w.wallet.address, 8, 6) : ''} · `, sourceBadge(w.source, w.source_label)),
             flagList(w.flags)),
           el('div', { style: 'text-align:right' }, el('div', { class: 'wallet-value', text: eur(w.value) }),
@@ -327,7 +328,10 @@
     const [wallets, years] = await Promise.all([api.get('/api/wallets'), api.get(`/api/years/${state.status.last_completed_year}`)]);
     const yearOpts = [...new Set([...years.years, state.status.last_completed_year, state.status.last_completed_year + 1])].sort().reverse();
     const f = { wallet: params.wallet || '', year: params.year || '', category: params.category || '', q: params.q || '' };
-    const wSel = el('select', {}, el('option', { value: '', text: 'All wallets' }), wallets.map((w) => el('option', { value: w.id, text: w.label, selected: String(w.id) === f.wallet })));
+    const anyLost = wallets.some((w) => w.lost);
+    const wSel = el('select', {}, el('option', { value: '', text: anyLost ? 'All wallets except lost' : 'All wallets' }),
+      anyLost ? el('option', { value: 'lost', text: 'Lost wallets', selected: f.wallet === 'lost' }) : null,
+      wallets.map((w) => el('option', { value: w.id, text: w.lost ? `${w.label} (lost)` : w.label, selected: String(w.id) === f.wallet })));
     const ySel = el('select', {}, el('option', { value: '', text: 'All years' }), yearOpts.map((y) => el('option', { value: y, text: `TY${y}`, selected: String(y) === f.year })));
     const cSel = el('select', {}, el('option', { value: '', text: 'All except spam' }), el('option', { value: 'all', text: 'All, spam included', selected: f.category === 'all' }));
     const qIn = el('input', { type: 'search', placeholder: 'Hash, address, asset, note', value: f.q });
@@ -347,7 +351,7 @@
 
     async function load(reset) {
       if (reset) { offset = 0; body.replaceChildren(); }
-      const qs = new URLSearchParams({ wallet: wSel.value, year: ySel.value, category: cSel.options.length === 2 ? f.category : cSel.value, q: qIn.value, offset, limit: 200 });
+      const qs = new URLSearchParams({ wallet: wSel.value === 'lost' ? '' : wSel.value, lost: wSel.value === 'lost' ? '1' : '', year: ySel.value, category: cSel.options.length === 2 ? f.category : cSel.value, q: qIn.value, offset, limit: 200 });
       if (state.portfolio) qs.set('portfolio', state.portfolio);
       const data = await api.get('/api/transactions?' + qs.toString());
       categories = data.categories;
@@ -431,7 +435,7 @@
     const posCard = card('Staking positions', el('button', { class: 'btn small primary', type: 'button', text: '+ Add position', onclick: addPosition }),
       el('p', { class: 'help', text: 'Staked coins still belong to you: each position is part of the year-end balances, the RW and the IC like any wallet. Mark a wallet as staking with "Edit" on the Wallets page.' }),
       d.positions.length ? table(['Position', 'Balance source', 'Held at year-end', '#Value €', 'Now', ''], d.positions.map((p) => el('tr', {},
-        el('td', {}, el('strong', { text: p.auto ? `${p.auto} · ${p.wallet.label}` : p.wallet.label }),
+        el('td', {}, el('strong', { text: p.auto ? `${p.auto} · ${p.wallet.label}` : p.wallet.label }), p.wallet.lost ? [' ', badge('lost', 'lost')] : null,
           el('div', { class: 'muted small', text: p.auto ? 'automatic, from the Binance API' : `${p.wallet.platform_display} · ${p.wallet.network_name}` }), flagList(p.flags)),
         el('td', {}, p.auto ? el('span', { class: 'muted small', text: 'inside the account' }) : p.source ? sourceBadge(p.source, p.source_label) : el('span', { class: 'muted small', text: 'not computed' })),
         el('td', { class: 'small' }, p.assets.length ? p.assets.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol || a.asset_key}` })) : el('span', { class: 'muted', text: '—' })),
@@ -554,7 +558,7 @@
       el('a', { class: 'btn highlight', href: '/api/exports/wallets.csv' + pf(), download: '', text: 'wallets.csv' }),
       el('button', { class: 'btn', type: 'button', text: 'Sync all', onclick: () => startJob('sync') })),
       wallets.length ? table(['Wallet', 'Address', 'Portfolio', '#Slot', 'Last sync', ''], wallets.map((w) => el('tr', {},
-        el('td', {}, el('div', {}, el('strong', { text: w.label }), !w.active ? badge('paused') : null, w.staking ? badge('staking', 'ok') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
+        el('td', {}, el('div', {}, el('strong', { text: w.label }), w.lost ? badge('lost', 'lost') : null, !w.active ? badge('paused') : null, w.staking ? badge('staking', 'ok') : null), el('div', { class: 'muted small', text: `${w.network_name} · ${w.platform_display}` })),
         el('td', { class: 'mono small' }, w.address ? (w.address_url ? el('a', { href: w.address_url, target: '_blank', rel: 'noopener noreferrer', text: short(w.address, 8, 6), title: w.address }) : short(w.address, 8, 6)) : '—'),
         el('td', { text: w.portfolio }),
         el('td', { class: 'num', text: w.rw_slot ?? '—' }),
@@ -562,12 +566,23 @@
         el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end' },
           w.network !== 'manual' ? el('button', { class: 'btn small', type: 'button', text: 'Sync', onclick: () => startJob('sync', { wallet_ids: [w.id] }) }) : null,
           el('button', { class: 'btn small', type: 'button', text: 'Edit', onclick: () => editWallet(w, byId[w.network]) }),
+          el('button', { class: 'btn small' + (w.lost ? '' : ' ghost'), type: 'button', text: w.lost ? 'Found' : 'Lost',
+            title: w.lost ? 'You have access again: show it on the Dashboard' : 'Keys or access lost: hide it and its assets from the Dashboard, Assets and Transactions. Year-end values and the RW report still include it.',
+            onclick: () => setLost(w, !w.lost) }),
           el('button', { class: 'btn small danger', type: 'button', text: 'Delete', onclick: async () => {
             if (!confirm(`Delete “${w.label}” and all its transactions from this computer?`)) return;
             try { await api.del(`/api/wallets/${w.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); }
           } }))))))
         : el('p', { class: 'muted', text: 'No wallets yet.' }));
     fill(root, card('Add a wallet or account', null, form), list);
+  }
+
+  // Lost wallet: keys or access lost. Off the Dashboard, Assets and Transactions; year-end values
+  // and the RW report keep it (the coins still exist on the chain).
+  async function setLost(w, lost) {
+    if (lost && !confirm(`Mark “${w.label}” as lost?\n\nIts assets leave the Dashboard and move to Assets → Lost; its transactions are hidden unless you choose "Lost wallets". Year-end values and the RW report still include it. You can undo this with "Found".`)) return;
+    try { await api.put(`/api/wallets/${w.id}`, { lost }); toast(lost ? 'Marked as lost' : 'Back in your wallets'); route(); }
+    catch (e) { toast(e.message, true); }
   }
 
   // After adding wallets: sync now, or later with "Sync now".
@@ -615,11 +630,15 @@
   async function pageAssets(root, params) {
     const rows = await api.get('/api/assets');
     const filter = params.filter || 'attention';
+    // Lost: held by (or linked only to) wallets marked lost on the Wallets page.
+    const isLost = (a) => Number(a.held_lost) !== 0 || a.lost_only;
     const shown = rows.filter((a) => filter === 'all' ? true : filter === 'hidden' ? ['spam', 'ignored'].includes(a.status)
       : filter === 'ghost' ? a.status === 'ghost'
-        : a.status === 'unmapped' || (!['spam', 'ignored', 'ghost'].includes(a.status) && Number(a.held) !== 0));
+        : filter === 'lost' ? isLost(a)
+          : !a.lost_only && (a.status === 'unmapped' || (!['spam', 'ignored', 'ghost'].includes(a.status) && Number(a.held) !== 0)));
     const nGhost = rows.filter((a) => a.status === 'ghost').length;
-    const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['ghost', `Ghost${nGhost ? ' (' + nGhost + ')' : ''}`], ['hidden', 'Spam / ignored']].map(([k, l]) =>
+    const nLost = rows.filter(isLost).length;
+    const tabs = el('div', { class: 'tabs' }, [['attention', 'Held & to map'], ['all', 'All'], ['ghost', `Ghost${nGhost ? ' (' + nGhost + ')' : ''}`], ['lost', `Lost${nLost ? ' (' + nLost + ')' : ''}`], ['hidden', 'Spam / ignored']].map(([k, l]) =>
       el('a', { class: 'tab' + (k === filter ? ' active' : ''), href: `#/assets?filter=${k}`, text: l })));
     const statusKind = { known: 'ok', mapped: 'ok', unmapped: 'warn', spam: 'err', ignored: '', ghost: 'ghost' };
     const loadAll = el('button', { class: 'btn primary', type: 'button', text: 'Load all', title: 'Read the tokens each wallet holds now (no transactions: few API calls)',
@@ -631,7 +650,7 @@
         catch (e) { toast(e.message, true); }
       } });
     fill(root, card(null, el('div', { class: 'actions', style: 'width:100%' }, tabs, el('span', { style: 'flex:1' }), clearAll, loadAll),
-      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances and year-end values (valued at their live price if a market still exists, else €0) but are left off the Dashboard. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
+      el('p', { class: 'help', text: 'Each asset needs a price source to be valued in EUR. Known tokens are mapped automatically; for the others enter the CoinGecko id (from the coin page URL) or the Binance ticker. Mark scam airdrops as spam (ignored). Mark real tokens that can no longer be traded (delisted, dead projects) as ghost: they stay in your balances and year-end values (valued at their live price if a market still exists, else €0) but are left off the Dashboard. Assets of wallets you marked lost (Wallets page) are in the Lost tab: off the Dashboard, still in year-end values. "Load all" reads the tokens each wallet holds now, without the transactions (a few API calls per wallet); "Clear all" empties it.' }),
       rows.length ? null : el('div', { class: 'empty' }, el('h2', { text: 'No assets' }), el('p', { text: 'Press "Load all" to read every asset held by or moved through your wallets.' })),
       table(['Asset', 'Network', 'Wallets', '#Held', 'Status', 'CoinGecko id', 'Binance ticker', ''], shown.map((a) => {
         const cg = el('input', { type: 'text', value: a.coingecko_id || '', placeholder: 'e.g. ethereum', style: 'width:150px' });
@@ -648,10 +667,11 @@
             a.contract ? el('div', { class: 'mono small muted', text: short(a.contract, 8, 6), title: a.contract }) : null),
           el('td', { class: 'small', text: a.network }),
           el('td', { class: 'small wrap', style: 'max-width:220px' }, (a.wallets || []).length
-            ? (a.wallets || []).map((w, i) => [i ? ', ' : '', el('span', { class: w.held ? '' : 'muted', text: w.label,
-              title: w.held ? 'Holds it now' : 'Moved it in the past (or a snapshot / manual entry), not held now' })])
+            ? (a.wallets || []).map((w, i) => [i ? ', ' : '', el('span', { class: w.held && !w.lost ? '' : 'muted', text: w.lost ? `${w.label} (lost)` : w.label,
+              title: (w.held ? 'Holds it now' : 'Moved it in the past (or a snapshot / manual entry), not held now') + (w.lost ? ' · wallet marked lost' : '') })])
             : el('span', { class: 'muted', text: '—' })),
-          el('td', { class: 'num', text: qty(a.held) }),
+          el('td', { class: 'num' }, filter === 'lost' ? qty(a.held_lost) : qty(a.held),
+            filter !== 'lost' && Number(a.held_lost) !== 0 ? el('div', { class: 'small muted', text: `+${qty(a.held_lost)} lost` }) : null),
           el('td', {}, badge(a.status === 'ghost' ? '👻 ghost' : a.status, statusKind[a.status])),
           el('td', {}, a.fiat ? el('span', { class: 'muted', text: 'fiat (ECB)' }) : cg),
           el('td', {}, a.fiat ? null : bn),

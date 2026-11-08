@@ -176,6 +176,22 @@ as stETH): there you enter the year-end balance, and rewards if you want them li
   valued in EUR at that moment and appear in `transactions_YYYY.csv` with type `reward`.
   Typed rewards do not change a manual balance: keep entering the year-end quantity.
 
+### Lost wallets
+
+A wallet whose keys or access you lost (an old phone, a forgotten seed phrase, a closed
+exchange account) can be marked **Lost** on the Wallets page; **Found** undoes it. A lost
+wallet:
+
+- leaves the Dashboard (holdings, allocation, total value now and the wallets table);
+- moves its assets to the **Lost** tab of the Assets page (the other tabs show only what your
+  usable wallets hold, with "+N lost" where both hold the same asset);
+- hides its transactions, unless you choose "Lost wallets" or the wallet itself in the
+  Transactions filter;
+- no longer asks for live prices;
+- **stays in the year-end values, the RW report and the exports**, with a "lost" badge on the
+  Year-end and Staking pages: the coins still exist on the chain. Whether to report them is a
+  tax question: check it with a professional.
+
 ### Start over
 
 Settings → **Reset** deletes everything: wallets, transactions, assets, prices, year-end values,
