@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from . import assets as assets_mod
-from .models import SyncResult
+from .models import StakePosition, SyncResult
 from .util import D, ZERO, dstr
 
 
@@ -48,6 +48,20 @@ def store_current(ctx, wallet_id: int, balances: Dict[str, Decimal], ts: int,
                 ctx.db.execute(
                     "INSERT OR REPLACE INTO snapshots(wallet_id, taken_at, asset_key, amount, source, note)"
                     " VALUES(?,?,?,?,?,?)", (wallet_id, ts, key, dstr(amount), snapshot_source, ""))
+
+
+def store_staking(ctx, wallet_id: int, positions: List[StakePosition], ts: int) -> None:
+    """The wallet's staking positions as read now (replaces the previous reading)."""
+    with ctx.db.tx():
+        ctx.db.execute("DELETE FROM staking_positions WHERE wallet_id=?", (wallet_id,))
+        for p in positions:
+            if not (p.staked or p.unbonding or p.pending_rewards):
+                continue
+            ctx.db.execute(
+                "INSERT INTO staking_positions(wallet_id, asset_key, protocol, validator, staked, unbonding,"
+                " pending_rewards, fetched_at) VALUES(?,?,?,?,?,?,?,?)",
+                (wallet_id, p.asset_key, p.protocol[:80], p.validator[:120], dstr(p.staked), dstr(p.unbonding),
+                 dstr(p.pending_rewards), ts))
 
 
 def known_asset_keys(ctx, wallet_id: int) -> List[str]:

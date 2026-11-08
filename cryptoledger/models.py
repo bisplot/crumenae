@@ -51,6 +51,17 @@ class Snapshot:
 
 
 @dataclass
+class StakePosition:
+    """Coins staked by a wallet, read live at each sync (listed on the Staking page)."""
+    asset_key: str
+    staked: Decimal = Decimal(0)
+    unbonding: Decimal = Decimal(0)          # on their way back, not earning
+    pending_rewards: Decimal = Decimal(0)    # earned, not claimed yet (not income until received)
+    protocol: str = ""                       # "Terra staking", "Tron Stake 2.0", "Binance Simple Earn"…
+    validator: str = ""                      # validator / pool / product
+
+
+@dataclass
 class SyncResult:
     movements: List[Movement] = field(default_factory=list)
     assets: List[AssetInfo] = field(default_factory=list)

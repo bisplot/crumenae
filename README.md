@@ -155,18 +155,26 @@ python3 -m pip install -r requirements-optional.txt
 Staked coins are still yours: they belong in the RW and the IC at their year-end value, and
 rewards are income at their EUR value on the day received (which becomes their cost).
 
-**What is automatic**: Binance Simple Earn positions (listed on the Staking page from the
-account's live balances) and their rewards (imported by each sync); on-chain movements you set
-to `reward`. **What is manual**: staking without an API (Ledger Live, other exchanges) and native
-staking whose rewards arrive without a transaction (Solana stake accounts, rebasing tokens such
-as stETH): there you enter the year-end balance, and rewards if you want them listed.
+**Found automatically at each sync** (Staking page → **Staked now**, no tick needed):
 
-- **Positions**: any wallet can be marked **Staking position** (Wallets → Edit). For staking
-  without an API (inside Ledger Live, an exchange Earn product…) press **+ Add position** on the
-  Staking page: it creates a manual account; then **Enter balance** at each year-end. For an
-  on-chain stake account (e.g. a Solana stake account) add its address as a wallet and tick
-  Staking position. Positions are valued at the cutoff like every wallet, so they are already in
-  the year-end balances, the RW and the IC.
+| Staking | What is read | Rewards |
+|---|---|---|
+| Terra, Terra Classic | delegations per validator (name included), unbonding, unclaimed rewards | claimed rewards: category `reward` |
+| Tron (Stake 2.0) | frozen TRX, unfreezing TRX, the Super Representatives voted for, unclaimed voting rewards | claimed voting rewards: category `reward` |
+| Binance Simple Earn | flexible and locked positions | imported by each sync |
+| Liquid-staking tokens | stETH, wstETH, rETH, cbETH, osETH, mETH, wBETH, mSOL, JitoSOL, bSOL, JupSOL held by any wallet | the token's growth in value (no transaction) |
+
+These staked coins are already part of each wallet's balance and year-end values. Unclaimed
+rewards are shown but are not income until you claim them. Coming next: Solana native staking
+(stake accounts), MetaMask Pooled Staking (ETH) and Ronin RON staking.
+
+**Manual**: staking the app cannot read (inside Ledger Live, an exchange without API): press
+**+ Add position** on the Staking page to create a manual account, then enter the quantity at
+each year-end.
+
+- **Manual accounts**: a manual wallet ticked **Staking position** (Wallets → Edit) is listed
+  under **Manual staking accounts**, valued at the cutoff like every wallet (year-end balances,
+  RW and IC); **Enter balance** at each year-end.
 - **Rewards**: every movement with the category `reward`, per fiscal year, with quantity and EUR
   value on receipt, totals per asset. **Binance Simple Earn** rewards (flexible and locked) are
   imported automatically by each sync of a Binance account (history from December 2022, the

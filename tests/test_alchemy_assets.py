@@ -139,11 +139,14 @@ class BinanceEarnPositionsTest(unittest.TestCase):
             w = add_wallet(ctx, "binance", "", label="Binance")
             ctx.secrets.set(f"wallet:{w['id']}:api_key", "k")
             ctx.secrets.set(f"wallet:{w['id']}:api_secret", "s")
-            get_adapter(ctx, ctx.networks.get("binance")).current_balances(w, [], LOG)
-            pos = views.staking(ctx, 2025)["positions"]
+            from cryptoledger import sync
+            adapter = get_adapter(ctx, ctx.networks.get("binance"))
+            adapter.current_balances(w, [], LOG)
+            sync.store_staking(ctx, adapter, w, LOG)
+            pos = views.staking(ctx, 2025)["staked"]
             self.assertEqual(len(pos), 1)
-            self.assertEqual(pos[0]["auto"], "Binance Simple Earn")
-            self.assertEqual(pos[0]["current"], [{"asset_key": "binance:USDC", "symbol": "USDC", "amount": "100"}])
+            self.assertEqual((pos[0]["protocol"], pos[0]["validator"]), ("Binance Simple Earn", "Flexible"))
+            self.assertEqual((pos[0]["asset_key"], pos[0]["staked"]), ("binance:USDC", "100"))
         finally:
             t.close()
 
