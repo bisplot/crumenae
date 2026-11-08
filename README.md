@@ -11,10 +11,12 @@ leave your machine: only public addresses are sent to block explorers, and only 
 
 - **Settings page for your addresses**: pick the network, paste the address, done. One EVM
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
-- **Transactions and balances from public APIs**: Ethereum and EVM chains (Etherscan V2 or any
-  Etherscan-compatible explorer), BNB Smart Chain, Monad, Arc and Ronin (Alchemy), Solana (Helius),
-  Terra and Terra Classic (public LCD), Tron, Bitcoin, Stellar, Solar (SXP), Binance (with Simple
-  Earn rewards); manual accounts for anything else.
+- **One free key to start**: an [Alchemy](https://dashboard.alchemy.com/signup) key reads every
+  EVM chain (Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad,
+  Arc, Ronin) and Solana. Bitcoin, Stellar, Terra, Terra Classic, Tron and Solar (SXP) work with
+  no key at all. An optional Etherscan key gives the most complete history on Ethereum, Polygon,
+  Arbitrum and Linea; optional Helius and TronGrid keys make Solana and Tron faster. Binance
+  accounts (with Simple Earn rewards) use a read-only key; manual accounts cover anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → API providers and Price sources).
 - **Providers and networks you control**: add an API provider (any Etherscan-compatible,
@@ -54,6 +56,12 @@ python3 -m cryptoledger
 The app opens at <http://127.0.0.1:8765>. On Windows use `py -m cryptoledger`, or double-click
 `start.bat` (macOS: `start.command`).
 
+Then get **one free key**: sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup)
+(e-mail or Google), create an app, enable the chains you use (Mainnet), copy the API key and paste
+it in **Settings → API providers → Alchemy** → **Save** → **Test**. That reads every EVM chain and
+Solana; Bitcoin, Stellar, Terra, Tron and Solar need no key. Add your addresses on the
+**Wallets** page and press **Sync now**.
+
 Want to look around first? `python3 -m cryptoledger demo` starts with fictional wallets and
 synthetic prices, fully offline, in a separate `demo-data/` folder.
 
@@ -89,9 +97,9 @@ python3 -m pip install -r requirements-optional.txt
 
    | Provider | Reads | Free? |
    |---|---|---|
-   | Etherscan | Ethereum, Polygon, Arbitrum, Linea (one key for all) | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey). BNB Smart Chain, Base, OP, Avalanche and Arc need a paid plan: read them with Alchemy instead |
-   | Alchemy | BNB Smart Chain, Monad, Arc, Ronin, and any chain you point to it | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
-   | Solana (Helius) | Solana; without a key the slow public endpoint is used | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
+   | Alchemy (**the one key you need**) | Every EVM chain: Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc, Ronin; and Solana | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
+   | Etherscan (optional) | Ethereum, Polygon, Arbitrum, Linea, with the most complete history (internal transfers on every chain, failed transactions). Used there automatically once its key is saved | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey); other chains need a paid plan |
+   | Solana (Helius) (optional) | Solana, faster; without it Solana is read with your Alchemy key, or the slow public endpoint | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
    | mempool.space | Bitcoin | no key |
    | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
@@ -103,8 +111,10 @@ python3 -m pip install -r requirements-optional.txt
    Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora or Horizon — with its key, limits and Test.
    No code, no request to anyone.
 
-   **Networks**: every blockchain you can track and the provider that reads it. Change a chain's
-   provider (e.g. Arbitrum from Etherscan to Alchemy), give its Alchemy name, hide the chains you
+   **Networks**: every blockchain you can track and the provider that reads it. Ethereum,
+   Polygon, Arbitrum and Linea are on **Automatic**: Etherscan if you saved its key, otherwise
+   Alchemy (Optimism, Base and Avalanche: Alchemy first). Choose a provider to fix it, give its
+   Alchemy name, hide the chains you
    do not use from the Wallets list, set an optional archive node URL (lets the app read each
    balance directly at the 31/12 block), or **+ Add network** for a new chain (chain id, native
    coin, price ids, explorer links). See [docs/ADDING_AN_ADAPTER.md](docs/ADDING_AN_ADAPTER.md).
@@ -176,8 +186,10 @@ removed by the app: unset them yourself. Back up `data/` first if you may need i
 
 ### Solana with Helius
 
-Helius gives free access to Solana's RPC with an API key. Without a key Solana is read from the
-public Solana endpoint, which works but is slow and rate-limited.
+Solana is read with your **Alchemy** key if you saved one (enable Solana on your Alchemy app).
+Helius is an optional, faster alternative with its own free key; it is used first when saved.
+With neither key Solana is read from the public Solana endpoint, which works but is slow and
+rate-limited.
 
 1. **Get a key.** Sign up at [dashboard.helius.dev](https://dashboard.helius.dev/) (free plan)
    and copy the API key shown on the dashboard.
@@ -200,22 +212,27 @@ Good to know:
 - *"Helius refused the API key (401)"*: the key is wrong or was revoked. Copy it again from the
   Helius dashboard and press **Test**.
 
-### BNB Smart Chain, Monad and Arc with Alchemy
+### Every EVM chain with Alchemy
 
-The BscScan API closed in December 2025 and Etherscan's free plan does not cover BNB Smart Chain
-or Arc. These chains are read through **Alchemy** (free plan, sign-up with e-mail or Google);
-one key covers all of them.
+One free **Alchemy** key (sign-up with e-mail or Google) reads Ethereum, Polygon, Arbitrum,
+Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc and Ronin. (The BscScan API closed in
+December 2025, and Etherscan's free plan does not cover BNB Smart Chain, Base, Optimism,
+Avalanche or Arc.)
 
 1. Sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup) and create an app;
-   enable **BNB Smart Chain**, **Monad** and/or **Arc** (Mainnet) on it; copy the API key.
+   enable the chains you use (Mainnet) on it, Solana too if you have a Solana wallet; copy the API key.
 2. **Settings → API providers → Alchemy**: paste the key, **Save keys and limits**, **Test**.
 3. Add your 0x address on the **Wallets** page (tick every chain where you use it) and **Sync now**.
 
 The app reads native and token transfers (`alchemy_getAssetTransfers`), the gas of the
 transactions you sent, and lists every token held now (`alchemy_getTokenBalances`, also used by
 Assets → **Load all**). Alchemy gives internal transfers only on some chains (Ethereum, Polygon,
-Base, Arc): elsewhere, BNB received from a contract (e.g. a DEX refund) is caught by the year-end
-check against chain state and flagged ⛔. The Alchemy name of each chain (bnb-mainnet,
+Base, Arc): elsewhere, a coin received from a contract (e.g. a DEX refund) is caught by the year-end
+check against chain state and flagged ⛔. Failed transactions are not listed, so their gas is
+missing. For the most complete history on Ethereum, Polygon, Arbitrum and Linea, also save a free
+**Etherscan** key: those chains switch to it automatically (Settings → Networks shows
+"Automatic: Etherscan"), and the next sync continues from the last block read, so nothing is
+counted twice. The Alchemy name of each chain (bnb-mainnet,
 monad-mainnet, arc-mainnet…) is in Settings → Networks; if **Test** reports an error for a chain,
 check the name in your Alchemy dashboard and correct it there. On Arc the gas coin is USDC: its
 ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice.

@@ -26,6 +26,15 @@ WINDOW = 10000            # Etherscan returns at most page*offset <= 10000 rows 
 BALANCE_OF = "0x70a08231"  # balanceOf(address)
 
 
+
+def resume_block(state: Dict[str, Any], reader: str) -> int:
+    """Block to read the history from. The last block read is read again (its movements come back
+    with the same ids, so nothing is counted twice), except after a change of provider: the
+    providers give internal transfers different ids, so the next block is read instead."""
+    last = int(state.get("last_block", 0))
+    return last + 1 if last and state.get("reader", reader) != reader else last
+
+
 @register
 class EvmAdapter(Adapter):
     id = "evm"
@@ -101,7 +110,7 @@ class EvmAdapter(Adapter):
                 "Year-end balances come from snapshots or the archive RPC.")
             return result
         addr = wallet["address"].lower()
-        start = int(state.get("last_block", 0))
+        start = resume_block(state, "etherscan")
         native = assets_mod.native_asset(self.network)
         decimals = native.decimals or 18
         log(f"{wallet['label']}: reading {self.network.name} transactions from block {start}")
@@ -203,6 +212,7 @@ class EvmAdapter(Adapter):
         result.movements = moves
         result.assets = list(seen_assets.values())
         result.state["last_block"] = max_block
+        result.state["reader"] = "etherscan"
         return result
 
     # --- live balances ----------------------------------------------------------

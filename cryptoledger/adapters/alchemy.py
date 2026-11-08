@@ -19,7 +19,7 @@ from ..http import HttpError
 from ..util import scaled
 from . import register
 from .base import AdapterError, AssetInfo, Logger, Movement, SyncResult
-from .evm import BALANCE_OF, EvmAdapter
+from .evm import BALANCE_OF, EvmAdapter, resume_block
 
 DECIMALS = "0x313ce567"    # decimals()
 looks_like_spam = assets_mod.looks_like_spam
@@ -148,7 +148,7 @@ class AlchemyAdapter(EvmAdapter):
     def sync(self, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:
         result = SyncResult(state=dict(state))
         addr = wallet["address"].lower()
-        start = int(state.get("last_block", 0))
+        start = resume_block(state, "alchemy")
         native = assets_mod.native_asset(self.network)
         nat_dec = native.decimals or 18
         log(f"{wallet['label']}: reading {self.network.name} transfers from block {start} (Alchemy)")
@@ -254,6 +254,7 @@ class AlchemyAdapter(EvmAdapter):
         result.movements = moves
         result.assets = list(seen_assets.values())
         result.state["last_block"] = max_block
+        result.state["reader"] = "alchemy"
         return result
 
     # --- live balances ------------------------------------------------------------

@@ -864,8 +864,13 @@
     const netEdits = {};
     const netRows = nets.filter((n) => n.kind === 'chain').map((n) => {
       const choices = provs.filter((p) => p.family === familyOf(n));
-      const pSel = el('select', { 'aria-label': 'Provider', disabled: choices.length < 2 },
-        choices.map((p) => el('option', { value: p.id, text: p.name, selected: p.id === n.provider })));
+      const provName = (id) => (provs.find((p) => p.id === id) || {}).name || id;
+      // Automatic: the first of the network's providers whose key you saved (e.g. Etherscan if you
+      // have its key, otherwise Alchemy). Choosing a provider below fixes it.
+      const auto = n.auto_providers && n.auto_providers.length ? el('option', { value: '', selected: n.provider_auto,
+        text: `Automatic: ${provName(n.provider)}`, title: `The first of ${n.auto_providers.map(provName).join(', ')} whose API key is saved` }) : null;
+      const pSel = el('select', { 'aria-label': 'Provider', disabled: choices.length < 2 }, auto,
+        choices.map((p) => el('option', { value: p.id, text: p.name, selected: !n.provider_auto && p.id === n.provider })));
       const alch = el('input', { type: 'text', value: n.alchemy_network || '', placeholder: 'e.g. eth-mainnet', style: 'width:140px', 'aria-label': 'Alchemy name' });
       const alchWrap = el('div', { class: 'small' }, alch);
       const showAlch = () => alchWrap.classList.toggle('hidden', provType[pSel.value] !== 'alchemy');
@@ -943,7 +948,7 @@
           } })));
     };
     const networksCard = card('Networks', el('button', { class: 'btn small primary', type: 'button', text: '+ Add network', onclick: () => networkModal(null) }),
-      el('p', { class: 'help', text: 'The blockchains you can track, and which API provider reads each one. Change the provider of a chain (e.g. Arbitrum from Etherscan to Alchemy), hide the ones you do not use from the Wallets list, or add a new chain with "+ Add network". Archive node URL (optional): lets the app read each balance directly at the 31/12 block to double-check the history. After changing the provider of a chain that already has wallets, use Assets → Clear all and Sync now so the history is read again by the new provider.' }),
+      el('p', { class: 'help', text: 'The blockchains you can track, and which API provider reads each one. One free Alchemy key reads every EVM chain. "Automatic" uses Etherscan instead where its free plan works, if you saved an Etherscan key: Etherscan also lists internal transfers on every chain and failed transactions. Choose a provider to fix it, hide the networks you do not use from the Wallets list, or add a new chain with "+ Add network". Archive node URL (optional): lets the app read each balance directly at the 31/12 block to double-check the history. When the provider of a chain with wallets changes, the next sync continues from the last block read: nothing is counted twice.' }),
       netTable,
       el('div', { class: 'actions', style: 'margin-top:12px;justify-content:flex-end' }, el('button', { class: 'btn primary', type: 'button', text: 'Save networks', onclick: async () => {
         try {

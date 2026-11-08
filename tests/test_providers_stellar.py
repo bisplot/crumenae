@@ -98,7 +98,7 @@ class ProvidersTest(unittest.TestCase):
         self.assertEqual((get("bsc").adapter, get("bsc").alchemy_network), ("alchemy", "bnb-mainnet"))
         self.assertEqual((get("monad").adapter, get("monad").chain_id), ("alchemy", 143))
         self.assertEqual(get("arc").ignore_tokens, ["0x3600000000000000000000000000000000000000"])
-        self.assertEqual((get("linea").adapter, get("linea").chain_id), ("evm", 59144))
+        self.assertEqual((get("linea").adapter, get("linea").chain_id), ("alchemy", 59144))   # no key saved yet
         self.assertEqual((get("stellar").adapter, get("stellar").provider), ("stellar", "horizon"))
 
 

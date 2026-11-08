@@ -1,5 +1,5 @@
 {
-  "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see cryptoledger/providers.py); change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in cryptoledger/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); bech32_prefix / native_denom / denoms = Cosmos SDK chains; chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
+  "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see cryptoledger/providers.py); \"auto_providers\" = when you have not chosen a provider in Settings, the first of these whose API key is saved is used, else \"provider\"; change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in cryptoledger/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); bech32_prefix / native_denom / denoms = Cosmos SDK chains; chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
   "ethereum": {
     "name": "Ethereum",
     "adapter": "evm",
@@ -12,7 +12,10 @@
     "rpc_url": "",
     "coingecko_platform": "ethereum",
     "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["etherscan", "alchemy"],
+    "alchemy_network": "eth-mainnet",
+    "alchemy_internal": true
   },
   "bsc": {
     "name": "BNB Smart Chain (BSC)",
@@ -40,7 +43,10 @@
     "rpc_url": "",
     "coingecko_platform": "polygon-pos",
     "native": {"symbol": "POL", "name": "POL (ex-MATIC)", "decimals": 18, "coingecko": "polygon-ecosystem-token", "binance": "POL"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["etherscan", "alchemy"],
+    "alchemy_network": "polygon-mainnet",
+    "alchemy_internal": true
   },
   "arbitrum": {
     "name": "Arbitrum One",
@@ -55,7 +61,9 @@
     "rpc_url": "",
     "coingecko_platform": "arbitrum-one",
     "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["etherscan", "alchemy"],
+    "alchemy_network": "arb-mainnet"
   },
   "optimism": {
     "name": "OP Mainnet",
@@ -70,7 +78,9 @@
     "rpc_url": "",
     "coingecko_platform": "optimistic-ethereum",
     "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["alchemy", "etherscan"],
+    "alchemy_network": "opt-mainnet"
   },
   "base": {
     "name": "Base",
@@ -85,7 +95,10 @@
     "rpc_url": "",
     "coingecko_platform": "base",
     "native": {"symbol": "ETH", "name": "Ether", "decimals": 18, "coingecko": "ethereum", "binance": "ETH"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["alchemy", "etherscan"],
+    "alchemy_network": "base-mainnet",
+    "alchemy_internal": true
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
@@ -99,12 +112,16 @@
     "rpc_url": "",
     "coingecko_platform": "avalanche",
     "native": {"symbol": "AVAX", "name": "Avalanche", "decimals": 18, "coingecko": "avalanche-2", "binance": "AVAX"},
-    "provider": "etherscan"
+    "provider": "alchemy",
+    "auto_providers": ["alchemy", "etherscan"],
+    "alchemy_network": "avax-mainnet"
   },
   "linea": {
     "name": "Linea",
     "adapter": "evm",
-    "provider": "etherscan",
+    "provider": "alchemy",
+    "auto_providers": ["etherscan", "alchemy"],
+    "alchemy_network": "linea-mainnet",
     "chain_id": 59144,
     "explorer_api": "https://api.etherscan.io/v2/api",
     "explorer_key": "etherscan",
