@@ -411,6 +411,7 @@ class App:
             "active": 0 if body.get("active", (existing or {}).get("active", 1)) in (False, 0, "0") else 1,
             "notes": str(body.get("notes", (existing or {}).get("notes") or ""))[:500],
             "staking": 1 if body.get("staking", (existing or {}).get("staking")) not in (None, False, 0, "0", "") else 0,
+            "lost": 1 if body.get("lost", (existing or {}).get("lost")) not in (None, False, 0, "0", "") else 0,
         }
 
     def _save_credentials(self, wallet_id: int, network_id: str, body: Dict[str, Any]) -> None:
@@ -438,9 +439,9 @@ class App:
                 raise ApiError(409, f"{c['address']} is already tracked on {c['network']}")
             cur = self.ctx.db.execute(
                 "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, active,"
-                " notes, staking, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                " notes, staking, lost, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 (c["label"], c["network"], c["address"], c["portfolio"], c["platform"], c["rw_slot"],
-                 c["bollo_applied"], c["active"], c["notes"], c["staking"], now()))
+                 c["bollo_applied"], c["active"], c["notes"], c["staking"], c["lost"], now()))
             self._save_credentials(cur.lastrowid, c["network"], body)
             created.append(cur.lastrowid)
         self._remember_platform(cleaned[0]["platform"])
@@ -454,9 +455,9 @@ class App:
             raise ApiError(400, "the address cannot change: add a new wallet instead")
         self.ctx.db.execute(
             "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?,"
-            " staking=? WHERE id=?",
+            " staking=?, lost=? WHERE id=?",
             (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
-             c["staking"], w["id"]))
+             c["staking"], c["lost"], w["id"]))
         self._save_credentials(w["id"], w["network"], body or {})
         self._remember_platform(c["platform"])
         self._wallets_changed()
@@ -582,7 +583,7 @@ class App:
         return views.transactions(self.ctx, wallet_id=num("wallet"), year=num("year"),
                                   category=query.get("category") or None, q=query.get("q") or None,
                                   portfolio=query.get("portfolio") or None, limit=num("limit") or 200,
-                                  offset=num("offset") or 0)
+                                  offset=num("offset") or 0, lost=query.get("lost") == "1")
 
     def update_transaction(self, mid: str, body: Any, **_: Any) -> Dict[str, Any]:
         body = body or {}

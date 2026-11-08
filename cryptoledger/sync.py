@@ -188,9 +188,11 @@ def write_exports(ctx, log: Callable[[str], None]) -> None:
 
 
 def refresh_prices(ctx, prices: PriceService, log: Callable[[str], None]) -> int:
+    # Live prices are for the Dashboard: assets held only in lost wallets are not shown there.
     rows = ctx.db.query(
         "SELECT DISTINCT a.* FROM current_balances c JOIN assets a ON a.key=c.asset_key"
-        " WHERE CAST(c.amount AS REAL) != 0 AND a.status NOT IN ('spam','ignored')")
+        " JOIN wallets w ON w.id=c.wallet_id"
+        " WHERE CAST(c.amount AS REAL) != 0 AND a.status NOT IN ('spam','ignored') AND w.lost=0")
     if rows and not ctx.offline:
         log(f"Live prices for {len(rows)} assets…")
     got = prices.refresh_current({r["key"]: r for r in rows})

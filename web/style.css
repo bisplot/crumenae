@@ -224,3 +224,5 @@ input[type=checkbox] { accent-color: var(--primary-2); }
 .phrase { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 15px; padding: 10px 12px;
   background: var(--surface-2); border: 1px dashed var(--border); border-radius: 8px; user-select: none; -webkit-user-select: none; }
 .badge.ghost { background: var(--surface-2); color: var(--muted); border: 1px dashed var(--border); }
+/* a wallet whose keys or access are lost (still counted at year-end) */
+.badge.lost { background: var(--err-soft); color: var(--err); }
