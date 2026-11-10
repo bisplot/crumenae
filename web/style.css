@@ -20,6 +20,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .small { font-size: 12px; }
 .pos { color: var(--pos); }
 .neg { color: var(--neg); }
+.warn-text { color: var(--warn); }
 .highlight { color: var(--highlight); }
 .hidden { display: none !important; }
 

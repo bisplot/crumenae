@@ -21,6 +21,9 @@ class Adapter:
     def __init__(self, ctx, network):
         self.ctx = ctx
         self.network = network
+        # Parts of the live balance current_balances could not read (e.g. a sub-account that did not
+        # answer): the balance is incomplete, so it is not kept as a year-end snapshot.
+        self.partial: List[str] = []
 
     # --- required ---------------------------------------------------------------
     def validate_address(self, address: str) -> str:

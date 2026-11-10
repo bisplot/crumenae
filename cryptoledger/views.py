@@ -5,6 +5,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from . import assets as assets_mod
+from . import check as check_mod
 from . import yearend
 from .adapters import ADAPTERS
 from .classify import CATEGORIES
@@ -19,6 +20,10 @@ def _wallet_public(ctx, w: Dict[str, Any]) -> Dict[str, Any]:
     out["bollo_applied"] = bool(w["bollo_applied"])
     out["active"] = bool(w["active"])
     out["lost"] = bool(w["lost"])
+    out["check"] = check_mod.public(w)
+    out.pop("check_status", None)
+    out.pop("check_detail", None)
+    out.pop("check_at", None)
     try:
         net = ctx.networks.get(w["network"])
         out["network_name"] = net.name
@@ -112,10 +117,19 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
         flags.append({"level": "warn", "text": f"Year-end values out of date ({ctx.yearend_stale()}): "
                                                "press \"Recompute year-end\""})
     for w in wallets:
+        if not w["active"]:
+            continue
         if w["last_error"]:
             flags.append({"level": "error", "text": f"{w['label']}: {w['last_error']}"})
-        elif w["active"] and not w["last_sync_at"] and w["network"] != "manual":
+        elif not w["last_sync_at"] and w["network"] != "manual":
             flags.append({"level": "warn", "text": f"{w['label']}: not synced yet"})
+        elif w.get("check_status") == "diff":
+            n = check_mod.public(w).get("count") or 0
+            flags.append({"level": "warn", "text": f"{w['label']}: {n} asset(s) differ from the transactions: "
+                                                   "the history is incomplete (Wallets → Check)"})
+        elif w.get("check_status") == "partial":
+            flags.append({"level": "warn", "text": f"{w['label']}: live balance incomplete at the last sync "
+                                                   "(Wallets → Check)"})
     if unpriced:
         flags.append({"level": "warn", "text": f"{len(unpriced)} held asset(s) without a price: map them on the Assets page"})
     for item in wallet_list:
@@ -157,7 +171,8 @@ def year_detail(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, An
                                                "price_ts", "value_eur", "flags", "asset_status")})
     for w in by_wallet.values():
         w["value"] = dstr(sum((D(a["value_eur"]) for a in w["assets"] if a["value_eur"]), ZERO))
-        w["complete"] = w["source"] != "missing" and all(a["value_eur"] is not None for a in w["assets"])
+        w["complete"] = (w["source"] != "missing" and all(a["value_eur"] is not None for a in w["assets"])
+                         and not any(f.startswith("⛔") for a in w["assets"] for f in a["flags"] or []))
     cal = ctx.calendar
     return {"year": year, "cutoff": cal.cutoff(year), "cutoff_local": cal.iso_local(cal.cutoff(year)),
             "timezone": cal.tz_name, "wallets": list(by_wallet.values()),

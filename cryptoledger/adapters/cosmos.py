@@ -325,6 +325,7 @@ class CosmosAdapter(Adapter):
                     add(self.network.native_denom, entry.get("balance"))
         except AdapterError as e:
             log(f"{wallet['label']}: staked balance not read ({e})")
+            self.partial.append(f"staked and unbonding coins not read ({e})")
         out: Dict[str, Decimal] = {assets_mod.native_asset(self.network).key: ZERO}
         infos: List[AssetInfo] = [assets_mod.native_asset(self.network)]
         for denom, amount in raw.items():

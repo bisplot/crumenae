@@ -160,6 +160,21 @@ on the Transactions page. **Not read**: other staking (e.g. Solana stake account
 MetaMask Pooled Staking): for the RW, add a manual account (Wallets → Add, "Manual / other
 platform") and enter its year-end balance.
 
+### Wallet check
+
+After each sync, every wallet with a transaction history is checked: the live balance of each
+asset is compared with the balance rebuilt from the synced transactions. The Wallets page shows
+**✓ matches the transactions**, or **⚠ N asset(s) differ** (click it for the live amount, the
+amount from the transactions and the difference), or **⚠ live balance incomplete** when part of
+the balance could not be read (e.g. Binance Earn did not answer; that reading is then not kept as
+a year-end snapshot). The Dashboard lists the wallets that differ under **Needs attention**.
+
+A difference means the history is incomplete or wrong (a transaction the provider did not return,
+a fee not recorded, a token without decimals…), so a year-end value built from it would be wrong
+too: sync again (a transaction made during a sync can show once), then check the transactions of
+that asset. Exchanges, manual accounts and chains read from live balances only (Terra) have no
+history to compare. Warnings of the last sync are shown under the sync time.
+
 ### Lost wallets
 
 A wallet whose keys or access you lost (an old phone, a forgotten seed phrase, a closed
