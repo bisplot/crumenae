@@ -71,17 +71,10 @@ Applied automatically, editable on the Transactions page; your edits are never o
 
 ## Staking
 
-Staked coins stay in the wallet that staked them and are valued at each cutoff with it (RW and
-IC like any other holding). Terra/Terra Classic delegations and unbonding, and frozen/unfreezing
-TRX, are part of the wallet balance; a delegation or a freeze is not a disposal. Each sync also
-reads the positions themselves (staked, unbonding, unclaimed rewards per validator, Binance
-Simple Earn products, liquid-staking tokens held) for the Staking page; that reading does not
-change any balance. Manual accounts ticked as staking are valued from their year-end entries.
-
-Rewards are movements with category `reward`, valued in EUR at the moment of receipt: claimed
-Terra rewards, claimed Tron voting rewards (WithdrawBalance), Binance Simple Earn rewards, and
-rewards typed by hand on manual accounts (they never change a manual balance). Unclaimed rewards
-are shown but are not income until claimed.
+Staking positions are wallets marked as staking: they are valued at each cutoff like any wallet
+(manual entry, snapshot, chain state or history) and appear in the RW and IC like the others.
+Rewards are movements with category `reward`, valued in EUR at the moment of receipt; rewards
+typed by hand on manual accounts are stored the same way (they never change a manual balance).
 
 ## RW values (Italy)
 

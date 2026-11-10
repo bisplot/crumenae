@@ -46,18 +46,6 @@ CREATE TABLE IF NOT EXISTS wallets (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS wallets_uniq ON wallets(network, address, label);
 
--- Coins staked by each wallet, read live at each sync (Staking page). Replaced per wallet.
-CREATE TABLE IF NOT EXISTS staking_positions (
-    wallet_id       INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
-    asset_key       TEXT NOT NULL,
-    protocol        TEXT NOT NULL DEFAULT '',
-    validator       TEXT NOT NULL DEFAULT '',
-    staked          TEXT NOT NULL DEFAULT '0',
-    unbonding       TEXT NOT NULL DEFAULT '0',
-    pending_rewards TEXT NOT NULL DEFAULT '0',
-    fetched_at      INTEGER NOT NULL
-);
-
 -- Adapter cursors (last block, last signature...), JSON per wallet.
 CREATE TABLE IF NOT EXISTS sync_state (
     wallet_id INTEGER PRIMARY KEY REFERENCES wallets(id) ON DELETE CASCADE,

@@ -3,7 +3,6 @@
 TRX transfers, TRC-10 transfers, TRC-20 transfers and fees are read from the
 account's transaction lists. Staked (frozen) TRX still belongs to you, so
 freezing/unfreezing is neutral and the live balance includes staked TRX.
-Claimed voting rewards (WithdrawBalanceContract) are income: category "reward".
 """
 from __future__ import annotations
 
@@ -17,7 +16,7 @@ from ..b58 import b58check_decode, b58check_encode
 from ..http import HttpError
 from ..util import ZERO, scaled
 from . import register
-from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, StakePosition, SyncResult
+from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
 ADDRESS_RE = re.compile(r"^T[1-9A-HJ-NP-Za-km-z]{33}$")
 PAGE = 200
@@ -85,17 +84,6 @@ class TronAdapter(Adapter):
         if data.get("success") is False:
             raise AdapterError(f"TronGrid: {data.get('error') or data}")
         return data
-
-    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        headers = {}
-        key = self.secret("trongrid_api_key")
-        if key:
-            headers["TRON-PRO-API-KEY"] = key
-        try:
-            data = self.ctx.http.post_json(self.network.explorer_api.rstrip("/") + path, payload, headers)
-        except HttpError as e:
-            raise AdapterError(f"TronGrid: {e}")
-        return data if isinstance(data, dict) else {}
 
     def _paged(self, path: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
@@ -169,16 +157,6 @@ class TronAdapter(Adapter):
                     moves.append(Movement(uid=f"{h}:call", tx_hash=h, ts=ts, asset_key=native,
                                           amount=-scaled(call_value, 6), kind="out", counterparty=contract,
                                           from_address=owner, to_address=contract))
-            elif typ == "WithdrawBalanceContract":
-                # Claimed voting rewards: income. The amount is in the transaction info; when the
-                # list does not carry it, sync() reads it (one call per claim).
-                if owner == addr:
-                    amount = tx.get("withdraw_amount")
-                    moves.append(Movement(uid=f"{h}:reward", tx_hash=h, ts=ts, asset_key=native,
-                                          amount=scaled(int(amount), 6) if amount is not None else ZERO,
-                                          kind="in", info="reward: Tron voting" if amount is not None
-                                          else "reward: Tron voting (amount pending)",
-                                          from_address="", to_address=owner))
             elif typ in NEUTRAL_TYPES:
                 continue
             elif owner == addr:
@@ -227,12 +205,6 @@ class TronAdapter(Adapter):
         trc20 = self._paged(f"/v1/accounts/{addr}/transactions/trc20", common)
         log(f"{wallet['label']}: {len(txs)} Tron transactions, {len(trc20)} TRC-20 transfers")
         moves, warnings, trc10 = self.parse_transactions(txs, addr)
-        for m in moves:   # voting-reward claims whose amount the list did not carry
-            if m.info.endswith("(amount pending)"):
-                info = self._post("/wallet/gettransactioninfobyid", {"value": m.tx_hash})
-                m.amount = scaled(int(info.get("withdraw_amount") or 0), 6)
-                m.info = "reward: Tron voting"
-        moves = [m for m in moves if not (m.uid.endswith(":reward") and not m.amount)]
         tmoves, infos = self.parse_trc20(trc20, addr)
         result.movements = moves + tmoves
         result.warnings = warnings
@@ -243,20 +215,6 @@ class TronAdapter(Adapter):
         if stamps:
             result.state["last_ts_ms"] = max(stamps)
         return result
-
-    def staking_positions(self, wallet: Dict[str, Any], log: Logger) -> List[StakePosition]:
-        """Frozen TRX read by current_balances, plus voting rewards not claimed yet."""
-        positions = list(self.staking_found)
-        try:
-            sun = int(self._post("/wallet/getReward", {"address": wallet["address"], "visible": True}).get("reward") or 0)
-        except (AdapterError, ValueError) as e:
-            log(f"{wallet['label']}: unclaimed voting rewards not read ({e})")
-            sun = 0
-        if sun:
-            if not positions:
-                positions = [StakePosition(asset_key=f"{self.network.id}:native", protocol="Tron Stake 2.0")]
-            positions[0].pending_rewards = scaled(sun, 6)
-        return positions
 
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],
                          log: Logger) -> Tuple[Dict[str, Decimal], List[AssetInfo]]:
@@ -271,19 +229,6 @@ class TronAdapter(Adapter):
         sun += int((acct.get("account_resource") or {}).get("delegated_frozenV2_balance_for_energy") or 0)
         native = assets_mod.native_asset(self.network)
         out: Dict[str, Decimal] = {native.key: scaled(sun, 6)}
-        # Staked TRX (Stake 2.0 and legacy frozen, delegated included) for the Staking page.
-        staked = sum(int(f.get("amount") or 0) for f in acct.get("frozenV2") or []) + \
-            sum(int(f.get("frozen_balance") or 0) for f in acct.get("frozen") or []) + \
-            int(acct.get("delegated_frozenV2_balance_for_bandwidth") or 0) + \
-            int((acct.get("account_resource") or {}).get("delegated_frozenV2_balance_for_energy") or 0)
-        unfreezing = sum(int(f.get("unfreeze_amount") or 0) for f in acct.get("unfrozenV2") or [])
-        votes = [v for v in acct.get("votes") or [] if v.get("vote_address")]
-        self.staking_found = [StakePosition(
-            asset_key=native.key, staked=scaled(staked, 6), unbonding=scaled(unfreezing, 6),
-            protocol="Tron Stake 2.0",
-            validator=(hex_to_base58(votes[0]["vote_address"]) if len(votes) == 1
-                       else f"{len(votes)} Super Representatives" if votes else "no votes"))] \
-            if staked or unfreezing else []
         decimals = {r["key"]: r["decimals"] for r in self.ctx.db.query(
             "SELECT key, decimals FROM assets WHERE network=?", (self.network.id,))}
         infos = [native]

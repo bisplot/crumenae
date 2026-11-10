@@ -32,7 +32,7 @@ from .. import assets as assets_mod
 from ..http import HttpError
 from ..util import ZERO, scaled
 from . import register
-from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, StakePosition, SyncResult
+from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
 PAGE = 100
 _CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
@@ -105,14 +105,6 @@ def module_address(prefix: str, name: str) -> str:
 def parse_coins(text: str) -> List[Tuple[str, int]]:
     return [(m.group(2), int(m.group(1))) for m in _COIN.finditer(text or "")]
 
-
-
-def _raw(amount: Any) -> int:
-    """Integer amount in the smallest unit ("123", "123.000000000000000000" or a number)."""
-    try:
-        return int(Decimal(str(amount or 0)))
-    except (ArithmeticError, ValueError):
-        return 0
 
 @register
 class CosmosAdapter(Adapter):
@@ -300,41 +292,6 @@ class CosmosAdapter(Adapter):
         return moves
 
     # --- live balances ----------------------------------------------------------
-    def staking_positions(self, wallet: Dict[str, Any], log: Logger) -> List[StakePosition]:
-        """The delegations read by current_balances, with validator names and unclaimed rewards."""
-        positions = list(self.staking_found)
-        if not positions:
-            return positions
-        native = assets_mod.native_asset(self.network)
-        dec = native.decimals if native.decimals is not None else 6
-        try:
-            data = self._get(f"/cosmos/distribution/v1beta1/delegators/{wallet['address']}/rewards") or {}
-            pending = {str(r.get("validator_address") or ""): sum(
-                _raw(c.get("amount")) for c in r.get("reward") or [] if c.get("denom") == self.network.native_denom)
-                for r in data.get("rewards") or []}
-        except AdapterError as e:
-            log(f"{wallet['label']}: unclaimed staking rewards not read ({e})")
-            pending = {}
-        for p in positions:
-            p.pending_rewards = scaled(pending.get(p.validator, 0), dec)
-            p.validator = self._validator_name(p.validator)
-        return positions
-
-    def _validator_name(self, valoper: str) -> str:
-        """Validator moniker (cached), or the address if the node does not answer."""
-        if not valoper:
-            return ""
-        key = f"validator:{self.network.id}:{valoper}"
-        name = self.ctx.db.get_meta(key)
-        if name is None:
-            try:
-                v = (self._get(f"/cosmos/staking/v1beta1/validators/{valoper}") or {}).get("validator") or {}
-                name = str((v.get("description") or {}).get("moniker") or "").strip()[:80]
-            except AdapterError:
-                return valoper
-            self.ctx.db.set_meta(key, name)
-        return name or valoper
-
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],
                          log: Logger) -> Tuple[Dict[str, Decimal], List[AssetInfo]]:
         me = wallet["address"]
@@ -358,30 +315,16 @@ class CosmosAdapter(Adapter):
             next_key = (data.get("pagination") or {}).get("next_key")
             if not next_key:
                 break
-        # Staked and unbonding coins are still yours: in the balance, and listed on the Staking page.
-        self.staking_found = []
-        per_validator: Dict[str, List[int]] = {}   # valoper -> [staked, unbonding] (native, raw units)
-        try:
+        try:   # staked and unbonding coins are still yours
             for d in (self._get(f"/cosmos/staking/v1beta1/delegations/{me}") or {}).get("delegation_responses") or []:
                 bal = d.get("balance") or {}
                 add(bal.get("denom"), bal.get("amount"))
-                val = str((d.get("delegation") or {}).get("validator_address") or "")
-                if bal.get("denom") == self.network.native_denom:
-                    per_validator.setdefault(val, [0, 0])[0] += _raw(bal.get("amount"))
             ub = self._get(f"/cosmos/staking/v1beta1/delegators/{me}/unbonding_delegations") or {}
             for u in ub.get("unbonding_responses") or []:
-                val = str(u.get("validator_address") or "")
                 for entry in u.get("entries") or []:
                     add(self.network.native_denom, entry.get("balance"))
-                    per_validator.setdefault(val, [0, 0])[1] += _raw(entry.get("balance"))
         except AdapterError as e:
             log(f"{wallet['label']}: staked balance not read ({e})")
-        native = assets_mod.native_asset(self.network)
-        dec = native.decimals if native.decimals is not None else 6
-        for val, (staked, unbonding) in sorted(per_validator.items()):
-            self.staking_found.append(StakePosition(
-                asset_key=native.key, staked=scaled(staked, dec), unbonding=scaled(unbonding, dec),
-                protocol=f"{self.network.name} staking", validator=val))
         out: Dict[str, Decimal] = {assets_mod.native_asset(self.network).key: ZERO}
         infos: List[AssetInfo] = [assets_mod.native_asset(self.network)]
         for denom, amount in raw.items():

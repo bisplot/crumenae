@@ -24,7 +24,7 @@ from ..http import HttpError
 from ..timeutil import parse_utc
 from ..util import D, ZERO
 from . import register
-from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, Snapshot, StakePosition, SyncResult
+from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, Snapshot, SyncResult
 
 DAY_MS = 86_400_000
 WINDOW_MS = 89 * DAY_MS
@@ -231,12 +231,12 @@ class BinanceAdapter(Adapter):
             totals[info.key] = totals.get(info.key, ZERO) + amount
 
         earn_ok = True
-        earn: Dict[Tuple[str, str], Decimal] = {}   # (ticker, product) -> amount, for the Staking page
+        earn: Dict[str, Decimal] = {}   # Simple Earn positions, listed on the Staking page
 
-        def add_earn(ticker: str, amount: Decimal, product: str) -> None:
+        def add_earn(ticker: str, amount: Decimal) -> None:
             add(ticker, amount)
             if amount:
-                earn[(ticker, product)] = earn.get((ticker, product), ZERO) + amount
+                earn[ticker] = earn.get(ticker, ZERO) + amount
         try:
             page, rows = 1, []
             while True:
@@ -247,12 +247,13 @@ class BinanceAdapter(Adapter):
                     break
                 page += 1
             for r in rows:
-                add_earn(r["asset"], D(r.get("totalAmount")), "Flexible")
+                add_earn(r["asset"], D(r.get("totalAmount")))
             data = self._signed(wallet, "GET", "/sapi/v1/simple-earn/locked/position", {"size": 100})
             for r in data.get("rows") or []:
-                add_earn(r["asset"], D(r.get("amount")), "Locked")
-            self.staking_found = [StakePosition(asset_key=f"{net}:{t}", staked=a, protocol="Binance Simple Earn",
-                                                validator=product) for (t, product), a in sorted(earn.items())]
+                add_earn(r["asset"], D(r.get("amount")))
+            import json
+            self.ctx.db.set_meta(f"earn_positions:{wallet['id']}", json.dumps(
+                {"at": int(time.time()), "positions": {k: str(v) for k, v in sorted(earn.items())}}))
         except AdapterError as e:
             earn_ok = False
             log(f"{wallet['label']}: Simple Earn positions unavailable ({e})")

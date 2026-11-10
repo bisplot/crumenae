@@ -412,26 +412,11 @@
           el('div', { class: 'muted small', text: current ? 'Fiscal year in progress: rewards so far; positions are valued at the year-end.' : `Positions valued at ${isoLocal(d.cutoff_local)}` })),
         tabs),
       el('div', { class: 'grid kpis' },
-        kpi('Staked now', eur(d.staked_now_eur), `${d.staked.length} position(s), found at each sync`),
-        kpi(current ? 'Manual accounts (last year-end)' : 'Manual accounts at year-end', current ? '—' : eur(d.staked_value_eur), `${d.positions.length} account(s), included in the RW`),
+        kpi(current ? 'Staked (last year-end)' : 'Staked at year-end', current ? '—' : eur(d.staked_value_eur), `${d.positions.length} position(s), included in the RW`),
         kpi(`Rewards TY${year}`, eur(d.rewards_value_eur), d.rewards_unvalued ? `⚠ ${d.rewards_unvalued} without a price` : 'EUR value on the day received'),
         kpi('Reward entries', String(d.rewards.length), `${d.reward_totals.length} asset(s)`)));
 
-    // Staked now: found automatically at each sync (no tick needed).
-    const pend = (p) => Number(p.pending_rewards) ? `${qty(p.pending_rewards)} ${p.symbol}` : '—';
-    const stakedCard = card('Staked now', el('span', { class: 'muted small', text: d.staked.length ? `read at the last sync, ${when(Math.max(...d.staked.map((p) => p.fetched_at || 0)))}` : '' }),
-      el('p', { class: 'help', text: 'Found automatically at each sync: delegations on Terra and Terra Classic, frozen TRX on Tron, Binance Simple Earn, and liquid-staking tokens (stETH, rETH, mSOL, JitoSOL…). Staked coins are already part of each wallet\'s balance and year-end values. Unclaimed rewards are not income until you claim them; claimed rewards are listed below.' }),
-      d.staked.length ? table(['Wallet', 'Staking', '#Staked', '#Unbonding', '#Unclaimed rewards', '#Value now €'], d.staked.map((p) => el('tr', {},
-        el('td', {}, el('strong', { text: p.wallet.label }), p.wallet.lost ? [' ', badge('lost', 'lost')] : null,
-          el('div', { class: 'muted small', text: p.wallet.network_name })),
-        el('td', {}, el('div', { text: p.protocol }), /^[A-Za-z0-9]{25,}$/.test(p.validator || '') ? el('div', { class: 'muted small mono', text: short(p.validator, 10, 6), title: p.validator }) : el('div', { class: 'muted small', text: p.validator })),
-        el('td', { class: 'num', text: `${qty(p.staked)} ${p.symbol}` }),
-        el('td', { class: 'num', text: Number(p.unbonding) ? `${qty(p.unbonding)} ${p.symbol}` : '—' }),
-        el('td', { class: 'num', text: pend(p) }),
-        el('td', { class: 'num', text: p.value_now === null ? '—' : eur(p.value_now) }))))
-        : el('p', { class: 'muted', text: 'Nothing staked found yet: press Sync now.' }));
-
-    // Manual staking accounts (no API): quantity typed at each year-end
+    // Positions
     const addPosition = () => {
       const label = el('input', { type: 'text', placeholder: 'e.g. DOT staking' });
       const platform = el('input', { type: 'text', placeholder: 'e.g. Ledger Live, Binance Earn, Lido' });
@@ -447,8 +432,8 @@
             } catch (e) { toast(e.message, true); }
           } })));
     };
-    const posCard = card('Manual staking accounts', el('button', { class: 'btn small primary', type: 'button', text: '+ Add position', onclick: addPosition }),
-      el('p', { class: 'help', text: 'For staking the app cannot read (inside Ledger Live, an exchange without API…): a manual account marked as staking, with the quantity typed at each year-end. It is part of the year-end balances, the RW and the IC like any wallet.' }),
+    const posCard = card('Staking positions', el('button', { class: 'btn small primary', type: 'button', text: '+ Add position', onclick: addPosition }),
+      el('p', { class: 'help', text: 'Staked coins still belong to you: each position is part of the year-end balances, the RW and the IC like any wallet. Mark a wallet as staking with "Edit" on the Wallets page.' }),
       d.positions.length ? table(['Position', 'Balance source', 'Held at year-end', '#Value €', 'Now', ''], d.positions.map((p) => el('tr', {},
         el('td', {}, el('strong', { text: p.auto ? `${p.auto} · ${p.wallet.label}` : p.wallet.label }), p.wallet.lost ? [' ', badge('lost', 'lost')] : null,
           el('div', { class: 'muted small', text: p.auto ? 'automatic, from the Binance API' : `${p.wallet.platform_display} · ${p.wallet.network_name}` }), flagList(p.flags)),
@@ -458,7 +443,7 @@
         el('td', { class: 'small muted' }, p.current.length ? p.current.map((a) => el('div', { text: `${qty(a.amount)} ${a.symbol}` })) : '—'),
         el('td', {}, p.manual && !current ? el('button', { class: 'btn small', type: 'button', text: p.source === 'manual' ? 'Edit balance' : 'Enter balance',
           onclick: () => manualModal(p, year) }) : null))))
-        : el('p', { class: 'muted', text: 'No manual staking accounts.' }));
+        : el('p', { class: 'muted', text: 'No staking positions yet.' }));
 
     // Rewards
     const rwWallet = el('select', {}, d.manual_wallets.map((w) => el('option', { value: w.id, text: w.label + (w.staking ? '' : ' (manual)') })));
@@ -495,7 +480,7 @@
             try { await api.del(`/api/staking/rewards/${r.id}`); toast('Deleted'); route(); } catch (e) { toast(e.message, true); }
           } }) : null))), 'compact')) : null,
       addForm);
-    fill(root, head, stakedCard, rewardsCard, posCard);
+    fill(root, head, posCard, rewardsCard);
   }
 
   async function pageWallets(root) {
@@ -564,7 +549,7 @@
       el('label', { class: 'field' }, el('span', { text: 'Stamp duty' }), el('span', { class: 'check' }, bollo, 'Italian bollo already applied'),
         el('span', { class: 'help', text: 'e.g. an Italian-resident exchange: then no IC is estimated.' })),
       el('label', { class: 'field' }, el('span', { text: 'Staking' }), el('span', { class: 'check' }, stakingBox, 'Staking position'),
-        el('span', { class: 'help', text: 'Only for a staking account the app cannot read (e.g. inside Ledger Live): you type its year-end quantity. On-chain staking is found automatically.' }))),
+        el('span', { class: 'help', text: 'Listed on the Staking page, e.g. a Solana stake account or a staking account without API.' }))),
     el('datalist', { id: 'portfolio-list' }, portfolios.map((p) => el('option', { value: p }))),
     el('datalist', { id: 'platform-list' }, platforms.map((p) => el('option', { value: p }))),
     el('div', { class: 'actions' }, el('button', { class: 'btn primary', type: 'submit', text: 'Add wallet' })));
