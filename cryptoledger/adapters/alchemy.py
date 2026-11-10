@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .. import assets as assets_mod
 from ..http import HttpError
 from ..util import scaled
-from . import register
+from . import evm_staking, register
 from .base import AdapterError, AssetInfo, Logger, Movement, SyncResult
 from .evm import BALANCE_OF, EvmAdapter, resume_block
 
@@ -255,6 +255,7 @@ class AlchemyAdapter(EvmAdapter):
         result.assets = list(seen_assets.values())
         result.state["last_block"] = max_block
         result.state["reader"] = "alchemy"
+        evm_staking.ContractStaking(self).sync(wallet, result, moves, log)
         return result
 
     # --- live balances ------------------------------------------------------------
@@ -283,6 +284,7 @@ class AlchemyAdapter(EvmAdapter):
         for raw, info in found.values():
             if info.decimals is not None:
                 bal[info.key] = scaled(raw, info.decimals)
+        evm_staking.add_live(self, wallet, bal, infos, log)
         return bal, infos
 
     def balance_at(self, wallet: Dict[str, Any], ts: Optional[int], asset_keys: List[str],
@@ -294,9 +296,12 @@ class AlchemyAdapter(EvmAdapter):
         addr = wallet["address"].lower()
         native = assets_mod.native_asset(self.network)
         try:
-            tag = "latest" if ts is None else hex(self.block_at(ts))
+            block = None if ts is None else self.block_at(ts)
+            tag = "latest" if block is None else hex(block)
             out: Dict[str, Decimal] = {native.key: scaled(_int(self._call("eth_getBalance", [addr, tag])),
                                                           native.decimals or 18)}
+            if ts is not None:   # coins in staking contracts (live: read by current_balances)
+                evm_staking.add_at(self, wallet, block, asset_keys, out)
         except (AdapterError, HttpError, ValueError, TypeError) as e:
             log(f"{wallet['label']}: chain-state read failed ({e}); the node may not keep old blocks")
             return None
@@ -304,7 +309,8 @@ class AlchemyAdapter(EvmAdapter):
             "SELECT key, decimals FROM assets WHERE network=?", (self.network.id,))}
         skipped = 0
         for key in asset_keys:
-            if key == native.key or not key.startswith(self.network.id + ":") or decimals.get(key) is None:
+            if (key == native.key or not key.startswith(self.network.id + ":") or decimals.get(key) is None
+                    or key.startswith(self.network.id + ":stake:")):
                 continue
             contract = key.split(":", 1)[1]
             if contract in self._ignored():

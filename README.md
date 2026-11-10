@@ -162,6 +162,8 @@ rewards are income at their EUR value on the day received (which becomes their c
 | Terra, Terra Classic | delegations per validator (name included), unbonding, unclaimed rewards | claimed rewards: category `reward` |
 | Tron (Stake 2.0) | frozen TRX, unfreezing TRX, the Super Representatives voted for, unclaimed voting rewards | claimed voting rewards: category `reward` |
 | Solana native staking | every stake account the wallet can withdraw from (closed ones found in the history), its validator, active / deactivating / withdrawable | each epoch's reward, read with `getInflationReward`: income at the time it was credited |
+| Ronin RON staking | RON delegated per validator through Ronin's staking contract, unclaimed rewards | claimed rewards (also when restaked with "Claim and restake"): category `reward` |
+| MetaMask Pooled Staking (ETH) and other StakeWise vaults | the vault's value of your shares, ETH waiting in the exit queue, rewards so far | the vault's growth in value (no transaction) |
 | Binance Simple Earn | flexible and locked positions | imported by each sync |
 | Liquid-staking tokens | stETH, wstETH, rETH, cbETH, osETH, mETH, wBETH, mSOL, JitoSOL, bSOL, JupSOL held by any wallet | the token's growth in value (no transaction) |
 
@@ -171,7 +173,14 @@ shown but are not income until you claim them. On Solana each stake account is i
 balance after the last transaction or reward before the cutoff. The first sync of a stake account
 reads one reward call per epoch (about 165 a year) from the year before your first fiscal year:
 with the slow public endpoint that takes a few minutes, a free Helius or Alchemy key is faster.
-Coming next: MetaMask Pooled Staking (ETH) and Ronin RON staking.
+
+Ronin and MetaMask Pooled Staking are read from the staking contracts through your **Alchemy** key
+(also when Ethereum's history comes from Etherscan), so save it in Settings → API providers and
+enable Ethereum and Ronin on the Alchemy app. The coins in each contract are an asset of the wallet,
+"RON (staked)" / "ETH (staked)", grouped with the coin on the Dashboard; the year-end value is read
+from the contract at the cutoff block. The vault is found by itself among the contracts the wallet
+sent ETH to (a couple of calls per contract, once). The first sync reads the contract's events
+from your first stake: a few seconds, or a minute for staking that started years ago.
 
 **Manual**: staking the app cannot read (inside Ledger Live, an exchange without API): press
 **+ Add position** on the Staking page to create a manual account, then enter the quantity at

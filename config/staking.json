@@ -1,0 +1,9 @@
+{
+  "_comment": "Staking contracts read automatically on EVM chains (cryptoledger/adapters/evm_staking.py). type ronin_dpos: Ronin's staking contract (address from ronin-chain/dpos-contract, deployments/ronin-mainnet/StakingProxy.json). type stakewise_v3: StakeWise v3 vaults (MetaMask Pooled Staking is one); no address needed, vaults are found among the contracts the wallet sent ETH to.",
+  "ronin": [
+    {"type": "ronin_dpos", "contract": "0x545edb750eb8769c868429be9586f5857a768758", "label": "Ronin staking"}
+  ],
+  "ethereum": [
+    {"type": "stakewise_v3", "label": "MetaMask Pooled Staking / StakeWise"}
+  ]
+}
