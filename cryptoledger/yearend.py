@@ -62,6 +62,15 @@ def _differs(a: Decimal, b: Decimal) -> bool:
     return abs(a - b) > tol
 
 
+def _history_missing(ctx, wallet_id: int) -> bool:
+    """A synced wallet with no transaction at all but a balance held now: the history was not
+    read (provider without a transaction API, a failed read), so it cannot say "0"."""
+    if ctx.db.scalar("SELECT COUNT(*) FROM movements WHERE wallet_id=?", (wallet_id,)):
+        return False
+    return any(D(r["amount"]) for r in ctx.db.query(
+        "SELECT amount FROM current_balances WHERE wallet_id=?", (wallet_id,)))
+
+
 def balance_at_cutoff(ctx, wallet: Dict[str, Any], cutoff: int, log=lambda m: None,
                       hidden: Optional[set] = None) -> Reading:
     hidden = hidden or set()
@@ -102,6 +111,8 @@ def balance_at_cutoff(ctx, wallet: Dict[str, Any], cutoff: int, log=lambda m: No
     anchored: set = set()
     if adapter.has_history and wallet.get("last_sync_at"):
         recon, anchored = ledger.reconstruct(ctx, wid, cutoff)
+        if not recon and _history_missing(ctx, wid):
+            recon = None   # no transaction at all but coins held now: the history was not read
 
     daily = ledger.snapshot_groups(ctx, wid, ["exchange_daily"], cutoff - 3600 - tol, cutoff + 3600 + tol)
     daily_pick = min(daily, key=lambda g: abs(g[0] - cutoff)) if daily else None
@@ -136,6 +147,15 @@ def balance_at_cutoff(ctx, wallet: Dict[str, Any], cutoff: int, log=lambda m: No
             flags.append("⛔ No balance source: add a manual entry")
         return Reading({}, "missing", flags)
 
+    # A token the chain read skipped (unknown decimals, a contract that did not answer) is not 0:
+    # take its balance from the transactions and say so.
+    if source == "chain_state" and recon is not None:
+        primary = dict(primary)
+        for key, v in recon.items():
+            if key not in primary and v and key not in hidden:
+                primary[key] = v
+                asset_flags.setdefault(key, []).append("🟡 Not read from the chain at the cutoff: balance "
+                                                       "from the transactions")
     # Cross-checks.
     if source in ("snapshot", "chain_state") and recon is not None:
         for key in sorted(set(primary) | set(recon)):
@@ -229,6 +249,7 @@ def wallet_totals(ctx, year: int) -> Dict[int, Dict[str, Any]]:
             continue
         if any(f.startswith("⛔") for f in r["flags"]):
             w["flags"].append(f"{r['symbol'] or r['asset_key']}: " + r["flags"][0])
+            w["complete"] = False   # e.g. a mismatch between two sources: the value is not reliable
         if r["value_eur"] is None:
             w["complete"] = False
         else:

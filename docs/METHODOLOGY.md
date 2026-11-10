@@ -69,6 +69,17 @@ Applied automatically, editable on the Transactions page; your edits are never o
 | `spam` | zero-value transfer or asset marked spam | ignored |
 | `deposit` / `withdrawal` | anything else, to classify: `buy`, `sell`, `reward`, `payment`… | depends |
 
+## Wallet check and year-end safeguards
+
+After each sync the live balance of every asset is compared with the history rebuilt at that
+moment (same tolerance as the year-end cross-check: 1e-6 relative). The result is stored per wallet
+and shown on the Wallets page and Dashboard. A live reading with a part that could not be read
+(e.g. an exchange sub-account) is marked incomplete and not stored as a `live` snapshot; manual
+accounts never produce `live` snapshots. At year-end: a wallet with no transaction at all but coins
+held now has no history-based balance (the history was not read), instead of 0; a token missing from
+an archive read takes its balance from the transactions, flagged 🟡; any ⛔ flag (e.g. a mismatch
+between two sources) marks the wallet's value incomplete.
+
 ## Staked coins
 
 The app has no staking feature. Staked coins count only where the wallet's own balance reports

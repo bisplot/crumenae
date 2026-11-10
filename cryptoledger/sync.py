@@ -6,7 +6,7 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional
 
 from . import assets as assets_mod
-from . import classify, exports, ledger, yearend
+from . import check, classify, exports, ledger, yearend
 from .adapters import get_adapter
 from .http import HttpError
 from .models import AdapterError
@@ -23,17 +23,31 @@ def sync_wallet(ctx, wallet: Dict[str, Any], log: Callable[[str], None], full: b
     state = {} if full else ctx.sync_state(wallet["id"])
     res = adapter.sync(wallet, state, log)
     added = ledger.store_sync_result(ctx, wallet, res)
+    if added or res.snapshots:   # stored: the year-end is out of date even if a later step fails
+        ctx.mark_yearend_stale(f"new data from {wallet['label']}")
+    warnings = list(res.warnings)
     for warning in res.warnings:
         log(f"{wallet['label']}: ⚠ {warning}")
         ctx.log(warning, "warn", wallet["id"])
+    adapter.partial = []
     balances, infos = adapter.current_balances(wallet, ledger.known_asset_keys(ctx, wallet["id"]), log)
     assets_mod.upsert(ctx, infos)
-    ledger.store_current(ctx, wallet["id"], balances, now())
+    for part in adapter.partial:
+        warnings.append(f"live balance incomplete: {part}")
+        ctx.log(f"live balance incomplete: {part}", "warn", wallet["id"])
+    # An incomplete live balance, or a manual account's own entries, is not a new year-end snapshot.
+    keep = adapter.kind != "manual" and not adapter.partial
+    ledger.store_current(ctx, wallet["id"], balances, now(), snapshot_source="live" if keep else None)
     ensure_assets(ctx, wallet, network)
-    ctx.db.execute("UPDATE wallets SET last_sync_at=?, last_error=NULL WHERE id=?", (now(), wallet["id"]))
+    result = check.run(ctx, wallet, adapter, balances)
+    if result["status"] == "diff":
+        log(f"{wallet['label']}: ⚠ {result['count']} asset(s) differ from the transactions (Wallets page)")
+    summary = None
+    if warnings:
+        summary = warnings[0][:300] + (f" (+{len(warnings) - 1} more)" if len(warnings) > 1 else "")
+    ctx.db.execute("UPDATE wallets SET last_sync_at=?, last_error=NULL, last_warning=? WHERE id=?",
+                   (now(), summary, wallet["id"]))
     log(f"{wallet['label']}: {added} new movements, {sum(1 for v in balances.values() if v)} assets held now")
-    if added or res.snapshots:
-        ctx.mark_yearend_stale(f"new data from {wallet['label']}")
     return added
 
 

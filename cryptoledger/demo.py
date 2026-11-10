@@ -119,6 +119,13 @@ def seed(ctx: Context) -> None:
                          snapshot_source=None)
 
     classify.run(ctx)
+    # Wallet check, as a sync does it: live balances vs the transactions.
+    from . import check
+    from .adapters import get_adapter
+    for w in ctx.wallets():
+        live = {r["asset_key"]: Decimal(r["amount"]) for r in ctx.db.query(
+            "SELECT asset_key, amount FROM current_balances WHERE wallet_id=?", (w["id"],))}
+        check.run(ctx, w, get_adapter(ctx, ctx.networks.get(w["network"])), live)
     ctx.db.execute("UPDATE movements SET category='reward', category_source='user' WHERE uid='t3:in'")
     ctx.db.execute("UPDATE movements SET category='payment', category_source='user' WHERE uid='t4:out'")
     prices = PriceService(ctx)

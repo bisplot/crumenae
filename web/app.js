@@ -214,7 +214,7 @@
         el('td', { class: 'num' }, eur(w.value_now), w.unpriced ? el('div', { class: 'small muted', text: `+${w.unpriced} unpriced` }) : null),
         el('td', { class: 'num' }, w.value_last_year_end === null ? '—' : eur(w.value_last_year_end),
           w.last_year_complete === false ? el('div', { class: 'small neg', text: 'incomplete' }) : null),
-        el('td', {}, w.last_error ? badge('error', 'err') : !w.active ? badge('paused') : w.last_sync_at || w.network === 'manual' ? badge('ok', 'ok') : badge('not synced', 'warn'))))));
+        el('td', {}, statusBadge(w))))));
 
     const flags = d.flags.length ? card('Needs attention', null, el('div', { class: 'flags' },
       d.flags.map((f) => el('div', { class: 'flag' + (f.level === 'error' ? ' error' : ''), text: f.text })))) : null;
@@ -399,6 +399,39 @@
         : el('span', { class: 'muted', text: short(m.tx_hash, 6, 4), title: txTitle })));
   }
 
+  // --- wallet check: live balance vs the balance rebuilt from the transactions -------------------
+  function statusBadge(w) {
+    if (w.last_error) return badge('error', 'err');
+    if (!w.active) return badge('paused');
+    if (!w.last_sync_at && w.network !== 'manual') return badge('not synced', 'warn');
+    const c = w.check || {};
+    if (c.status === 'diff') return badge('check', 'warn');
+    if (c.status === 'partial') return badge('incomplete', 'warn');
+    return badge('ok', 'ok');
+  }
+
+  function checkLine(w) {
+    const c = w.check || {};
+    if (c.status === 'ok') return el('div', { class: 'small pos', title: 'Each asset\'s live balance equals the balance rebuilt from the synced transactions.', text: '✓ matches the transactions' });
+    if (c.status === 'diff') return el('a', { href: '#', class: 'small warn-text', text: `⚠ ${c.count} asset(s) differ from the transactions`, onclick: (e) => { e.preventDefault(); showCheck(w); } });
+    if (c.status === 'partial') return el('a', { href: '#', class: 'small warn-text', text: '⚠ live balance incomplete', onclick: (e) => { e.preventDefault(); showCheck(w); } });
+    return null;
+  }
+
+  function showCheck(w) {
+    const c = w.check || {};
+    const num = (v) => (v === null || v === undefined ? 'not read' : String(v));
+    openModal(el('h2', { text: `Check · ${w.label}` }),
+      el('p', { class: 'help', text: 'After each sync the live balance is compared with the balance rebuilt from the synced transactions. A difference means the history is incomplete or wrong (a transaction the provider did not return, a fee not recorded, a token without decimals…): a year-end value built from that history would be wrong too.' }),
+      c.not_read && c.not_read.length ? el('div', { class: 'flags' }, c.not_read.map((t) => el('div', { class: 'flag', text: 'Not read: ' + t }))) : null,
+      c.assets && c.assets.length ? table(['Asset', '#Live', '#Transactions', '#Difference'], c.assets.map((a) => el('tr', {},
+        el('td', { text: a.symbol, title: a.asset_key }), el('td', { class: 'num', text: num(a.live) }),
+        el('td', { class: 'num', text: num(a.history) }), el('td', { class: 'num', text: a.difference === null ? '—' : String(a.difference) })))) : null,
+      c.count > (c.assets || []).length ? el('p', { class: 'muted small', text: `…and ${c.count - c.assets.length} more` }) : null,
+      el('p', { class: 'muted small', text: `Checked ${when(c.at)}. Sync again after a few minutes: a transaction made during the sync can show as a difference once.` }),
+      el('div', { class: 'actions' }, el('button', { class: 'btn', type: 'button', text: 'Close', onclick: closeModal })));
+  }
+
   async function pageWallets(root) {
     const [nets, wallets, cfg] = await Promise.all([api.get('/api/networks'), api.get('/api/wallets'), api.get('/api/settings')]);
     const byId = Object.fromEntries(nets.map((n) => [n.id, n]));
@@ -475,7 +508,9 @@
         el('td', { class: 'mono small' }, w.address ? (w.address_url ? el('a', { href: w.address_url, target: '_blank', rel: 'noopener noreferrer', text: short(w.address, 8, 6), title: w.address }) : short(w.address, 8, 6)) : '—'),
         el('td', { text: w.portfolio }),
         el('td', { class: 'num', text: w.rw_slot ?? '—' }),
-        el('td', { class: 'small' }, w.last_error ? el('span', { class: 'neg', text: w.last_error }) : w.network === 'manual' ? el('span', { class: 'muted', text: 'manual entries' }) : when(w.last_sync_at)),
+        el('td', { class: 'small' }, w.last_error ? el('span', { class: 'neg', text: w.last_error }) : w.network === 'manual' ? el('span', { class: 'muted', text: 'manual entries' }) : el('div', {}, when(w.last_sync_at)),
+          !w.last_error ? checkLine(w) : null,
+          w.last_warning ? el('div', { class: 'muted small', title: w.last_warning, text: '⚠ ' + (w.last_warning.length > 60 ? w.last_warning.slice(0, 57) + '…' : w.last_warning) }) : null),
         el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end' },
           w.network !== 'manual' ? el('button', { class: 'btn small', type: 'button', text: 'Sync', onclick: () => startJob('sync', { wallet_ids: [w.id] }) }) : null,
           el('button', { class: 'btn small', type: 'button', text: 'Edit', onclick: () => editWallet(w, byId[w.network]) }),

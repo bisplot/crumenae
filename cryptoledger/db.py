@@ -192,6 +192,10 @@ class Database:
         ("wallets", "platform", "TEXT NOT NULL DEFAULT ''"),
         ("wallets", "staking", "INTEGER NOT NULL DEFAULT 0"),
         ("wallets", "lost", "INTEGER NOT NULL DEFAULT 0"),
+        ("wallets", "last_warning", "TEXT"),           # warnings of the last sync (it still completed)
+        ("wallets", "check_status", "TEXT"),           # live balance vs history: ok | diff | partial | n/a
+        ("wallets", "check_detail", "TEXT"),           # JSON: the assets that differ, or what was not read
+        ("wallets", "check_at", "INTEGER"),
         ("movements", "from_address", "TEXT NOT NULL DEFAULT ''"),
         ("movements", "to_address", "TEXT NOT NULL DEFAULT ''"),
     )

@@ -248,6 +248,7 @@ class BinanceAdapter(Adapter):
         except AdapterError as e:
             earn_ok = False
             log(f"{wallet['label']}: Simple Earn positions unavailable ({e})")
+            self.partial.append(f"Simple Earn not read ({e})")
 
         account = self._signed(wallet, "GET", "/api/v3/account", {"omitZeroBalances": "true"})
         for b in account.get("balances") or []:
@@ -263,6 +264,7 @@ class BinanceAdapter(Adapter):
                     + D(b.get("withdrawing")))
         except AdapterError as e:
             log(f"{wallet['label']}: Funding wallet unavailable ({e})")
+            self.partial.append(f"Funding wallet not read ({e})")
         for key in known_assets:
             if key.startswith(net + ":") and key not in totals:
                 totals[key] = ZERO
