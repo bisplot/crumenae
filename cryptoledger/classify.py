@@ -32,10 +32,6 @@ def run(ctx) -> int:
     for w in ctx.wallets():
         if w["address"]:
             own[w["network"]].add(w["address"].lower())
-    # Stake accounts are yours too: moving coins in or out of them is not a disposal.
-    for r in ctx.db.query("SELECT DISTINCT asset_key FROM movements WHERE asset_key LIKE '%:stake:%'"):
-        net, _, account = r["asset_key"].split(":", 2)
-        own[net].add(account.lower())
 
     linked: Set[str] = {r["tx_hash"].lower() for r in ctx.db.query(
         "SELECT tx_hash FROM movements WHERE tx_hash<>'' AND kind<>'fee'"

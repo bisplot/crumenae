@@ -78,26 +78,11 @@ def seed(ctx: Context) -> None:
                  balance_after=D("10")),
         Movement("s2:fee", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-0.000005"), "fee",
                  balance_after=D("7.499995")),
-    ]
-    # Native staking: 2.5 SOL delegated to a validator from a stake account, rewards each epoch.
-    stake_acct = b58encode(bytes([7] * 32))
-    staked = assets_mod.staked_asset(nets["solana"], stake_acct)
-    assets_mod.upsert(ctx, [staked])
-    sol_moves += [
-        Movement("s2:out", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-2.5"), "out", stake_acct,
+        Movement("s2:out", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-2.5"), "out",
                  balance_after=D("7.499995")),
-        Movement(f"s2:stake:{stake_acct}", "5demoSig2", _t("2025-09-01T11:00:00"), staked.key, D("2.5"), "in",
-                 sol["address"], info="stake", balance_after=D("2.5")),
     ]
-    bal = D("2.5")
-    for i, day in enumerate(("2025-10-03", "2025-11-07", "2025-12-12", "2026-01-16")):
-        bal += D("0.0012")
-        sol_moves.append(Movement(f"stake:{stake_acct}:reward:{900 + i}", "", _t(day + "T06:00:00"), staked.key,
-                                  D("0.0012"), "in", "", info="reward: Solana staking", balance_after=bal))
     ledger.store_sync_result(ctx, sol, SyncResult(movements=sol_moves))
-    ledger.store_current(ctx, sol["id"], {sol_native.key: D("7.499995"), staked.key: bal}, now())
-    ledger.store_staking(ctx, sol["id"], [StakePosition(staked.key, bal, protocol="Solana native staking",
-                                                         validator=b58encode(bytes([8] * 32)))], now())
+    ledger.store_current(ctx, sol["id"], {sol_native.key: D("7.499995")}, now())
 
     btc_moves = [
         Movement("b1", "f1" * 32, _t("2022-12-20T08:00:00"), btc_native.key, D("0.05"), "in", "bc1qsender"),

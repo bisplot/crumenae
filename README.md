@@ -161,17 +161,12 @@ rewards are income at their EUR value on the day received (which becomes their c
 |---|---|---|
 | Terra, Terra Classic | delegations per validator (name included), unbonding, unclaimed rewards | claimed rewards: category `reward` |
 | Tron (Stake 2.0) | frozen TRX, unfreezing TRX, the Super Representatives voted for, unclaimed voting rewards | claimed voting rewards: category `reward` |
-| Solana native staking | every stake account the wallet can withdraw from (closed ones found in the history), its validator, active / deactivating / withdrawable | each epoch's reward, read with `getInflationReward`: income at the time it was credited |
 | Binance Simple Earn | flexible and locked positions | imported by each sync |
 | Liquid-staking tokens | stETH, wstETH, rETH, cbETH, osETH, mETH, wBETH, mSOL, JitoSOL, bSOL, JupSOL held by any wallet | the token's growth in value (no transaction) |
 
-These staked coins are part of each wallet's balance and year-end values. Unclaimed rewards are
-shown but are not income until you claim them. On Solana each stake account is its own asset,
-"SOL (staked)" (grouped with SOL on the Dashboard), and its year-end balance is the chain's
-balance after the last transaction or reward before the cutoff. The first sync of a stake account
-reads one reward call per epoch (about 165 a year) from the year before your first fiscal year:
-with the slow public endpoint that takes a few minutes, a free Helius or Alchemy key is faster.
-Coming next: MetaMask Pooled Staking (ETH) and Ronin RON staking.
+These staked coins are already part of each wallet's balance and year-end values. Unclaimed
+rewards are shown but are not income until you claim them. Coming next: Solana native staking
+(stake accounts), MetaMask Pooled Staking (ETH) and Ronin RON staking.
 
 **Manual**: staking the app cannot read (inside Ledger Live, an exchange without API): press
 **+ Add position** on the Staking page to create a manual account, then enter the quantity at

@@ -78,13 +78,6 @@ reads the positions themselves (staked, unbonding, unclaimed rewards per validat
 Simple Earn products, liquid-staking tokens held) for the Staking page; that reading does not
 change any balance. Manual accounts ticked as staking are valued from their year-end entries.
 
-Solana native staking: each stake account whose withdraw authority is the wallet is a separate
-asset of that wallet ("SOL (staked)", priced as SOL). Its balance is anchored to the chain: the
-balance after each transaction that touches it, and after each epoch's inflation reward
-(`getInflationReward` gives the reward and the post-reward balance). Moving SOL into or out of a
-stake account is an internal transfer. Rewards are paid over a few blocks at the start of the next
-epoch; each is dated from its block (one block time per epoch, the others at 0.4 s per slot).
-
 Rewards are movements with category `reward`, valued in EUR at the moment of receipt: claimed
 Terra rewards, claimed Tron voting rewards (WithdrawBalance), Binance Simple Earn rewards, and
 rewards typed by hand on manual accounts (they never change a manual balance). Unclaimed rewards
