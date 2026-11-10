@@ -70,47 +70,8 @@ def seed(ctx: Context) -> None:
         Movement("t4:out", h3, _t("2025-05-10T12:30:00"), usdc.key, D("-300"), "out", "0xshop"),
         Movement("t5:spam", "0x" + "e5" * 32, _t("2025-11-02T03:00:00"), spam.key, D("5000"), "in", "0xspammer"),
     ]
-    # MetaMask Pooled Staking: 0.5 ETH into a StakeWise vault; its rewards raise the vault's value.
-    vault = "0x00000000000000000000000000000000000057a1"
-    vault_asset = assets_mod.staked_asset(nets["ethereum"], vault, "MetaMask Pooled Staking / StakeWise")
-    assets_mod.upsert(ctx, [vault_asset])
-    h6 = "0x" + "f6" * 32
-    eth_moves += [
-        Movement("t6:out", h6, _t("2025-07-01T09:00:00"), eth_native.key, D("-0.5"), "out", vault),
-        Movement(f"{h6}:log:0:stake", h6, _t("2025-07-01T09:00:00"), vault_asset.key, D("0.5"), "in",
-                 eth["address"], info="stake: deposit", balance_after=D("0.5")),
-    ]
     ledger.store_sync_result(ctx, eth, SyncResult(movements=eth_moves))
-    ledger.store_current(ctx, eth["id"], {eth_native.key: D("1.0947"), usdc.key: D("605.12"), spam.key: D("5000"),
-                                          vault_asset.key: D("0.5123")}, now())
-    ledger.store_staking(ctx, eth["id"], [StakePosition(
-        vault_asset.key, D("0.5123"), protocol="MetaMask Pooled Staking / StakeWise",
-        validator=f"vault {vault[:6]}…{vault[-4:]} · rewards so far 0.012300 (already in the value)")], now())
-
-    # Ronin: 200 RON delegated to a validator; rewards claimed once.
-    ron_native = assets_mod.native_asset(nets["ronin"])
-    proxy = "0x545edb750eb8769c868429be9586f5857a768758"
-    ron_staked = assets_mod.staked_asset(nets["ronin"], proxy, "Ronin staking")
-    pool = "0x00000000000000000000000000000000000f0015"
-    assets_mod.upsert(ctx, [ron_native, ron_staked])
-    ron = _wallet(ctx, "Ronin Wallet (demo)", "ronin", "0x0000000000000000000000000000000000de0003", rw_slot=6,
-                  platform="Ronin Wallet")
-    r1, r2, r3 = "0x" + "71" * 32, "0x" + "72" * 32, "0x" + "73" * 32
-    ledger.store_sync_result(ctx, ron, SyncResult(movements=[
-        Movement("r1:in", r1, _t("2025-04-01T10:00:00"), ron_native.key, D("250"), "in", "0xkatana"),
-        Movement("r2:out", r2, _t("2025-04-02T10:00:00"), ron_native.key, D("-200"), "out", proxy),
-        Movement(f"{r2}:log:0:stake", r2, _t("2025-04-02T10:00:00"), ron_staked.key, D("200"), "in", ron["address"],
-                 info=f"stake: delegated to {pool[:6]}…{pool[-4:]}"),
-        Movement(f"{r3}:log:0:stake:reward", r3, _t("2025-10-15T10:00:00"), ron_staked.key, D("12"), "in", pool,
-                 info=f"reward: Ronin staking ({pool[:6]}…{pool[-4:]})"),
-        Movement(f"{r3}:log:0:stake:claim", r3, _t("2025-10-15T10:00:00"), ron_staked.key, D("-12"), "out",
-                 ron["address"], info="stake: rewards claimed"),
-        Movement("r3:in", r3, _t("2025-10-15T10:00:00"), ron_native.key, D("12"), "in", proxy, info="internal"),
-    ]))
-    ledger.store_current(ctx, ron["id"], {ron_native.key: D("62"), ron_staked.key: D("200")}, now())
-    ledger.store_staking(ctx, ron["id"], [StakePosition(ron_staked.key, D("200"), pending_rewards=D("3.4"),
-                                                        protocol="Ronin staking",
-                                                        validator=f"validator {pool[:6]}…{pool[-4:]}")], now())
+    ledger.store_current(ctx, eth["id"], {eth_native.key: D("1.5947"), usdc.key: D("605.12"), spam.key: D("5000")}, now())
 
     sol_moves = [
         Movement("s1:in", "5demoSig1", _t("2025-03-05T15:00:00"), sol_native.key, D("10"), "in", "binance",

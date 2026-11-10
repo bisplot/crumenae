@@ -420,7 +420,7 @@
     // Staked now: found automatically at each sync (no tick needed).
     const pend = (p) => Number(p.pending_rewards) ? `${qty(p.pending_rewards)} ${p.symbol}` : '—';
     const stakedCard = card('Staked now', el('span', { class: 'muted small', text: d.staked.length ? `read at the last sync, ${when(Math.max(...d.staked.map((p) => p.fetched_at || 0)))}` : '' }),
-      el('p', { class: 'help', text: 'Found automatically at each sync: Solana stake accounts, delegations on Terra and Terra Classic, frozen TRX on Tron, RON staked on Ronin, MetaMask Pooled Staking (ETH), Binance Simple Earn, and liquid-staking tokens (stETH, rETH, mSOL, JitoSOL…). Staked coins are already part of each wallet\'s balance and year-end values. Unclaimed rewards are not income until you claim them; claimed rewards are listed below.' }),
+      el('p', { class: 'help', text: 'Found automatically at each sync: Solana stake accounts, delegations on Terra and Terra Classic, frozen TRX on Tron, Binance Simple Earn, and liquid-staking tokens (stETH, rETH, mSOL, JitoSOL…). Staked coins are already part of each wallet\'s balance and year-end values. Unclaimed rewards are not income until you claim them; claimed rewards are listed below.' }),
       d.staked.length ? table(['Wallet', 'Staking', '#Staked', '#Unbonding', '#Unclaimed rewards', '#Value now €'], d.staked.map((p) => el('tr', {},
         el('td', {}, el('strong', { text: p.wallet.label }), p.wallet.lost ? [' ', badge('lost', 'lost')] : null,
           el('div', { class: 'muted small', text: p.wallet.network_name })),
