@@ -22,20 +22,6 @@ def native_asset(network) -> AssetInfo:
     )
 
 
-def staked_asset(network, account: str, label: str = "") -> AssetInfo:
-    """Coins in a stake account (a Solana stake account, a staking contract or vault on an EVM
-    chain): its own asset, so its balance comes from the chain; priced like the native coin,
-    grouped with it on the Dashboard."""
-    n = network.native or {}
-    sym = n.get("symbol", "?")
-    short = f"{account[:4]}…{account[-4:]}" if not account.startswith("0x") else f"{account[:6]}…{account[-4:]}"
-    return AssetInfo(
-        key=f"{network.id}:stake:{account}", network=network.id, symbol=f"{sym} (staked)"[:24],
-        name=f"{label} {short}" if label else f"Stake account {short}", decimals=n.get("decimals"),
-        coingecko_id=n.get("coingecko"), binance_symbol=n.get("binance"), status="known",
-    )
-
-
 def token_asset(ctx, network, contract: str, symbol: str = "", name: str = "",
                 decimals: Optional[int] = None) -> AssetInfo:
     known = (ctx.tokens.get(network.id) or {}).get(contract)

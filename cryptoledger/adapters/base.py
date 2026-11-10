@@ -6,7 +6,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional
 
-from ..models import AdapterError, AssetInfo, Movement, Snapshot, StakePosition, SyncResult  # noqa: F401
+from ..models import AdapterError, AssetInfo, Movement, Snapshot, SyncResult  # noqa: F401
 
 Logger = Callable[[str], None]
 
@@ -21,7 +21,6 @@ class Adapter:
     def __init__(self, ctx, network):
         self.ctx = ctx
         self.network = network
-        self.staking_found: List[StakePosition] = []   # filled by current_balances where it reads them
 
     # --- required ---------------------------------------------------------------
     def validate_address(self, address: str) -> str:
@@ -42,11 +41,6 @@ class Adapter:
                    log: Logger) -> Optional[Dict[str, Decimal]]:
         """Balances read from chain state at time `ts` (archive node). None = unsupported."""
         return None
-
-    def staking_positions(self, wallet: Dict[str, Any], log: Logger) -> List[StakePosition]:
-        """Staking positions, read live; called right after current_balances (same instance), so
-        an adapter can return what it already read there. Default: none."""
-        return list(self.staking_found)
 
     # --- helpers ----------------------------------------------------------------
     def secret(self, name: str) -> Optional[str]:

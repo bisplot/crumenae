@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .. import assets as assets_mod
 from ..http import HttpError
 from ..util import scaled
-from . import evm_staking, register
+from . import register
 from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -213,7 +213,6 @@ class EvmAdapter(Adapter):
         result.assets = list(seen_assets.values())
         result.state["last_block"] = max_block
         result.state["reader"] = "etherscan"
-        evm_staking.ContractStaking(self).sync(wallet, result, moves, log)
         return result
 
     # --- live balances ----------------------------------------------------------
@@ -229,8 +228,6 @@ class EvmAdapter(Adapter):
             out[native.key] = scaled(self._api({"module": "account", "action": "balance",
                                                 "address": addr, "tag": "latest"}), native.decimals or 18)
             for key in tokens:
-                if key.startswith(self.network.id + ":stake:"):
-                    continue
                 contract = key.split(":", 1)[1]
                 raw = self._api({"module": "account", "action": "tokenbalance",
                                  "contractaddress": contract, "address": addr, "tag": "latest"})
@@ -240,9 +237,7 @@ class EvmAdapter(Adapter):
             out.update(bal or {})
         else:
             raise AdapterError(f"{self.network.name}: configure an explorer API or RPC URL")
-        infos: List[AssetInfo] = [native]
-        evm_staking.add_live(self, wallet, out, infos, log)
-        return out, infos
+        return out, [native]
 
     # --- chain state at a past moment (archive RPC) -----------------------------
     def _rpc_url(self) -> Optional[str]:
@@ -281,8 +276,7 @@ class EvmAdapter(Adapter):
         if not self._rpc_url():
             return None
         addr = wallet["address"].lower()
-        block = None if ts is None else self.block_at(ts)
-        tag = "latest" if block is None else hex(block)
+        tag = "latest" if ts is None else hex(self.block_at(ts))
         native = assets_mod.native_asset(self.network)
         decimals = {r["key"]: r["decimals"] for r in self.ctx.db.query(
             "SELECT key, decimals FROM assets WHERE network=?", (self.network.id,))}
@@ -292,15 +286,13 @@ class EvmAdapter(Adapter):
             for key in asset_keys:
                 if key == native.key or not key.startswith(self.network.id + ":"):
                     continue
-                if decimals.get(key) is None or key.startswith(self.network.id + ":stake:"):
-                    continue  # unknown decimals: cannot scale, leave to reconstruction; staking: below
+                if decimals.get(key) is None:
+                    continue  # unknown decimals: cannot scale, leave to reconstruction
                 contract = key.split(":", 1)[1]
                 data = BALANCE_OF + addr[2:].rjust(64, "0")
                 raw = self._rpc("eth_call", [{"to": contract, "data": data}, tag])
                 value = int(raw, 16) if raw and raw != "0x" else 0
                 out[key] = scaled(value, decimals[key])
-            if ts is not None:   # coins in staking contracts (live: read by current_balances)
-                evm_staking.add_at(self, wallet, block, asset_keys, out)
         except (AdapterError, HttpError, ValueError, TypeError) as e:
             log(f"{wallet['label']}: chain-state read failed ({e}); the RPC may not be an archive node")
             return None

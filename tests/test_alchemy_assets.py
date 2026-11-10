@@ -130,8 +130,8 @@ class SpamHiddenTest(unittest.TestCase):
 
 
 
-class BinanceEarnPositionsTest(unittest.TestCase):
-    def test_earn_positions_on_staking_page(self):
+class BinanceEarnBalanceTest(unittest.TestCase):
+    def test_simple_earn_is_part_of_the_account_balance(self):
         from test_adapters import binance_handler
         t = TempContext(FakeHttp().on("https://api.binance.com", binance_handler))
         try:
@@ -139,14 +139,8 @@ class BinanceEarnPositionsTest(unittest.TestCase):
             w = add_wallet(ctx, "binance", "", label="Binance")
             ctx.secrets.set(f"wallet:{w['id']}:api_key", "k")
             ctx.secrets.set(f"wallet:{w['id']}:api_secret", "s")
-            from cryptoledger import sync
-            adapter = get_adapter(ctx, ctx.networks.get("binance"))
-            adapter.current_balances(w, [], LOG)
-            sync.store_staking(ctx, adapter, w, LOG)
-            pos = views.staking(ctx, 2025)["staked"]
-            self.assertEqual(len(pos), 1)
-            self.assertEqual((pos[0]["protocol"], pos[0]["validator"]), ("Binance Simple Earn", "Flexible"))
-            self.assertEqual((pos[0]["asset_key"], pos[0]["staked"]), ("binance:USDC", "100"))
+            bal, _ = get_adapter(ctx, ctx.networks.get("binance")).current_balances(w, [], LOG)
+            self.assertEqual(bal["binance:USDC"], Decimal(100))     # held in Simple Earn
         finally:
             t.close()
 

@@ -148,55 +148,17 @@ python3 -m pip install -r requirements-optional.txt
    wallet for its network and the tx link for the full hash and the counterparty. Change the
    category in place. Spam is hidden by default: choose **All, spam included** or **spam** in
    the category filter to see it.
-8. **Staking**: your staking positions and the rewards of each fiscal year (see below).
 
-### Staking
+### Staked coins
 
-Staked coins are still yours: they belong in the RW and the IC at their year-end value, and
-rewards are income at their EUR value on the day received (which becomes their cost).
-
-**Found automatically at each sync** (Staking page → **Staked now**, no tick needed):
-
-| Staking | What is read | Rewards |
-|---|---|---|
-| Terra, Terra Classic | delegations per validator (name included), unbonding, unclaimed rewards | claimed rewards: category `reward` |
-| Tron (Stake 2.0) | frozen TRX, unfreezing TRX, the Super Representatives voted for, unclaimed voting rewards | claimed voting rewards: category `reward` |
-| Solana native staking | every stake account the wallet can withdraw from (closed ones found in the history), its validator, active / deactivating / withdrawable | each epoch's reward, read with `getInflationReward`: income at the time it was credited |
-| Ronin RON staking | RON delegated per validator through Ronin's staking contract, unclaimed rewards | claimed rewards (also when restaked with "Claim and restake"): category `reward` |
-| MetaMask Pooled Staking (ETH) and other StakeWise vaults | the vault's value of your shares, ETH waiting in the exit queue, rewards so far | the vault's growth in value (no transaction) |
-| Binance Simple Earn | flexible and locked positions | imported by each sync |
-| Liquid-staking tokens | stETH, wstETH, rETH, cbETH, osETH, mETH, wBETH, mSOL, JitoSOL, bSOL, JupSOL held by any wallet | the token's growth in value (no transaction) |
-
-These staked coins are part of each wallet's balance and year-end values. Unclaimed rewards are
-shown but are not income until you claim them. On Solana each stake account is its own asset,
-"SOL (staked)" (grouped with SOL on the Dashboard), and its year-end balance is the chain's
-balance after the last transaction or reward before the cutoff. The first sync of a stake account
-reads one reward call per epoch (about 165 a year) from the year before your first fiscal year:
-with the slow public endpoint that takes a few minutes, a free Helius or Alchemy key is faster.
-
-Ronin and MetaMask Pooled Staking are read from the staking contracts through your **Alchemy** key
-(also when Ethereum's history comes from Etherscan), so save it in Settings → API providers and
-enable Ethereum and Ronin on the Alchemy app. The coins in each contract are an asset of the wallet,
-"RON (staked)" / "ETH (staked)", grouped with the coin on the Dashboard; the year-end value is read
-from the contract at the cutoff block. The vault is found by itself among the contracts the wallet
-sent ETH to (a couple of calls per contract, once). The first sync reads the contract's events
-from your first stake: a few seconds, or a minute for staking that started years ago.
-
-**Manual**: staking the app cannot read (inside Ledger Live, an exchange without API): press
-**+ Add position** on the Staking page to create a manual account, then enter the quantity at
-each year-end.
-
-- **Manual accounts**: a manual wallet ticked **Staking position** (Wallets → Edit) is listed
-  under **Manual staking accounts**, valued at the cutoff like every wallet (year-end balances,
-  RW and IC); **Enter balance** at each year-end.
-- **Rewards**: every movement with the category `reward`, per fiscal year, with quantity and EUR
-  value on receipt, totals per asset. **Binance Simple Earn** rewards (flexible and locked) are
-  imported automatically by each sync of a Binance account (history from December 2022, the
-  start of Simple Earn). On-chain rewards come from the synced history (set the category on the
-  Transactions page; **Open in Transactions** lists them). Rewards credited
-  without a transaction can be typed on manual accounts (date, asset, quantity): they are
-  valued in EUR at that moment and appear in `transactions_YYYY.csv` with type `reward`.
-  Typed rewards do not change a manual balance: keep entering the year-end quantity.
+There is no staking feature: each wallet shows what its own address or account reports.
+Already included in the balances (and so in the year-end values, the RW and the IC): Terra and
+Terra Classic delegated and unbonding coins, Tron frozen TRX, Binance Simple Earn (flexible and
+locked). Rewards that arrive as transactions (claimed Terra and Tron rewards, Binance Simple Earn
+rewards) are imported with the category `reward`; you can set that category on any other movement
+on the Transactions page. **Not read**: other staking (e.g. Solana stake accounts, Ronin staking,
+MetaMask Pooled Staking): for the RW, add a manual account (Wallets → Add, "Manual / other
+platform") and enter its year-end balance.
 
 ### Lost wallets
 
@@ -211,7 +173,7 @@ wallet:
   Transactions filter;
 - no longer asks for live prices;
 - **stays in the year-end values, the RW report and the exports**, with a "lost" badge on the
-  Year-end and Staking pages: the coins still exist on the chain. Whether to report them is a
+  Year-end page: the coins still exist on the chain. Whether to report them is a
   tax question: check it with a professional.
 
 ### Start over
@@ -279,8 +241,8 @@ ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice.
 
 Terra (LUNA) and Terra Classic (LUNC, USTC) are read from PublicNode's public APIs, no key: add
 your `terra1…` address on the Wallets page (the same address works on both chains: add it once
-per chain). The live balance includes staked and unbonding coins (still yours); staking rewards
-are imported as `reward` (Staking page). Public nodes keep only recent transactions, so the
+per chain). The live balance includes staked and unbonding coins (still yours); claimed staking
+rewards are imported as `reward`. Public nodes keep only recent transactions, so the
 year-end balance of these chains comes from the balance read at each sync, a snapshot near the
 cutoff, or a manual entry (Year-end → Enter manually), never from a partial history. Terra
 Classic's old fiat stablecoins (KRTC, EUTC… the dust left by staking rewards) are ghost assets

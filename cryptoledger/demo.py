@@ -10,7 +10,7 @@ from . import assets as assets_mod
 from . import classify, ledger, yearend
 from .b58 import b58encode
 from .context import Context
-from .models import AssetInfo, Movement, Snapshot, StakePosition, SyncResult
+from .models import AssetInfo, Movement, Snapshot, SyncResult
 from .prices import PriceService
 from .util import now
 
@@ -52,7 +52,7 @@ def seed(ctx: Context) -> None:
     sol = _wallet(ctx, "Phantom (demo)", "solana", b58encode(bytes(range(1, 33))), rw_slot=2, created="2025-03-01",
                   platform="Phantom")
     btc = _wallet(ctx, "Bitcoin cold wallet (demo)", "bitcoin", "bc1q" + "q" * 38, rw_slot=4, platform="Ledger")
-    man = _wallet(ctx, "Ledger Live staking (manual)", "manual", "", rw_slot=5, platform="Ledger Live")
+    man = _wallet(ctx, "Ledger Live (manual)", "manual", "", rw_slot=5, platform="Ledger Live")
     _wallet(ctx, "Client wallet (demo)", "ethereum", "0x0000000000000000000000000000000000de0002",
             portfolio="Client A")
 
@@ -70,73 +70,19 @@ def seed(ctx: Context) -> None:
         Movement("t4:out", h3, _t("2025-05-10T12:30:00"), usdc.key, D("-300"), "out", "0xshop"),
         Movement("t5:spam", "0x" + "e5" * 32, _t("2025-11-02T03:00:00"), spam.key, D("5000"), "in", "0xspammer"),
     ]
-    # MetaMask Pooled Staking: 0.5 ETH into a StakeWise vault; its rewards raise the vault's value.
-    vault = "0x00000000000000000000000000000000000057a1"
-    vault_asset = assets_mod.staked_asset(nets["ethereum"], vault, "MetaMask Pooled Staking / StakeWise")
-    assets_mod.upsert(ctx, [vault_asset])
-    h6 = "0x" + "f6" * 32
-    eth_moves += [
-        Movement("t6:out", h6, _t("2025-07-01T09:00:00"), eth_native.key, D("-0.5"), "out", vault),
-        Movement(f"{h6}:log:0:stake", h6, _t("2025-07-01T09:00:00"), vault_asset.key, D("0.5"), "in",
-                 eth["address"], info="stake: deposit", balance_after=D("0.5")),
-    ]
     ledger.store_sync_result(ctx, eth, SyncResult(movements=eth_moves))
-    ledger.store_current(ctx, eth["id"], {eth_native.key: D("1.0947"), usdc.key: D("605.12"), spam.key: D("5000"),
-                                          vault_asset.key: D("0.5123")}, now())
-    ledger.store_staking(ctx, eth["id"], [StakePosition(
-        vault_asset.key, D("0.5123"), protocol="MetaMask Pooled Staking / StakeWise",
-        validator=f"vault {vault[:6]}…{vault[-4:]} · rewards so far 0.012300 (already in the value)")], now())
-
-    # Ronin: 200 RON delegated to a validator; rewards claimed once.
-    ron_native = assets_mod.native_asset(nets["ronin"])
-    proxy = "0x545edb750eb8769c868429be9586f5857a768758"
-    ron_staked = assets_mod.staked_asset(nets["ronin"], proxy, "Ronin staking")
-    pool = "0x00000000000000000000000000000000000f0015"
-    assets_mod.upsert(ctx, [ron_native, ron_staked])
-    ron = _wallet(ctx, "Ronin Wallet (demo)", "ronin", "0x0000000000000000000000000000000000de0003", rw_slot=6,
-                  platform="Ronin Wallet")
-    r1, r2, r3 = "0x" + "71" * 32, "0x" + "72" * 32, "0x" + "73" * 32
-    ledger.store_sync_result(ctx, ron, SyncResult(movements=[
-        Movement("r1:in", r1, _t("2025-04-01T10:00:00"), ron_native.key, D("250"), "in", "0xkatana"),
-        Movement("r2:out", r2, _t("2025-04-02T10:00:00"), ron_native.key, D("-200"), "out", proxy),
-        Movement(f"{r2}:log:0:stake", r2, _t("2025-04-02T10:00:00"), ron_staked.key, D("200"), "in", ron["address"],
-                 info=f"stake: delegated to {pool[:6]}…{pool[-4:]}"),
-        Movement(f"{r3}:log:0:stake:reward", r3, _t("2025-10-15T10:00:00"), ron_staked.key, D("12"), "in", pool,
-                 info=f"reward: Ronin staking ({pool[:6]}…{pool[-4:]})"),
-        Movement(f"{r3}:log:0:stake:claim", r3, _t("2025-10-15T10:00:00"), ron_staked.key, D("-12"), "out",
-                 ron["address"], info="stake: rewards claimed"),
-        Movement("r3:in", r3, _t("2025-10-15T10:00:00"), ron_native.key, D("12"), "in", proxy, info="internal"),
-    ]))
-    ledger.store_current(ctx, ron["id"], {ron_native.key: D("62"), ron_staked.key: D("200")}, now())
-    ledger.store_staking(ctx, ron["id"], [StakePosition(ron_staked.key, D("200"), pending_rewards=D("3.4"),
-                                                        protocol="Ronin staking",
-                                                        validator=f"validator {pool[:6]}…{pool[-4:]}")], now())
+    ledger.store_current(ctx, eth["id"], {eth_native.key: D("1.5947"), usdc.key: D("605.12"), spam.key: D("5000")}, now())
 
     sol_moves = [
         Movement("s1:in", "5demoSig1", _t("2025-03-05T15:00:00"), sol_native.key, D("10"), "in", "binance",
                  balance_after=D("10")),
         Movement("s2:fee", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-0.000005"), "fee",
                  balance_after=D("7.499995")),
-    ]
-    # Native staking: 2.5 SOL delegated to a validator from a stake account, rewards each epoch.
-    stake_acct = b58encode(bytes([7] * 32))
-    staked = assets_mod.staked_asset(nets["solana"], stake_acct)
-    assets_mod.upsert(ctx, [staked])
-    sol_moves += [
-        Movement("s2:out", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-2.5"), "out", stake_acct,
+        Movement("s2:out", "5demoSig2", _t("2025-09-01T11:00:00"), sol_native.key, D("-2.5"), "out",
                  balance_after=D("7.499995")),
-        Movement(f"s2:stake:{stake_acct}", "5demoSig2", _t("2025-09-01T11:00:00"), staked.key, D("2.5"), "in",
-                 sol["address"], info="stake", balance_after=D("2.5")),
     ]
-    bal = D("2.5")
-    for i, day in enumerate(("2025-10-03", "2025-11-07", "2025-12-12", "2026-01-16")):
-        bal += D("0.0012")
-        sol_moves.append(Movement(f"stake:{stake_acct}:reward:{900 + i}", "", _t(day + "T06:00:00"), staked.key,
-                                  D("0.0012"), "in", "", info="reward: Solana staking", balance_after=bal))
     ledger.store_sync_result(ctx, sol, SyncResult(movements=sol_moves))
-    ledger.store_current(ctx, sol["id"], {sol_native.key: D("7.499995"), staked.key: bal}, now())
-    ledger.store_staking(ctx, sol["id"], [StakePosition(staked.key, bal, protocol="Solana native staking",
-                                                         validator=b58encode(bytes([8] * 32)))], now())
+    ledger.store_current(ctx, sol["id"], {sol_native.key: D("7.499995")}, now())
 
     btc_moves = [
         Movement("b1", "f1" * 32, _t("2022-12-20T08:00:00"), btc_native.key, D("0.05"), "in", "bc1qsender"),
@@ -163,10 +109,6 @@ def seed(ctx: Context) -> None:
     ledger.store_sync_result(ctx, binance, SyncResult(movements=bmoves, snapshots=snaps))
     ledger.store_current(ctx, binance["id"], {bn["BTC"].key: D("0.041"), bn["ETH"].key: D("0.95"),
                                               bn["BNB"].key: D("2.1"), bn["EUR"].key: D("180")}, now())
-    # Found automatically at each sync (Staking page → Staked now): part of the balances above.
-    ledger.store_staking(ctx, binance["id"], [
-        StakePosition(bn["ETH"].key, D("0.5"), protocol="Binance Simple Earn", validator="Flexible"),
-        StakePosition(bn["BNB"].key, D("1.0"), protocol="Binance Simple Earn", validator="Locked")], now())
 
     cal = ctx.calendar
     for year, holdings in ((2022, {"DOT": "100"}), (2023, {"DOT": "100", "ADA": "1500"}),
@@ -176,14 +118,6 @@ def seed(ctx: Context) -> None:
     ledger.store_current(ctx, man["id"], {manual["DOT"].key: D("110"), manual["ADA"].key: D("1200")}, now(),
                          snapshot_source=None)
 
-    # Staking position with rewards typed by hand (DOT 104 -> 108 during 2025).
-    ctx.db.execute("UPDATE wallets SET staking=1 WHERE id=?", (man["id"],))
-    for day in ("2025-03-31", "2025-06-30", "2025-09-30", "2025-12-15"):
-        ts = _t(day + "T10:00:00")
-        ctx.db.execute(
-            "INSERT INTO movements(wallet_id, uid, ts, asset_key, amount, kind, category, category_source, note)"
-            " VALUES(?,?,?,?,?,?,?,?,?)", (man["id"], f"manual-reward:{ts}:DOT:demo", ts, manual["DOT"].key, "1", "in",
-                                           "reward", "user", "quarterly staking reward"))
     classify.run(ctx)
     ctx.db.execute("UPDATE movements SET category='reward', category_source='user' WHERE uid='t3:in'")
     ctx.db.execute("UPDATE movements SET category='payment', category_source='user' WHERE uid='t4:out'")
