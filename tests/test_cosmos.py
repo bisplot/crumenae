@@ -53,9 +53,10 @@ FAILED = tx("DD", 30, "2025-03-01T10:00:00Z", [{"@type": "/cosmos.bank.v1beta1.M
 
 def lcd_handler(method, url, params, payload):
     if url.endswith("/cosmos/tx/v1beta1/txs"):
-        q = params["query"]
+        q, _, since = params["query"].partition(" AND tx.height>=")
         assert params["order_by"] == "ORDER_BY_ASC"
         rows = [SEND, DELEGATE, FAILED] if q == f"message.sender='{ME}'" else [RECEIVE, DELEGATE]
+        rows = [r for r in rows if int(r["height"]) >= int(since or 0)]
         return {"tx_responses": rows, "total": str(len(rows)), "pagination": None}
     if url.endswith(f"/cosmos/bank/v1beta1/balances/{ME}"):
         return {"balances": [{"denom": "uluna", "amount": "3138000"}, {"denom": "uusd", "amount": "3000000"},
@@ -101,9 +102,30 @@ class CosmosTest(unittest.TestCase):
         ]))
         reward = next(m for m in res.movements if m.uid.endswith(":reward"))
         self.assertTrue(reward.info.startswith("reward:"))
-        self.assertEqual(res.state["counts"], {"sent": 3, "received": 2})
+        self.assertEqual(set(res.state["heights"]), {"sent", "received"})
         ustc = next(a for a in res.assets if a.key == "terra_classic:uusd")
         self.assertEqual((ustc.symbol, ustc.binance_symbol), ("USTC", "USTC"))
+
+    def test_pruned_node_does_not_hide_new_transactions(self):
+        """The node drops old transactions between two syncs: the next sync still reads the new one."""
+        first = self.adapter.sync(self.wallet, {}, LOG)
+        late = tx("EE", 40, "2025-04-01T10:00:00Z", [{"@type": "/cosmos.bank.v1beta1.MsgSend"}],
+                  fee_events("2000uluna"))
+
+        def pruned(method, url, params, payload):
+            if url.endswith("/cosmos/tx/v1beta1/txs"):
+                q, _, since = params["query"].partition(" AND tx.height>=")
+                rows = [FAILED, late] if q == f"message.sender='{ME}'" else []
+                rows = [r for r in rows if int(r["height"]) >= int(since or 0)]
+                return {"tx_responses": rows, "total": str(len(rows)), "pagination": None}
+            return lcd_handler(method, url, params, payload)
+        t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", pruned))
+        try:
+            again = get_adapter(t.ctx, t.ctx.networks.get("terra_classic")).sync(self.wallet, first.state, LOG)
+            self.assertIn("EE:fee:uluna", {m.uid for m in again.movements})
+            self.assertEqual(again.state["heights"]["sent"], 40)
+        finally:
+            t.close()
 
     def test_live_balances_include_staking(self):
         bal, infos = self.adapter.current_balances(self.wallet, [], LOG)

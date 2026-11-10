@@ -121,8 +121,7 @@ class BinanceAdapter(Adapter):
         deposits = withdrawals = 0
         while cursor < end_ms:
             window_end = min(cursor + WINDOW_MS, end_ms)
-            for d in self._signed(wallet, "GET", "/sapi/v1/capital/deposit/hisrec",
-                                  {"startTime": cursor, "endTime": window_end, "limit": 1000}) or []:
+            for d in self._all(wallet, "/sapi/v1/capital/deposit/hisrec", cursor, window_end):
                 if int(d.get("status", -1)) not in (1, 6):  # 1 success, 6 credited but cannot withdraw
                     continue
                 deposits += 1
@@ -131,8 +130,7 @@ class BinanceAdapter(Adapter):
                     uid=f"dep:{ident}", tx_hash=_clean_hash(d.get("txId")), ts=int(d["insertTime"]) // 1000,
                     asset_key=asset(d["coin"]), amount=D(d["amount"]), kind="in",
                     to_address=d.get("address", ""), info=f"deposit via {d.get('network', '')}"))
-            for w in self._signed(wallet, "GET", "/sapi/v1/capital/withdraw/history",
-                                  {"startTime": cursor, "endTime": window_end, "limit": 1000}) or []:
+            for w in self._all(wallet, "/sapi/v1/capital/withdraw/history", cursor, window_end):
                 if int(w.get("status", -1)) != 6:  # 6 = completed
                     continue
                 withdrawals += 1
@@ -159,6 +157,17 @@ class BinanceAdapter(Adapter):
             result.warnings.append(f"Simple Earn rewards not read: {e}")
         result.assets = list(assets.values())
         return result
+
+    def _all(self, wallet: Dict[str, Any], path: str, start_ms: int, end_ms: int) -> List[Dict[str, Any]]:
+        """Every deposit or withdrawal of a window: Binance returns at most 1000 per call, so read
+        the next ones with an offset instead of losing them."""
+        out: List[Dict[str, Any]] = []
+        while True:
+            batch = self._signed(wallet, "GET", path, {"startTime": start_ms, "endTime": end_ms, "limit": 1000,
+                                                       "offset": len(out)}) or []
+            out += batch
+            if len(batch) < 1000:
+                return out
 
     def _earn_rewards(self, wallet: Dict[str, Any], state: Dict[str, Any], result: SyncResult,
                       asset, end_ms: int, log: Logger) -> int:
@@ -242,8 +251,15 @@ class BinanceAdapter(Adapter):
                 page += 1
             for r in rows:
                 add(r["asset"], D(r.get("totalAmount")))
-            data = self._signed(wallet, "GET", "/sapi/v1/simple-earn/locked/position", {"size": 100})
-            for r in data.get("rows") or []:
+            page, rows = 1, []
+            while True:   # locked products, all pages
+                data = self._signed(wallet, "GET", "/sapi/v1/simple-earn/locked/position",
+                                    {"current": page, "size": 100})
+                rows += data.get("rows") or []
+                if len(rows) >= int(data.get("total") or 0) or not data.get("rows"):
+                    break
+                page += 1
+            for r in rows:
                 add(r["asset"], D(r.get("amount")))
         except AdapterError as e:
             earn_ok = False

@@ -69,6 +69,16 @@ Applied automatically, editable on the Transactions page; your edits are never o
 | `spam` | zero-value transfer or asset marked spam | ignored |
 | `deposit` / `withdrawal` | anything else, to classify: `buy`, `sell`, `reward`, `payment`… | depends |
 
+## Reading the history without gaps
+
+Each sync reads every list of a wallet up to the same point (EVM: one end block; Tron: one end
+time), and the next sync starts from there, so a transaction landing during a sync is not skipped.
+What cannot be read now is read again next time instead of being lost: a Solana transaction the RPC
+does not return, a token transfer whose decimals are unknown (EVM: asked to the contract first), a
+Tron reward claim whose amount is not available. Terra/Cosmos history resumes from the last block
+height read (not from a count, which pruned public nodes would break). Stellar fees of failed
+transactions are recorded; Binance deposits and withdrawals are read past 1000 per window.
+
 ## Wallet check and year-end safeguards
 
 After each sync the live balance of every asset is compared with the history rebuilt at that

@@ -112,9 +112,18 @@ class StellarAdapter(Adapter):
         log(f"{wallet['label']}: reading Stellar effects and operations")
         effects = self._records(f"/accounts/{me}/effects", str(state.get("effects_cursor") or ""))
         ops = self._records(f"/accounts/{me}/operations", str(state.get("ops_cursor") or ""),
-                            {"join": "transactions", "include_failed": "false"})
+                            {"join": "transactions", "include_failed": "true"})
         log(f"{wallet['label']}: {len(effects)} effects, {len(ops)} operations")
         by_op = {str(o.get("id")): o for o in ops}
+        # An effect whose operation was read in an earlier sync (the two lists have their own
+        # cursors): read that operation, so the movement keeps its hash and counterparty.
+        for op_id in list(dict.fromkeys(str(e.get("id") or e.get("paging_token")).split("-")[0] for e in effects
+                                         if e.get("type") in HANDLED))[:100]:
+            if op_id and op_id not in by_op:
+                try:
+                    by_op[op_id] = self._get(f"/operations/{op_id}", {"join": "transactions"}) or {}
+                except AdapterError:
+                    pass
         native = assets_mod.native_asset(self.network)
         assets: Dict[str, AssetInfo] = {native.key: native}
         moves: List[Movement] = []
@@ -164,7 +173,8 @@ class StellarAdapter(Adapter):
                 moves.append(Movement(uid=f"{eid}:in", tx_hash=h, ts=ts, asset_key=bought,
                                       amount=D(e.get("bought_amount")), kind="in", counterparty=seller, info="trade"))
 
-        # Network fees of the transactions this account paid (once per transaction).
+        # Network fees of the transactions this account paid (once per transaction), failed ones
+        # included: a failed transaction moves nothing but its fee is still charged.
         seen_tx = set()
         for o in ops:
             tx = o.get("transaction") or {}
@@ -175,6 +185,7 @@ class StellarAdapter(Adapter):
             seen_tx.add(h)
             moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=_ts(tx.get("created_at") or o.get("created_at")),
                                   asset_key=native.key, amount=-(D(tx.get("fee_charged")) * STROOP), kind="fee",
+                                  failed=o.get("transaction_successful") is False or tx.get("successful") is False,
                                   from_address=me))
 
         for etype, n in sorted(unhandled.items()):
