@@ -3,6 +3,7 @@
 TRX transfers, TRC-10 transfers, TRC-20 transfers and fees are read from the
 account's transaction lists. Staked (frozen) TRX still belongs to you, so
 freezing/unfreezing is neutral and the live balance includes staked TRX.
+Claimed voting rewards (WithdrawBalanceContract) are TRX received: category "reward".
 """
 from __future__ import annotations
 
@@ -85,6 +86,17 @@ class TronAdapter(Adapter):
             raise AdapterError(f"TronGrid: {data.get('error') or data}")
         return data
 
+    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        headers = {}
+        key = self.secret("trongrid_api_key")
+        if key:
+            headers["TRON-PRO-API-KEY"] = key
+        try:
+            data = self.ctx.http.post_json(self.network.explorer_api.rstrip("/") + path, payload, headers)
+        except HttpError as e:
+            raise AdapterError(f"TronGrid: {e}")
+        return data if isinstance(data, dict) else {}
+
     def _paged(self, path: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         fingerprint = None
@@ -157,6 +169,16 @@ class TronAdapter(Adapter):
                     moves.append(Movement(uid=f"{h}:call", tx_hash=h, ts=ts, asset_key=native,
                                           amount=-scaled(call_value, 6), kind="out", counterparty=contract,
                                           from_address=owner, to_address=contract))
+            elif typ == "WithdrawBalanceContract":
+                # Claimed voting rewards: TRX received. The amount is in the transaction info; when
+                # the list does not carry it, sync() reads it (one call per claim).
+                if owner == addr:
+                    amount = tx.get("withdraw_amount")
+                    moves.append(Movement(uid=f"{h}:reward", tx_hash=h, ts=ts, asset_key=native,
+                                          amount=scaled(int(amount), 6) if amount is not None else ZERO,
+                                          kind="in", info="reward: Tron voting" if amount is not None
+                                          else "reward: Tron voting (amount pending)",
+                                          from_address="", to_address=owner))
             elif typ in NEUTRAL_TYPES:
                 continue
             elif owner == addr:
@@ -205,6 +227,12 @@ class TronAdapter(Adapter):
         trc20 = self._paged(f"/v1/accounts/{addr}/transactions/trc20", common)
         log(f"{wallet['label']}: {len(txs)} Tron transactions, {len(trc20)} TRC-20 transfers")
         moves, warnings, trc10 = self.parse_transactions(txs, addr)
+        for m in moves:   # voting-reward claims whose amount the list did not carry
+            if m.info.endswith("(amount pending)"):
+                info = self._post("/wallet/gettransactioninfobyid", {"value": m.tx_hash})
+                m.amount = scaled(int(info.get("withdraw_amount") or 0), 6)
+                m.info = "reward: Tron voting"
+        moves = [m for m in moves if not (m.uid.endswith(":reward") and not m.amount)]
         tmoves, infos = self.parse_trc20(trc20, addr)
         result.movements = moves + tmoves
         result.warnings = warnings

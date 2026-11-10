@@ -69,12 +69,13 @@ Applied automatically, editable on the Transactions page; your edits are never o
 | `spam` | zero-value transfer or asset marked spam | ignored |
 | `deposit` / `withdrawal` | anything else, to classify: `buy`, `sell`, `reward`, `payment`… | depends |
 
-## Staking
+## Staked coins
 
-Staking positions are wallets marked as staking: they are valued at each cutoff like any wallet
-(manual entry, snapshot, chain state or history) and appear in the RW and IC like the others.
-Rewards are movements with category `reward`, valued in EUR at the moment of receipt; rewards
-typed by hand on manual accounts are stored the same way (they never change a manual balance).
+The app has no staking feature. Staked coins count only where the wallet's own balance reports
+them: Terra and Terra Classic delegations and unbonding coins, Tron frozen TRX, Binance Simple
+Earn. Other staked coins (e.g. Solana stake accounts, staking contracts) are not read: enter them as
+a manual account. Rewards received as transactions are movements with category `reward`, valued in
+EUR at the moment of receipt.
 
 ## RW values (Italy)
 

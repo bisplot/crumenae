@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS wallets (
     created_at    INTEGER NOT NULL,
     last_sync_at  INTEGER,
     last_error    TEXT,
-    staking       INTEGER NOT NULL DEFAULT 0,  -- a staking position (shown on the Staking page)
+    staking       INTEGER NOT NULL DEFAULT 0,  -- unused (old Staking page), kept for old databases
     lost          INTEGER NOT NULL DEFAULT 0   -- keys/access lost: off the Dashboard, still in year-end values
 );
 CREATE UNIQUE INDEX IF NOT EXISTS wallets_uniq ON wallets(network, address, label);
@@ -202,7 +202,43 @@ class Database:
             existing = {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
             if column not in existing:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        if self.get_meta("cleanup_staking_v1") is None:
+            self._remove_staking()
         self.set_meta("schema_version", str(SCHEMA_VERSION))
+
+    # Keys a staking version of the app kept in each wallet's sync state.
+    STAKING_STATE_KEYS = ("staking", "stake_accounts", "stake_epochs", "reward_epoch")
+
+    def _remove_staking(self) -> None:
+        """Staking was removed: delete what a version with staking stored (stake-account and
+        staking-contract assets with their movements and balances, staking positions, the staking
+        tick), once. Coins counted in a wallet's own balance (Terra delegations, frozen TRX, Binance
+        Earn) and rewards received as transactions are kept."""
+        import json
+        stake = "%:stake:%"
+        with self.tx():
+            had = self.conn.execute("SELECT COUNT(*) FROM assets WHERE key LIKE ?", (stake,)).fetchone()[0]
+            for table, column in (("movements", "asset_key"), ("current_balances", "asset_key"),
+                                  ("snapshots", "asset_key"), ("year_end", "asset_key"), ("assets", "key")):
+                self.conn.execute(f"DELETE FROM {table} WHERE {column} LIKE ?", (stake,))
+            self.conn.execute("DROP TABLE IF EXISTS staking_positions")
+            self.conn.execute("DELETE FROM meta WHERE key LIKE 'earn_positions:%' OR key LIKE 'validator:%'")
+            self.conn.execute("UPDATE wallets SET staking=0 WHERE staking<>0")
+            for row in self.conn.execute("SELECT wallet_id, state FROM sync_state").fetchall():
+                try:
+                    state = json.loads(row[1] or "{}")
+                except ValueError:
+                    continue
+                if not isinstance(state, dict) or not any(k in state for k in self.STAKING_STATE_KEYS):
+                    continue
+                for acct in state.get("stake_accounts") or []:
+                    (state.get("until") or {}).pop(acct, None)   # Solana: stake accounts' cursors
+                for k in self.STAKING_STATE_KEYS:
+                    state.pop(k, None)
+                self.conn.execute("UPDATE sync_state SET state=? WHERE wallet_id=?", (json.dumps(state), row[0]))
+            if had:
+                self.set_meta("yearend_stale", "staking removed: recompute the year-end")
+            self.set_meta("cleanup_staking_v1", "1")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

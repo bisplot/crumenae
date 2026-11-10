@@ -9,6 +9,7 @@ the year-end SOL balance is the chain's own number, not a sum.
 """
 from __future__ import annotations
 
+import re
 import urllib.parse
 from collections import defaultdict
 from decimal import Decimal
@@ -82,6 +83,23 @@ class SolanaAdapter(Adapter):
                 continue
             raise AdapterError(f"Solana RPC {method}: {err.get('message')}")
         raise AdapterError(f"Solana RPC {method}: rate limited")
+
+    TX_VERSION = 1   # newest transaction version this parser reads (legacy, v0 and v1)
+
+    def get_transaction(self, signature: str) -> Optional[Dict[str, Any]]:
+        """One transaction, jsonParsed. A node holding a newer transaction version says which one:
+        ask again with it rather than failing the whole sync."""
+        version = self.TX_VERSION
+        for _ in range(3):
+            try:
+                return self._rpc("getTransaction", [signature, {"encoding": "jsonParsed", "commitment": "finalized",
+                                                                "maxSupportedTransactionVersion": version}])
+            except AdapterError as e:
+                m = re.search(r"Transaction version \((\d+)\) is not supported", str(e))
+                if not m or int(m.group(1)) <= version:
+                    raise
+                version = int(m.group(1))
+        return None
 
     def _signatures(self, account: str, until: Optional[str]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
@@ -197,9 +215,7 @@ class SolanaAdapter(Adapter):
         decimals: Dict[str, int] = {t["mint"]: t["decimals"] for t in token_accounts}
         ordered = sorted(sigs.values(), key=lambda s: (s.get("blockTime") or 0, s.get("slot") or 0))
         for n, s in enumerate(ordered, 1):
-            tx = self._rpc("getTransaction", [s["signature"], {"encoding": "jsonParsed",
-                                                               "maxSupportedTransactionVersion": 0,
-                                                               "commitment": "finalized"}])
+            tx = self.get_transaction(s["signature"])
             if not tx:
                 result.warnings.append(f"transaction {s['signature']} not returned by RPC")
                 continue
