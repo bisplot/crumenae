@@ -32,6 +32,7 @@ class Context:
         # offline: never call external APIs (demo mode, tests).
         self.offline = offline or self.db.get_meta("demo") == "1"
         self.tokens = load_json("tokens.json")
+        self.staking = load_json("staking.json")
         symbols = load_json("symbols.json")
         self.fiat = set(symbols.get("fiat", []))
         self.symbol_coingecko: Dict[str, str] = symbols.get("coingecko", {})

@@ -85,6 +85,17 @@ balance after each transaction that touches it, and after each epoch's inflation
 stake account is an internal transfer. Rewards are paid over a few blocks at the start of the next
 epoch; each is dated from its block (one block time per epoch, the others at 0.4 s per slot).
 
+Contract staking on EVM chains (`config/staking.json`): the coins in a staking contract are a
+separate asset of the wallet (`<network>:stake:<contract>`, priced as the native coin), and
+sending coins to or from the contract is an internal transfer. Its year-end balance is read from
+the contract at the cutoff block (archive node, source `chain_state`). Ronin: the history comes
+from the contract's Delegated / Undelegated / RewardClaimed events; each claim is a `reward` at
+its time (with "Claim and restake" too: the reward is received, then delegated again). StakeWise
+v3 vaults (MetaMask Pooled Staking): the value is `convertToAssets(getShares)` plus the ETH in the
+exit queue; rewards raise the share price with no transaction, so they are part of the value, not
+income movements (the Staking page shows "rewards so far" = value − deposits + withdrawals). If
+your adviser treats them as income, add them by hand.
+
 Rewards are movements with category `reward`, valued in EUR at the moment of receipt: claimed
 Terra rewards, claimed Tron voting rewards (WithdrawBalance), Binance Simple Earn rewards, and
 rewards typed by hand on manual accounts (they never change a manual balance). Unclaimed rewards
