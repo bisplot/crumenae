@@ -13,7 +13,8 @@ leave your machine: only public addresses are sent to block explorers, and only 
   address can be tracked on several chains at once. Exchange accounts use a read-only API key.
 - **One free key to start**: an [Alchemy](https://dashboard.alchemy.com/signup) key reads every
   EVM chain (Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad,
-  Arc, Ronin) and Solana. Bitcoin, Stellar, Terra, Terra Classic, Tron and Solar (SXP) work with
+  Arc, Ronin, zkSync Era, Scroll, Blast, Mantle, Gnosis, Celo, Sonic, opBNB, Unichain, World Chain,
+  Berachain, Zora) and Solana. Bitcoin, Stellar, Terra, Terra Classic, Tron and Solar (SXP) work with
   no key at all. An optional Etherscan key gives the most complete history on Ethereum, Polygon,
   Arbitrum and Linea; optional Helius and TronGrid keys make Solana and Tron faster. Binance
   accounts (with Simple Earn rewards) use a read-only key; manual accounts cover anything else.
@@ -97,7 +98,7 @@ python3 -m pip install -r requirements-optional.txt
 
    | Provider | Reads | Free? |
    |---|---|---|
-   | Alchemy (**the one key you need**) | Every EVM chain: Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc, Ronin; and Solana | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
+   | Alchemy (**the one key you need**) | Every EVM chain: Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc, Ronin, zkSync Era, Scroll, Blast, Mantle, Gnosis, Celo, Sonic, opBNB, Unichain, World Chain, Berachain, Zora; and Solana | Yes, [dashboard.alchemy.com](https://dashboard.alchemy.com/signup), sign-up with e-mail or Google; enable each chain on your Alchemy app |
    | Etherscan (optional) | Ethereum, Polygon, Arbitrum, Linea, with the most complete history (internal transfers on every chain, failed transactions). Used there automatically once its key is saved | Yes, [etherscan.io/myapikey](https://etherscan.io/myapikey); other chains need a paid plan |
    | Solana (Helius) (optional) | Solana, faster; without it Solana is read with your Alchemy key, or the slow public endpoint | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
@@ -230,7 +231,8 @@ Good to know:
 ### Every EVM chain with Alchemy
 
 One free **Alchemy** key (sign-up with e-mail or Google) reads Ethereum, Polygon, Arbitrum,
-Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc and Ronin. (The BscScan API closed in
+Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad, Arc, Ronin, zkSync Era, Scroll, Blast,
+Mantle, Gnosis, Celo, Sonic, opBNB, Unichain, World Chain, Berachain and Zora. (The BscScan API closed in
 December 2025, and Etherscan's free plan does not cover BNB Smart Chain, Base, Optimism,
 Avalanche or Arc.)
 
@@ -250,7 +252,10 @@ missing. For the most complete history on Ethereum, Polygon, Arbitrum and Linea,
 counted twice. The Alchemy name of each chain (bnb-mainnet,
 monad-mainnet, arc-mainnet…) is in Settings → Networks; if **Test** reports an error for a chain,
 check the name in your Alchemy dashboard and correct it there. On Arc the gas coin is USDC: its
-ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice.
+ERC-20 mirror (`0x3600…0000`) is ignored so it is not counted twice; the same for CELO on Celo
+(`0x471E…a438`). On Blast, ETH and USDB held in a wallet can grow by themselves (native yield, no
+transaction): the wallet check then shows a small difference from the transactions, which is that
+yield, and the year-end value from a snapshot or the chain state includes it.
 
 ### Terra and Terra Classic
 
