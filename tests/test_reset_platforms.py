@@ -2,9 +2,9 @@ import os
 import unittest
 from decimal import Decimal
 
-from cryptoledger import exports, ledger
-from cryptoledger.models import Movement, SyncResult
-from cryptoledger.server import ApiError, App
+from crumenae import exports, ledger
+from crumenae.models import Movement, SyncResult
+from crumenae.server import ApiError, App
 
 from helpers import TempContext, add_wallet
 
@@ -97,13 +97,13 @@ class ResetTest(unittest.TestCase):
         self.assertEqual(ctx.db.scalar("SELECT COUNT(*) FROM wallets"), 1)
 
     def test_env_secrets_are_reported(self):
-        os.environ["CRYPTOLEDGER_HELIUS_API_KEY"] = "x"
+        os.environ["CRUMENAE_HELIUS_API_KEY"] = "x"
         try:
             phrase = self.app.dispatch("GET", "/api/reset/phrase", {}, None)["phrase"]
             r = self.app.dispatch("POST", "/api/reset", {}, {"phrase": phrase})
             self.assertEqual(r["env_secrets_left"], ["helius_api_key"])
         finally:
-            del os.environ["CRYPTOLEDGER_HELIUS_API_KEY"]
+            del os.environ["CRUMENAE_HELIUS_API_KEY"]
 
 
 if __name__ == "__main__":

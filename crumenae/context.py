@@ -20,7 +20,8 @@ class Context:
                  secrets_backend: str = "auto", offline: bool = False):
         self.data_dir = Path(data_dir or default_data_dir())
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.db = Database(str(self.data_dir / "cryptoledger.db"))
+        _adopt_old_database(self.data_dir)
+        self.db = Database(str(self.data_dir / "crumenae.db"))
         self.settings = Settings(self.db)
         self.secrets = SecretStore(self.data_dir, backend=secrets_backend)
         self.networks = NetworkRegistry(self.db, self.settings, self.secrets)
@@ -79,3 +80,15 @@ class Context:
 
 
 Logger = Callable[[str], None]
+
+
+def _adopt_old_database(data_dir: Path) -> None:
+    """The app was called CryptoLedger: its database file (cryptoledger.db, with its WAL files)
+    becomes crumenae.db the first time, so nothing is lost."""
+    new, old = data_dir / "crumenae.db", data_dir / "cryptoledger.db"
+    if new.exists() or not old.exists():
+        return
+    for suffix in ("", "-wal", "-shm"):
+        src = data_dir / f"cryptoledger.db{suffix}"
+        if src.exists():
+            src.rename(data_dir / f"crumenae.db{suffix}")

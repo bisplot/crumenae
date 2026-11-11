@@ -3,7 +3,7 @@ the Celo native-token duplicate."""
 import unittest
 from decimal import Decimal
 
-from cryptoledger.adapters import get_adapter
+from crumenae.adapters import get_adapter
 
 from helpers import FakeHttp, TempContext, add_wallet
 

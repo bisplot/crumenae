@@ -1,11 +1,11 @@
 # Brand guideline
 
-CryptoLedger's look (colours, font, logo, favicon) is kept apart from the app's code, so that
+Crumenae's look (colours, font, logo, favicon) is kept apart from the app's code, so that
 anyone who downloads it can re-brand their own copy without touching the logic.
 
-![CryptoLedger brand guideline](brand/brand-guideline.webp)
+![Crumenae brand guideline](brand/brand-guideline.webp)
 
-## The CryptoLedger brand
+## The Crumenae brand
 
 **Palette**
 
@@ -63,7 +63,7 @@ Reload the page (Ctrl/Cmd + Shift + R to bypass the cache). Run the demo to see 
 sample data:
 
 ```bash
-python3 -m cryptoledger demo --port 8799
+python3 -m crumenae demo --port 8799
 ```
 
 ## Rules for code changes

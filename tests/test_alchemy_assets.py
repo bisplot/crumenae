@@ -1,9 +1,9 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import ledger, sync, views
-from cryptoledger.adapters import get_adapter
-from cryptoledger.models import Movement, SyncResult
+from crumenae import ledger, sync, views
+from crumenae.adapters import get_adapter
+from crumenae.models import Movement, SyncResult
 
 from helpers import FakeHttp, TempContext, add_wallet
 
@@ -78,11 +78,11 @@ class AlchemyBscTest(unittest.TestCase):
             ("0xccc:fee", "bsc:native", Decimal("-0.000021"), 1735862400),
         ]))
         self.assertEqual(res.state["last_block"], 0x13)
-        from cryptoledger import sync as sync_mod
+        from crumenae import sync as sync_mod
         self.assertEqual(sync_mod.wallet_service(self.ctx, self.wallet), "alchemy")
 
     def test_key_redacted_in_errors(self):
-        from cryptoledger.http import _redact
+        from crumenae.http import _redact
         self.assertEqual(_redact(f"https://bnb-mainnet.g.alchemy.com/v2/{KEY}"), "https://bnb-mainnet.g.alchemy.com/v2/***")
 
     def test_live_balances_find_every_token(self):
@@ -120,7 +120,7 @@ class SpamHiddenTest(unittest.TestCase):
             ledger.store_sync_result(ctx, w, SyncResult(movements=[
                 Movement("m1", "0xh1", 1, "ethereum:native", Decimal("1"), "in"),
                 Movement("m2", "0xh2", 2, "ethereum:native", Decimal("0"), "in")]))   # zero value: spam
-            from cryptoledger import classify
+            from crumenae import classify
             classify.run(ctx)
             self.assertEqual(views.transactions(ctx)["total"], 1)
             self.assertEqual(views.transactions(ctx, category="all")["total"], 2)
@@ -185,7 +185,7 @@ class AlchemyFallbackTest(unittest.TestCase):
 
     def test_key_problems_are_not_hidden(self):
         self.ctx.secrets.delete("alchemy_api_key")
-        from cryptoledger.adapters.base import AdapterError
+        from crumenae.adapters.base import AdapterError
         with self.assertRaises(AdapterError):
             get_adapter(self.ctx, self.ctx.networks.get("bsc")).sync(self.wallet, {}, LOG)
 
@@ -225,7 +225,7 @@ class AlchemyRobustnessTest(unittest.TestCase):
             t.close()
 
     def test_spam_names_and_ronin_prefix(self):
-        from cryptoledger.adapters.alchemy import looks_like_spam
+        from crumenae.adapters.alchemy import looks_like_spam
         for name in ("GasDAO.cc", "1Gas.org", "Visit claim-x.example", "https://x.example", "$ CLAIM REWARDS"):
             self.assertTrue(looks_like_spam(name), name)
         for name in ("DOGE", "PancakeSwap Token", "Coinbase Wrapped BTC", "MELD"):

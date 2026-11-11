@@ -3,10 +3,10 @@ year-end cases that used to give a wrong value without a flag."""
 import unittest
 from decimal import Decimal
 
-from cryptoledger import ledger, sync, views, yearend
-from cryptoledger.models import Movement, SyncResult
-from cryptoledger.prices import PriceService
-from cryptoledger.util import now
+from crumenae import ledger, sync, views, yearend
+from crumenae.models import Movement, SyncResult
+from crumenae.prices import PriceService
+from crumenae.util import now
 
 from helpers import FakeHttp, TempContext, add_wallet
 from test_adapters import BTC_ME, binance_handler, btc_handler
@@ -63,7 +63,7 @@ class PartialAndManualTest(unittest.TestCase):
     def test_incomplete_live_balance_is_not_a_snapshot(self):
         def no_earn(method, url, params, payload):
             if "/simple-earn/" in url and "position" in url:
-                from cryptoledger.http import HttpError
+                from crumenae.http import HttpError
                 raise HttpError(500, "down", url)
             return binance_handler(method, url, params, payload)
         self.t.http.on("https://api.binance.com", no_earn)

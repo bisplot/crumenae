@@ -1,8 +1,8 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import classify, ledger
-from cryptoledger.adapters import get_adapter
+from crumenae import classify, ledger
+from crumenae.adapters import get_adapter
 
 from helpers import FakeHttp, TempContext, add_wallet
 from test_adapters import binance_handler

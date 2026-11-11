@@ -199,7 +199,7 @@ def evidence_md(ctx, report: Dict[str, Any]) -> str:
     lines = [
         f"# Crypto year-end evidence — TY{year}",
         "",
-        f"Generated {iso_utc(now())} by CryptoLedger {__version__}.",
+        f"Generated {iso_utc(now())} by Crumenae {__version__}.",
         f"Opening balances at {report['opening_local']}, closing balances at {report['closing_local']} "
         f"({report['timezone']}). All values in EUR at the time of each balance.",
         "",

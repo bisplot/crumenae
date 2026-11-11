@@ -3,8 +3,8 @@ and the year-end report, all through the same code paths the UI uses."""
 import unittest
 from decimal import Decimal
 
-from cryptoledger import report, views
-from cryptoledger.sync import recompute, run_sync
+from crumenae import report, views
+from crumenae.sync import recompute, run_sync
 
 from helpers import FakeHttp, TempContext, add_wallet, fixture
 from test_adapters import ME, BTC_ME, btc_handler, etherscan_handler, solana_handler

@@ -1,5 +1,5 @@
 'use strict';
-/* CryptoLedger UI. Plain JavaScript, no build step, no external requests.
+/* Crumenae UI. Plain JavaScript, no build step, no external requests.
    Text from the blockchain (token names, symbols) is untrusted: it is always
    inserted with textContent through el(), never as HTML. */
 (() => {
@@ -35,7 +35,7 @@
   // ---------------------------------------------------------------- API
   async function request(method, path, body) {
     const opts = { method, headers: {} };
-    if (method !== 'GET') opts.headers['X-CryptoLedger'] = '1';
+    if (method !== 'GET') opts.headers['X-Crumenae'] = '1';
     if (body !== undefined) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
@@ -167,7 +167,7 @@
         el('h2', { text: 'No wallets yet' }),
         el('p', { text: 'Add your addresses and accounts, choose their network, then press Sync. Balances and transactions are read from public APIs and converted to EUR.' }),
         el('a', { class: 'btn primary', href: '#/wallets', text: 'Add a wallet' }),
-        el('p', { class: 'small', text: 'Just looking around? Stop the app and run: python3 -m cryptoledger demo' }))));
+        el('p', { class: 'small', text: 'Just looking around? Stop the app and run: python3 -m crumenae demo' }))));
       return;
     }
     const lastSeries = d.series.length ? d.series[d.series.length - 1] : null;
@@ -962,12 +962,12 @@
         await refreshStatus();
         toast(r.env_secrets_left && r.env_secrets_left.length
           ? `Everything deleted. Still set by environment variables: ${r.env_secrets_left.join(', ')}`
-          : 'Everything deleted. CryptoLedger is empty.', Boolean(r.env_secrets_left && r.env_secrets_left.length));
+          : 'Everything deleted. Crumenae is empty.', Boolean(r.env_secrets_left && r.env_secrets_left.length));
         if (location.hash === '#/dashboard') route(); else location.hash = '#/dashboard';
       } catch (e) { toast(e.message, true); go.textContent = 'Delete everything'; go.disabled = input.value.trim() !== phrase; }
     });
     openModal(
-      el('h2', { style: 'color:var(--err)', text: '⚠ Reset CryptoLedger' }),
+      el('h2', { style: 'color:var(--err)', text: '⚠ Reset Crumenae' }),
       el('p', { text: 'This permanently deletes from this computer:' }),
       el('ul', { class: 'small', style: 'margin:0;padding-left:20px;display:grid;gap:2px' },
         ['all wallets and accounts, with their transactions and categories', 'the asset list, price mappings and cached prices',
@@ -1062,7 +1062,7 @@
     state.page = page;
     document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.page === page));
     $('#page-title').textContent = PAGES[page][0];
-    document.title = `${PAGES[page][0]} · CryptoLedger`;
+    document.title = `${PAGES[page][0]} · Crumenae`;
     const root = $('#page');
     if (!root.children.length) fill(root, el('p', { class: 'muted', text: 'Loading…' }));
     try { await PAGES[page][1](root, params); }
@@ -1096,7 +1096,7 @@
       el('div', { text: `v${st.version} · ${st.timezone}` }),
       el('div', { text: `keys: ${st.secrets_backend === 'keychain' ? 'OS keychain' : 'local file'}` }),
       themeToggle());
-    fill($('#banner'), st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m cryptoledger” to use your own data.' }) : '');
+    fill($('#banner'), st.demo ? el('div', { class: 'banner', text: 'Demo mode: fictional wallets and synthetic prices, no API is called. Start the app with “python3 -m crumenae” to use your own data.' }) : '');
     const rb = $('#recompute-btn');
     rb.classList.toggle('attention', Boolean(st.yearend_stale) || !st.yearend_computed_at);
     rb.title = st.yearend_stale ? `Out of date: ${st.yearend_stale}` : st.yearend_computed_at
@@ -1110,7 +1110,7 @@
       const st = await refreshStatus();
       try { fillPortfolios((await api.get('/api/dashboard')).portfolios); } catch (_) { /* first run */ }
       if (st.job && st.job.running) { showJob(st.job); pollJob(); }
-    } catch (e) { toast('Cannot reach the CryptoLedger server: is it running?', true); }
+    } catch (e) { toast('Cannot reach the Crumenae server: is it running?', true); }
     window.addEventListener('hashchange', route);
     route();
   })();

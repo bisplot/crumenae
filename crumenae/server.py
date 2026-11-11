@@ -2,7 +2,7 @@
 
 Protection against other websites talking to this local server: requests must
 carry a localhost Host header (DNS rebinding), and every state-changing request
-must send the custom header X-CryptoLedger (forces a CORS preflight, which this
+must send the custom header X-Crumenae (forces a CORS preflight, which this
 server never approves).
 """
 from __future__ import annotations
@@ -846,7 +846,7 @@ class FileResponse:
 
 def make_handler(app: App, allowed_hosts: List[str]):
     class Handler(BaseHTTPRequestHandler):
-        server_version = f"CryptoLedger/{__version__}"
+        server_version = f"Crumenae/{__version__}"
 
         def log_message(self, fmt: str, *args: Any) -> None:  # quiet
             pass
@@ -886,8 +886,8 @@ def make_handler(app: App, allowed_hosts: List[str]):
                 self._static(path)
                 return
             if self.command != "GET":
-                if self.headers.get("X-CryptoLedger") != "1":
-                    self._json(403, {"error": "missing X-CryptoLedger header"})
+                if self.headers.get("X-Crumenae") != "1":
+                    self._json(403, {"error": "missing X-Crumenae header"})
                     return
             query = {k: v[-1] for k, v in urllib.parse.parse_qs(parsed.query).items()}
             body: Any = None

@@ -2,9 +2,9 @@
 plan works once its key is saved; a change of provider never counts a movement twice."""
 import unittest
 
-from cryptoledger.adapters import get_adapter
-from cryptoledger.adapters.evm import resume_block
-from cryptoledger.server import App
+from crumenae.adapters import get_adapter
+from crumenae.adapters.evm import resume_block
+from crumenae.server import App
 
 from helpers import FakeHttp, TempContext, add_wallet
 

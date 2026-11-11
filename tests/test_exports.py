@@ -4,11 +4,11 @@ import sqlite3
 import unittest
 from decimal import Decimal
 
-from cryptoledger import assets as assets_mod
-from cryptoledger import classify, exports, ledger, yearend
-from cryptoledger.db import SCHEMA_VERSION, Database
-from cryptoledger.models import AssetInfo, Movement, SyncResult
-from cryptoledger.prices import PriceService
+from crumenae import assets as assets_mod
+from crumenae import classify, exports, ledger, yearend
+from crumenae.db import SCHEMA_VERSION, Database
+from crumenae.models import AssetInfo, Movement, SyncResult
+from crumenae.prices import PriceService
 
 from helpers import FakeHttp, TempContext, add_wallet
 from test_engine import market_handler
@@ -182,12 +182,12 @@ class BalancesAndWalletsExportTest(unittest.TestCase):
         folder = exports.exports_dir(self.ctx)
         self.assertTrue((folder / "balances_2025-12-31.csv").is_file())
         # Editing a wallet through the API rewrites wallets.csv.
-        from cryptoledger.server import App
+        from crumenae.server import App
         App(self.ctx).dispatch("PUT", f"/api/wallets/{self.btc['id']}", {}, {"platform": "Trezor"})
         self.assertIn("Trezor", (folder / "wallets.csv").read_text())
 
     def test_download_endpoint(self):
-        from cryptoledger.server import App, ApiError, FileResponse
+        from crumenae.server import App, ApiError, FileResponse
         app = App(self.ctx)
         f = app.dispatch("GET", "/api/exports/balances_2025-12-31.csv", {}, None)
         self.assertIsInstance(f, FileResponse)
@@ -201,7 +201,7 @@ class BalancesAndWalletsExportTest(unittest.TestCase):
 class MigrationTest(unittest.TestCase):
     def test_v1_database_gets_new_columns(self):
         t = TempContext()
-        path = t.ctx.db.path.replace("cryptoledger.db", "old.db")
+        path = t.ctx.db.path.replace("crumenae.db", "old.db")
         old = sqlite3.connect(path)
         old.executescript("""
             CREATE TABLE wallets (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, network TEXT NOT NULL,

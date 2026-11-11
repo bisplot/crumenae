@@ -1,10 +1,10 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import assets as assets_mod
-from cryptoledger import ledger, yearend
-from cryptoledger.models import Movement, SyncResult
-from cryptoledger.prices import GHOST_SOURCE, PriceService
+from crumenae import assets as assets_mod
+from crumenae import ledger, yearend
+from crumenae.models import Movement, SyncResult
+from crumenae.prices import GHOST_SOURCE, PriceService
 
 from helpers import TempContext, add_wallet
 

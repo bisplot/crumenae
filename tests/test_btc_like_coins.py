@@ -3,10 +3,10 @@ Bitcoin rules, paging, resume, live balance and the wallet check."""
 import unittest
 from decimal import Decimal
 
-from cryptoledger import sync, views
-from cryptoledger.adapters import get_adapter
-from cryptoledger.adapters.utxo_address import cashaddr_valid, validate
-from cryptoledger.b58 import b58check_encode
+from crumenae import sync, views
+from crumenae.adapters import get_adapter
+from crumenae.adapters.utxo_address import cashaddr_valid, validate
+from crumenae.b58 import b58check_encode
 
 from helpers import FakeHttp, TempContext, add_wallet
 
@@ -137,8 +137,8 @@ class BitcoinCashTest(unittest.TestCase):
             t.close()
 
     def test_refused_by_the_server_is_a_clear_error(self):
-        from cryptoledger.http import HttpError
-        from cryptoledger.models import AdapterError
+        from crumenae.http import HttpError
+        from crumenae.models import AdapterError
 
         def blocked(method, url, params, payload):
             raise HttpError(403, "Forbidden", url)

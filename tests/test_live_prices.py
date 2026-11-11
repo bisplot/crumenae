@@ -1,9 +1,9 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import assets as assets_mod
-from cryptoledger import sync, views
-from cryptoledger.prices import GHOST_SOURCE, PriceService, identity
+from crumenae import assets as assets_mod
+from crumenae import sync, views
+from crumenae.prices import GHOST_SOURCE, PriceService, identity
 
 from helpers import FakeHttp, TempContext, add_wallet
 

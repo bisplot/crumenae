@@ -1,4 +1,7 @@
-# CryptoLedger
+# Crumenae
+
+*Formerly CryptoLedger: see [Updating from CryptoLedger](#updating-from-cryptoledger). Your
+data, API keys and settings carry over.*
 
 A local app for tracking your **own** crypto addresses and exchange accounts in one dashboard,
 with every value in **EUR** at the rate of its time and balances taken at **23:59:59 of each
@@ -15,16 +18,19 @@ leave your machine: only public addresses are sent to block explorers, and only 
   EVM chain (Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad,
   Arc, Ronin, zkSync Era, Scroll, Blast, Mantle, Gnosis, Celo, Sonic, opBNB, Unichain, World Chain,
   Berachain, Zora) and Solana. Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Terra
-  Classic, Tron and Solar (SXP) work with no key at all. An optional Etherscan key gives the most complete history on Ethereum, Polygon,
-  Arbitrum and Linea; optional Helius and TronGrid keys make Solana and Tron faster. Binance
-  accounts (with Simple Earn rewards) use a read-only key; manual accounts cover anything else.
+  Classic, Tron and Solar (SXP) work with no key at all. An optional Etherscan key gives the most
+  complete history on Ethereum, Polygon, Arbitrum and Linea; optional Helius and TronGrid keys make
+  Solana and Tron faster. Binance accounts (with Simple Earn rewards) use a read-only key; manual
+  accounts cover anything else (other exchanges, Ledger Live, staking the app does not read).
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → API providers and Price sources).
 - **Providers and networks you control**: add an API provider (any Etherscan-compatible,
-  Alchemy-compatible, Cosmos SDK LCD, Esplora or Horizon service) or a new blockchain from Settings,
+  Alchemy-compatible, Cosmos SDK LCD, Esplora, Blockbook or Horizon service) or a new blockchain from Settings,
   with its key, limits and Test, and choose which provider reads each chain. No code.
 - **Year-end balances at 23:59:59** from the best available source (snapshot, chain state,
   full transaction history), cross-checked, with every value traced to its source.
+- **A check after every sync**: each wallet's live balance is compared with the balance rebuilt
+  from its transactions, so a gap in the history shows up at once, not at year-end.
 - **EUR at the time**: Binance public 1-minute prices (no key, full history), CoinGecko,
   CoinMarketCap; USD prices converted with the official **ECB reference rate** of that day.
 - **Exports kept up to date**: `balances_YYYY-12-31.csv` (every wallet × asset at 31/12),
@@ -34,37 +40,82 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Easy to extend**: a new EVM chain is a form in Settings; a new blockchain or exchange API is
   one Python class (see [docs/ADDING_AN_ADAPTER.md](docs/ADDING_AN_ADAPTER.md)).
 
-> CryptoLedger is a record-keeping tool, not tax advice. Check flagged values (⛔ / 🟡) and
+> Crumenae is a record-keeping tool, not tax advice. Check flagged values (⛔ / 🟡) and
 > confirm your tax treatment with a professional.
 
 ## Quick start
 
-You need **Python 3.9 or newer** (already on macOS; on Windows get it from python.org). Nothing
-else is required.
+You need **Python 3.9 or newer** and nothing else: no packages to install, no account. On macOS
+`python3` comes with the Command Line Tools (run `xcode-select --install` once if it is missing);
+on Windows install Python from [python.org](https://www.python.org/downloads/) and tick
+"Add python.exe to PATH". Check with `python3 --version` (Windows: `py --version`).
 
-```bash
-git clone https://github.com/occhinog/cryptoledger.git
-```
+1. **Download the app** (or use GitHub's **Code → Download ZIP** and unzip it):
 
-```bash
-cd cryptoledger
-```
+   ```bash
+   git clone https://github.com/bisplot/crumenae.git
+   ```
 
-```bash
-python3 -m cryptoledger
-```
+   ```bash
+   cd crumenae
+   ```
 
-The app opens at <http://127.0.0.1:8765>. On Windows use `py -m cryptoledger`, or double-click
-`start.bat` (macOS: `start.command`).
+2. **Start it**:
 
-Then get **one free key**: sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup)
-(e-mail or Google), create an app, enable the chains you use (Mainnet), copy the API key and paste
-it in **Settings → API providers → Alchemy** → **Save** → **Test**. That reads every EVM chain and
-Solana; Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Tron and Solar need no key. Add your addresses on the
-**Wallets** page and press **Sync now**.
+   ```bash
+   python3 -m crumenae
+   ```
 
-Want to look around first? `python3 -m cryptoledger demo` starts with fictional wallets and
+   Your browser opens <http://127.0.0.1:8765>. Keep the terminal open while you use the app;
+   **Ctrl+C** stops it. On Windows run `py -m crumenae`, or double-click `start.bat`; on macOS
+   you can double-click `start.command`.
+3. **Save one free key**: sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup)
+   (e-mail or Google), create an app, enable the chains you use (Mainnet), copy the API key and
+   paste it in **Settings → API providers → Alchemy** → **Save keys and limits** → **Test**. That
+   reads every EVM chain and Solana; Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra,
+   Tron and Solar need no key.
+4. **Add your wallets** on the **Wallets** page and press **Sync now** (top bar).
+5. **Check each wallet**: the Wallets page shows **✓ matches the transactions** or what differs
+   (see [Wallet check](#wallet-check)).
+6. Press **Recompute year-end** and open the **Year-end** page.
+
+Want to look around first? `python3 -m crumenae demo` starts with fictional wallets and
 synthetic prices, fully offline, in a separate `demo-data/` folder.
+
+### Updating
+
+From the `crumenae` folder:
+
+```bash
+git pull
+```
+
+Then start the app again. Your data in `data/` is kept; the database is upgraded by itself when
+needed.
+
+### Updating from CryptoLedger
+
+The app was called CryptoLedger and its repository was `occhinog/cryptoledger`. In your existing
+folder:
+
+```bash
+git remote set-url origin https://github.com/bisplot/crumenae.git
+```
+
+```bash
+git pull
+```
+
+```bash
+python3 -m crumenae
+```
+
+Nothing else to do: on the first start the database (`data/cryptoledger.db`) becomes
+`data/crumenae.db`, API keys saved in the OS keychain under "cryptoledger" are found and copied,
+and `CRYPTOLEDGER_…` environment variables are still read (rename them to `CRUMENAE_…` when you
+can). The old command `python3 -m cryptoledger` still starts the app, so an existing snapshot job
+keeps working; to switch it to the new name, load the new
+[launchd file](scripts/launchd/com.crumenae.snapshot.plist) or edit your cron/Task Scheduler entry.
 
 ### Optional extras
 
@@ -199,7 +250,7 @@ wallet:
 Settings → **Reset** deletes everything: wallets, transactions, assets, prices, year-end values,
 settings, API keys (keychain and `data/secrets.json`), call counters, exports and reports. A
 window lists what goes and shows a random sentence; **Delete everything** is enabled only once
-you type that sentence exactly. Keys set as `CRYPTOLEDGER_…` environment variables cannot be
+you type that sentence exactly. Keys set as `CRUMENAE_…` environment variables cannot be
 removed by the app: unset them yourself. Back up `data/` first if you may need it.
 
 ### Solana with Helius
@@ -212,7 +263,7 @@ rate-limited.
 1. **Get a key.** Sign up at [dashboard.helius.dev](https://dashboard.helius.dev/) (free plan)
    and copy the API key shown on the dashboard.
 2. **Add it to the app.** Settings → API providers → **Solana (Helius)** row → paste the key →
-   **Save** → **Test**. Test reads the current Solana slot and costs 1 credit.
+   **Save keys and limits** → **Test**. Test reads the current Solana slot and costs 1 credit.
 3. **Set your plan's limits** in the same row: the free plan allows 10 calls **per second** (the
    default). Its credits are monthly: if you want a daily cap, divide them by 30.
 4. **Add your Solana wallets and sync.** Wallets → network **Solana** → paste the address →
@@ -271,6 +322,17 @@ Classic's old fiat stablecoins (KRTC, EUTC… the dust left by staking rewards) 
 valued at €0. Other Cosmos SDK chains (Cosmos Hub, Osmosis…) can be added from Settings: a
 "Cosmos SDK LCD" provider and a network with its address prefix and native denom.
 
+### Bitcoin, Litecoin, Dogecoin and Bitcoin Cash
+
+Read from public explorers, no key: Bitcoin from mempool.space, Litecoin from litecoinspace.org,
+Dogecoin and Bitcoin Cash from Trezor's public Blockbook servers. Add one address per wallet
+(Bitcoin `1…`/`3…`/`bc1…`, Litecoin `L…`/`M…`/`3…`/`ltc1…`, Dogecoin `D…`, Bitcoin Cash
+`bitcoincash:q…` or a legacy `1…`); an address of another coin is refused. The whole history is
+read, so year-end balances are exact, and the fee of a transaction you sent is recorded apart.
+Extended public keys (xpub) are not supported yet: add each address. If Trezor's server refuses
+requests, set another Blockbook server for that network (Settings → Networks, or **+ Add provider**
+with type Blockbook).
+
 ### Stellar
 
 Stellar is read from the public Horizon server, no key: add your G… address on the Wallets page
@@ -285,14 +347,14 @@ TronGrid is the public Tron API run by the TRON network; its key is free.
 
 1. Sign up at [trongrid.io](https://www.trongrid.io/) (email, no card) and open the dashboard.
 2. Create an API key and copy it.
-3. In CryptoLedger: **Settings → API providers → Tron (TronGrid)**, paste the key, **Save**,
-   then **Test**.
+3. In Crumenae: **Settings → API providers → Tron (TronGrid)**, paste the key, **Save keys and
+   limits**, then **Test**.
 4. Add your Tron address (starts with `T`) on the **Wallets** page and press **Sync now**.
 
 Free plan: about 15 calls per second and 100,000 per day (the defaults in the row; the
 dashboard shows your account's real limits). Without a key TronGrid may slow down or refuse
 calls. The key is sent in the `TRON-PRO-API-KEY` header; if you restrict it in the TronGrid
-dashboard, do not limit it by Origin (CryptoLedger calls from your computer, not a website).
+dashboard, do not limit it by Origin (Crumenae calls from your computer, not a website).
 
 ## How year-end values are computed
 
@@ -301,9 +363,10 @@ year). For each wallet, the balance at the cutoff comes from the best source ava
 
 1. a **manual entry** for that cutoff;
 2. a **live snapshot** taken within 5 minutes of the cutoff (see below);
-3. **chain state** at the cutoff block, if you set an archive RPC URL (EVM);
-4. the **full transaction history** summed up to the cutoff (exact for Bitcoin; Solana SOL uses
-   the balance the chain reports after each transaction);
+3. **chain state** at the cutoff block (EVM chains read through Alchemy, or with an archive RPC URL
+   set in Settings → Networks);
+4. the **full transaction history** summed up to the cutoff (exact for Bitcoin-like coins; Solana
+   SOL uses the balance the chain reports after each transaction);
 5. an **exchange daily snapshot** (Binance takes one at 23:59:59 UTC, kept for 30 days: sync in January).
 
 When two sources exist they are compared and differences are flagged ⛔. Each asset is then
@@ -313,29 +376,29 @@ day), else CoinGecko, else CoinMarketCap. Details: [docs/METHODOLOGY.md](docs/ME
 ### Snapshots at the cutoff
 
 While the app is running it snapshots every wallet about a minute before and after each cutoff.
-To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot`:
+To do it even when the app is closed, schedule `python3 -m crumenae snapshot`:
 
-- **macOS**: edit and load [scripts/launchd/com.cryptoledger.snapshot.plist](scripts/launchd/com.cryptoledger.snapshot.plist):
+- **macOS**: edit and load [scripts/launchd/com.crumenae.snapshot.plist](scripts/launchd/com.crumenae.snapshot.plist):
 
   ```bash
-  cp scripts/launchd/com.cryptoledger.snapshot.plist ~/Library/LaunchAgents/
+  cp scripts/launchd/com.crumenae.snapshot.plist ~/Library/LaunchAgents/
   ```
 
   ```bash
-  launchctl load ~/Library/LaunchAgents/com.cryptoledger.snapshot.plist
+  launchctl load ~/Library/LaunchAgents/com.crumenae.snapshot.plist
   ```
 
   The Mac must be awake at 23:59 on 31 December.
 - **Linux** (cron uses the system time zone):
 
   ```bash
-  (crontab -l; echo "59 23 31 12 * cd $PWD && python3 -m cryptoledger snapshot") | crontab -
+  (crontab -l; echo "59 23 31 12 * cd $PWD && python3 -m crumenae snapshot") | crontab -
   ```
 
-- **Windows** (from the cryptoledger folder, in Command Prompt):
+- **Windows** (from the crumenae folder, in Command Prompt):
 
   ```bash
-  schtasks /Create /TN CryptoLedgerSnapshot /SC MONTHLY /MO 12 /D 31 /SD 12/31/2026 /ST 23:59 /TR "py -m cryptoledger --data-dir %CD%\data snapshot"
+  schtasks /Create /TN CrumenaeSnapshot /SC MONTHLY /MO 12 /D 31 /SD 12/31/2026 /ST 23:59 /TR "py -m crumenae --data-dir %CD%\data snapshot"
   ```
 
 ## Exports
@@ -343,7 +406,7 @@ To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot
 Kept in `data/exports/`. `wallets.csv` and `transactions_YYYY.csv` are rewritten after every
 sync and when you edit wallets or categories; `balances_YYYY-12-31.csv` when you press
 **Recompute year-end** and right after each 31/12 cutoff (unchanged files are not touched). Download them from the Year-end, Transactions and Wallets pages, or run
-`python3 -m cryptoledger export`.
+`python3 -m crumenae export`.
 
 | File | When | One row per | Columns |
 |---|---|---|---|
@@ -357,7 +420,7 @@ value at the moment of the transaction. Details: [docs/REPORT_CONTRACT.md](docs/
 
 ## Reports
 
-Year-end → **Write report folder** (or `python3 -m cryptoledger report 2025`) creates
+Year-end → **Write report folder** (or `python3 -m crumenae report 2025`) creates
 `data/reports/crypto_report_TY2025/`:
 
 | File | Content |
@@ -371,7 +434,7 @@ The format is described in [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 
 ## Look and brand
 
-Dark-first design in the CryptoLedger brand (Night, purples, gold; Inter), with a light theme
+Dark-first design in the Crumenae brand (Night, purples, gold; Inter), with a light theme
 from the sidebar. The whole look lives in `web/brand.css` (colours, font, radii), `web/logo.svg`
 and the favicon files: to make it your own, follow [docs/BRAND.md](docs/BRAND.md), which also
 holds the brand guideline. No code change is needed.
@@ -387,11 +450,21 @@ holds the brand guideline. No code change is needed.
 ## Command line
 
 ```bash
-python3 -m cryptoledger --help
+python3 -m crumenae --help
 ```
 
-`serve` (default), `sync [--wallet ID] [--full]`, `snapshot`, `report YEAR`, `demo`, and
-`--data-dir PATH` to keep the data elsewhere (an encrypted volume, for example).
+| Command | What it does |
+|---|---|
+| `python3 -m crumenae` | start the app and open the browser (same as `serve`) |
+| `python3 -m crumenae serve --port 8765 --no-browser` | start without opening the browser, on another port if needed |
+| `python3 -m crumenae sync [--wallet ID] [--full]` | sync from the terminal; `--full` reads every history again |
+| `python3 -m crumenae snapshot` | store every wallet's live balance now (for the 31/12 job) |
+| `python3 -m crumenae report 2025` | write the report folder of a fiscal year |
+| `python3 -m crumenae export` | rewrite the CSV exports in `data/exports/` |
+| `python3 -m crumenae demo` | explore with fictional data, offline |
+
+Add `--data-dir PATH` before the command to keep the data elsewhere (an encrypted volume, for
+example); the `CRUMENAE_DATA_DIR` environment variable does the same.
 
 ## Not done yet
 
@@ -400,6 +473,9 @@ python3 -m cryptoledger --help
 - Binance trades/Convert import (balances come from snapshots meanwhile); rewards of ETH and
   SOL staking (WBETH, BNSOL) accrue in the token's rate, so they are not imported as rewards.
 - Bitcoin xpub wallets, DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
+- Exchanges other than Binance (Coinbase, Bitpanda, Young Platform…): use a manual account and
+  enter its year-end balance meanwhile.
+- Staking other than what a wallet's own balance reports (see [Staked coins](#staked-coins)).
 
 ## Development
 

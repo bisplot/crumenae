@@ -5,8 +5,8 @@ import copy
 import unittest
 from decimal import Decimal
 
-from cryptoledger.adapters import get_adapter
-from cryptoledger.http import HttpError
+from crumenae.adapters import get_adapter
+from crumenae.http import HttpError
 
 from helpers import FakeHttp, TempContext, add_wallet, fixture
 from test_adapters import ME, TRON_ME, binance_handler, etherscan_handler, solana_handler, tron_handler

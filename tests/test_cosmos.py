@@ -1,9 +1,9 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import sync
-from cryptoledger.adapters import get_adapter
-from cryptoledger.adapters.cosmos import bech32_decode, bech32_encode, module_address
+from crumenae import sync
+from crumenae.adapters import get_adapter
+from crumenae.adapters.cosmos import bech32_decode, bech32_encode, module_address
 
 from helpers import FakeHttp, TempContext, add_wallet
 
@@ -152,7 +152,7 @@ class CosmosTest(unittest.TestCase):
             t.close()
 
     def test_terra_and_custom_cosmos_network(self):
-        from cryptoledger.server import App
+        from crumenae.server import App
         self.assertEqual(self.ctx.networks.get("terra").native["symbol"], "LUNA")
         app = App(self.ctx)
         app.dispatch("POST", "/api/providers", {}, {"name": "Cosmos Hub LCD", "type": "cosmos",

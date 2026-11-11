@@ -12,7 +12,7 @@ from typing import List
 try:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 except ImportError:  # pragma: no cover - Python < 3.9
-    raise SystemExit("CryptoLedger needs Python 3.9 or newer.")
+    raise SystemExit("Crumenae needs Python 3.9 or newer.")
 
 
 class FiscalCalendar:

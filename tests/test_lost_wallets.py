@@ -2,11 +2,11 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import assets as assets_mod
-from cryptoledger import ledger, sync, views, yearend
-from cryptoledger.models import Movement, Snapshot, SyncResult
-from cryptoledger.prices import PriceService
-from cryptoledger.server import App
+from crumenae import assets as assets_mod
+from crumenae import ledger, sync, views, yearend
+from crumenae.models import Movement, Snapshot, SyncResult
+from crumenae.prices import PriceService
+from crumenae.server import App
 
 from helpers import TempContext, add_wallet
 

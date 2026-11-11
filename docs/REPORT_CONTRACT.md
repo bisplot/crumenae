@@ -4,7 +4,7 @@ Two sets of files. Downstream tools (a tax-return workflow, a spreadsheet) shoul
 files and nothing else. Columns are stable; new columns are only appended.
 
 1. **Standard exports** in `<data>/exports/`, always up to date (below).
-2. **Year-end report folder**, written on demand by `python3 -m cryptoledger report <YYYY>` or
+2. **Year-end report folder**, written on demand by `python3 -m crumenae report <YYYY>` or
    Year-end → Write report folder, with the RW-oriented files. Amounts there are plain decimals
    with a dot, EUR values unrounded unless stated.
 
@@ -13,7 +13,7 @@ files and nothing else. Columns are stable; new columns are only appended.
 `wallets.csv` and `transactions_YYYY.csv` are rewritten after every sync and after edits to
 wallets and categories. `balances_YYYY-MM-DD.csv` follows the year-end values, which are only
 computed on request (Recompute year-end) and right after each fiscal-year cutoff while the app
-runs. All files are also rewritten by `python3 -m cryptoledger export`. A file whose content did not change is not rewritten.
+runs. All files are also rewritten by `python3 -m crumenae export`. A file whose content did not change is not rewritten.
 Files exist for every completed fiscal year; the current year's transactions can be downloaded
 from the Transactions page (year-to-date).
 
