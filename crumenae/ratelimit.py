@@ -47,6 +47,8 @@ SERVICES: Dict[str, Dict[str, Any]] = {
               "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "binance_api": {"label": "Binance account API", "hosts": ["api.binance.com"],
                     "rate": 5, "unit": "second", "per_day": None, "hint": "Weight-based: 6,000/min per IP"},
+    "coinbase_api": {"label": "Coinbase account API", "hosts": ["api.coinbase.com"],
+                      "rate": 5, "unit": "second", "per_day": None, "hint": "10,000 calls/hour per key"},
     "youngplatform_api": {"label": "Young Platform account API", "hosts": ["api.youngplatform.com"],
                           "rate": 5, "unit": "second", "per_day": None, "hint": "Read-only API key"},
     "binance_data": {"label": "Binance public prices", "hosts": ["data-api.binance.vision"],

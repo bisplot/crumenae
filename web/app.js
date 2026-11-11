@@ -94,7 +94,8 @@
     el('div', { class: 'card' }, title || right ? el('div', { class: 'card-head' }, title ? el('h2', { text: title }) : el('span'), right || null) : null, ...body);
   const field = (label, input, help) => el('label', { class: 'field' }, el('span', { text: label }), input, help ? el('span', { class: 'help', text: help }) : null);
   const CRED_LABELS = { api_key: 'API key (read-only)', api_secret: 'API secret', key_id: 'Key ID',
-    public_key: 'Public key', private_key: 'Private key' };
+    public_key: 'Public key', private_key: 'Private key', api_key_name: 'API key name',
+    api_private_key: 'API private key' };
   const badge = (text, kind) => el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text });
   const flagList = (flags) => (flags && flags.length
     ? el('ul', { class: 'flag-list' }, flags.map((f) => el('li', { class: flagLevel(f) === 'error' ? 'neg' : flagLevel(f) === 'warn' ? '' : 'muted', text: f })))
