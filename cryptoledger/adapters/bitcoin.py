@@ -1,11 +1,11 @@
-"""Bitcoin via an Esplora API (mempool.space by default, blockstream.info works too).
+"""Bitcoin and Litecoin via an Esplora API (mempool.space / litecoinspace.org by default,
+blockstream.info or your own node work too).
 
-One wallet = one address. Bitcoin is UTXO-based, so summing every confirmed
+One wallet = one address. These coins are UTXO-based, so summing every confirmed
 transaction gives the exact balance at any moment.
 """
 from __future__ import annotations
 
-import re
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
 
@@ -13,9 +13,9 @@ from .. import assets as assets_mod
 from ..http import HttpError
 from ..util import scaled
 from . import register
+from . import utxo_address
 from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
-ADDRESS_RE = re.compile(r"^(bc1[02-9ac-hj-np-z]{11,71}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$")
 CHAIN_PAGE = 25
 
 
@@ -24,18 +24,17 @@ class BitcoinAdapter(Adapter):
     id = "bitcoin"
 
     def validate_address(self, address: str) -> str:
-        address = address.strip()
-        if address.lower().startswith(("xpub", "ypub", "zpub")):
-            raise ValueError("extended public keys are not supported yet: add each address")
-        if not ADDRESS_RE.match(address.lower() if address.lower().startswith("bc1") else address):
-            raise ValueError("not a Bitcoin mainnet address (1…, 3… or bc1…)")
-        return address.lower() if address.lower().startswith("bc1") else address
+        return utxo_address.validate(self.network.address_format or "bitcoin", address)
+
+    @property
+    def decimals(self) -> int:
+        return int((self.network.native or {}).get("decimals") or 8)
 
     def _get(self, path: str) -> Any:
         try:
             return self.ctx.http.get_json(self.network.explorer_api.rstrip("/") + path)
         except HttpError as e:
-            raise AdapterError(f"Bitcoin explorer: {e}")
+            raise AdapterError(f"{self.network.name} explorer: {e}")
 
     def parse_transaction(self, tx: Dict[str, Any], addr: str) -> List[Movement]:
         status = tx.get("status") or {}
@@ -56,7 +55,7 @@ class BitcoinAdapter(Adapter):
         moves: List[Movement] = []
         if fee:
             moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=ts, asset_key=key,
-                                  amount=-scaled(fee, 8), kind="fee", from_address=addr))
+                                  amount=-scaled(fee, self.decimals), kind="fee", from_address=addr))
         transfer = delta + fee
         if transfer:
             others = [o.get("scriptpubkey_address") for o in tx.get("vout") or []
@@ -66,7 +65,7 @@ class BitcoinAdapter(Adapter):
                             next((s for s in senders if s and s != addr), ""))
             cp = counterparty or ""
             moves.append(Movement(uid=f"{h}:btc", tx_hash=h, ts=ts, asset_key=key,
-                                  amount=scaled(transfer, 8), kind="in" if transfer > 0 else "out",
+                                  amount=scaled(transfer, self.decimals), kind="in" if transfer > 0 else "out",
                                   counterparty=cp, from_address=cp if transfer > 0 else addr,
                                   to_address=addr if transfer > 0 else cp))
         return moves
@@ -88,7 +87,7 @@ class BitcoinAdapter(Adapter):
             if reached or len(confirmed) < CHAIN_PAGE:
                 break
             page = self._get(f"/address/{addr}/txs/chain/{confirmed[-1]['txid']}")
-        log(f"{wallet['label']}: {len(txs)} new Bitcoin transactions")
+        log(f"{wallet['label']}: {len(txs)} new {self.network.name} transactions")
         for t in txs:
             result.movements.extend(self.parse_transaction(t, addr))
         if txs:
@@ -102,4 +101,4 @@ class BitcoinAdapter(Adapter):
         cs = info.get("chain_stats") or {}
         sats = int(cs.get("funded_txo_sum") or 0) - int(cs.get("spent_txo_sum") or 0)
         native = assets_mod.native_asset(self.network)
-        return {native.key: scaled(sats, 8)}, [native]
+        return {native.key: scaled(sats, self.decimals)}, [native]

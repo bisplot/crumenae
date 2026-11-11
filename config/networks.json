@@ -438,6 +438,36 @@
     "native": {"symbol": "BTC", "name": "Bitcoin", "decimals": 8, "coingecko": "bitcoin", "binance": "BTC"},
     "provider": "esplora"
   },
+  "litecoin": {
+    "name": "Litecoin",
+    "adapter": "bitcoin",
+    "provider": "litecoinspace",
+    "address_format": "litecoin",
+    "explorer_api": "https://litecoinspace.org/api",
+    "tx_url": "https://litecoinspace.org/tx/{tx}",
+    "address_url": "https://litecoinspace.org/address/{address}",
+    "native": {"symbol": "LTC", "name": "Litecoin", "decimals": 8, "coingecko": "litecoin", "binance": "LTC"}
+  },
+  "dogecoin": {
+    "name": "Dogecoin",
+    "adapter": "blockbook",
+    "provider": "blockbook_doge",
+    "address_format": "dogecoin",
+    "explorer_api": "https://doge1.trezor.io",
+    "tx_url": "https://blockchair.com/dogecoin/transaction/{tx}",
+    "address_url": "https://blockchair.com/dogecoin/address/{address}",
+    "native": {"symbol": "DOGE", "name": "Dogecoin", "decimals": 8, "coingecko": "dogecoin", "binance": "DOGE"}
+  },
+  "bitcoin_cash": {
+    "name": "Bitcoin Cash",
+    "adapter": "blockbook",
+    "provider": "blockbook_bch",
+    "address_format": "bitcoin-cash",
+    "explorer_api": "https://bch1.trezor.io",
+    "tx_url": "https://blockchair.com/bitcoin-cash/transaction/{tx}",
+    "address_url": "https://blockchair.com/bitcoin-cash/address/{address}",
+    "native": {"symbol": "BCH", "name": "Bitcoin Cash", "decimals": 8, "coingecko": "bitcoin-cash", "binance": "BCH"}
+  },
   "stellar": {
     "name": "Stellar",
     "adapter": "stellar",

@@ -29,8 +29,13 @@ TYPES: Dict[str, Dict[str, Any]] = {
                "default_url": "https://terra-lcd.publicnode.com",
                "help": "Any Cosmos SDK chain (Terra, Terra Classic, Cosmos Hub, Osmosis…): its LCD/REST URL. "
                        "Each network gives its address prefix and native denom."},
-    "esplora": {"label": "Esplora (Bitcoin)", "family": "bitcoin", "adapter": "bitcoin", "custom": True,
-                "default_url": "https://mempool.space/api", "help": "mempool.space, Blockstream or your own node."},
+    "esplora": {"label": "Esplora (Bitcoin, Litecoin)", "family": "bitcoin", "adapter": "bitcoin", "custom": True,
+                "default_url": "https://mempool.space/api",
+                "help": "mempool.space, litecoinspace.org, Blockstream or your own node."},
+    "blockbook": {"label": "Blockbook (Bitcoin-like coins)", "family": "bitcoin", "adapter": "blockbook",
+                  "custom": True, "default_url": "https://doge1.trezor.io",
+                  "help": "A Blockbook API v2 server (Trezor's public ones, or your own): Dogecoin, Bitcoin Cash, "
+                          "Litecoin, Bitcoin…"},
     "horizon": {"label": "Stellar Horizon", "family": "stellar", "adapter": "stellar", "custom": True,
                 "default_url": "https://horizon.stellar.org", "help": "The public Horizon server or any other."},
     "solana": {"label": "Solana RPC", "family": "solana", "adapter": "solana", "custom": False, "default_url": ""},
@@ -38,7 +43,8 @@ TYPES: Dict[str, Dict[str, Any]] = {
     "ark": {"label": "ARK/Solar API", "family": "solar", "adapter": "solar", "custom": False, "default_url": ""},
 }
 
-ADAPTER_FAMILY = {"evm": "evm", "alchemy": "evm", "bitcoin": "bitcoin", "stellar": "stellar", "cosmos": "cosmos",
+ADAPTER_FAMILY = {"evm": "evm", "alchemy": "evm", "bitcoin": "bitcoin", "blockbook": "bitcoin", "stellar": "stellar",
+                  "cosmos": "cosmos",
                   "solana": "solana", "tron": "tron", "solar": "solar"}
 
 # Built-in providers. Their key names are the historical secret names.
@@ -62,6 +68,14 @@ BUILTIN: List[Dict[str, Any]] = [
      "hint": "Free key: about 15 calls/s, 100,000/day. Without a key TronGrid may slow down or refuse calls."},
     {"id": "esplora", "name": "mempool.space (Bitcoin)", "type": "esplora", "base_url": "https://mempool.space/api",
      "needs_key": False, "link": "", "hint": "Public, no key."},
+    {"id": "litecoinspace", "name": "litecoinspace.org (Litecoin)", "type": "esplora",
+     "base_url": "https://litecoinspace.org/api", "needs_key": False, "link": "", "hint": "Public, no key."},
+    {"id": "blockbook_doge", "name": "Trezor Blockbook (Dogecoin)", "type": "blockbook",
+     "base_url": "https://doge1.trezor.io", "needs_key": False, "link": "",
+     "hint": "Public, no key. If it refuses requests, set another Blockbook server for Dogecoin."},
+    {"id": "blockbook_bch", "name": "Trezor Blockbook (Bitcoin Cash)", "type": "blockbook",
+     "base_url": "https://bch1.trezor.io", "needs_key": False, "link": "",
+     "hint": "Public, no key. If it refuses requests, set another Blockbook server for Bitcoin Cash."},
     {"id": "horizon", "name": "Stellar Horizon (public)", "type": "horizon", "base_url": "https://horizon.stellar.org",
      "needs_key": False, "link": "", "hint": "Public Stellar API run by the Stellar Development Foundation, no key."},
     {"id": "terra_lcd", "name": "Terra (PublicNode)", "type": "cosmos", "base_url": "https://terra-lcd.publicnode.com",
