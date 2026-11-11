@@ -478,7 +478,7 @@
       const n = byId[netSel.value];
       if (!n) { toast('Choose a network', true); return; }
       const extra = [...evmBox.querySelectorAll('input:checked')].map((i) => i.value);
-      const body = { networks: [n.id, ...(n.family === 'evm' ? extra : [])], address: addr.value.trim(), label: label.value.trim(),
+      const body = { networks: [n.id, ...(n.family === 'evm' ? extra : [])], address: n.needs_address ? addr.value.trim() : '', label: label.value.trim(),
         portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked };
       if ((n.credentials || []).length) { body.api_key = keyIn.value.trim(); body.api_secret = secretIn.value.trim(); }
       try {
@@ -508,11 +508,11 @@
         el('td', { class: 'mono small' }, w.address ? (w.address_url ? el('a', { href: w.address_url, target: '_blank', rel: 'noopener noreferrer', text: short(w.address, 8, 6), title: w.address }) : short(w.address, 8, 6)) : '—'),
         el('td', { text: w.portfolio }),
         el('td', { class: 'num', text: w.rw_slot ?? '—' }),
-        el('td', { class: 'small' }, w.last_error ? el('span', { class: 'neg', text: w.last_error }) : w.network === 'manual' ? el('span', { class: 'muted', text: 'manual entries' }) : el('div', {}, when(w.last_sync_at)),
+        el('td', { class: 'small' }, w.last_error ? el('div', {}, el('span', { class: 'neg', text: w.last_error }), el('div', { class: 'muted small', text: `last successful sync: ${when(w.last_sync_at)}` })) : w.network === 'manual' ? el('span', { class: 'muted', text: 'manual entries' }) : el('div', {}, when(w.last_sync_at)),
           !w.last_error ? checkLine(w) : null,
           w.last_warning ? el('div', { class: 'muted small', title: w.last_warning, text: '⚠ ' + (w.last_warning.length > 60 ? w.last_warning.slice(0, 57) + '…' : w.last_warning) }) : null),
         el('td', {}, el('div', { class: 'actions', style: 'justify-content:flex-end' },
-          w.network !== 'manual' ? el('button', { class: 'btn small', type: 'button', text: 'Sync', onclick: () => startJob('sync', { wallet_ids: [w.id] }) }) : null,
+          w.network !== 'manual' ? el('button', { class: 'btn small', type: 'button', text: 'Sync', title: w.active ? '' : 'Paused: syncs this wallet once, "Sync all" still skips it', onclick: () => startJob('sync', { wallet_ids: [w.id] }) }) : null,
           el('button', { class: 'btn small', type: 'button', text: 'Edit', onclick: () => editWallet(w, byId[w.network]) }),
           el('button', { class: 'btn small' + (w.lost ? '' : ' ghost'), type: 'button', text: w.lost ? 'Found' : 'Lost',
             title: w.lost ? 'You have access again: show it on the Dashboard' : 'Keys or access lost: hide it and its assets from the Dashboard, Assets and Transactions. Year-end values and the RW report still include it.',
@@ -1026,7 +1026,11 @@
         const job = await api.get('/api/jobs/current');
         showJob(job);
         if (job && job.running) pollJob();
-        else { toast(job && job.error ? 'Job failed: ' + job.error : 'Done', Boolean(job && job.error)); await refreshStatus(); route(); }
+        else {
+          const failed = job && job.errors ? `Done, but ${job.errors} wallet(s) failed: see the Wallets page` : 'Done';
+          toast(job && job.error ? 'Job failed: ' + job.error : failed, Boolean(job && (job.error || job.errors)));
+          await refreshStatus(); route();
+        }
       } catch (e) { pollJob(); }
     }, 800);
   }

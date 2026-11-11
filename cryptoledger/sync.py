@@ -115,7 +115,9 @@ def load_assets(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]]
 def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = None,
              full: bool = False) -> Dict[str, Any]:
     prices = PriceService(ctx)
-    wallets = [w for w in ctx.wallets(active_only=True) if not wallet_ids or w["id"] in wallet_ids]
+    # "Sync all" skips paused wallets; a wallet chosen by itself is synced even when paused.
+    wallets = ([w for w in ctx.wallets() if w["id"] in wallet_ids] if wallet_ids
+               else ctx.wallets(active_only=True))
     errors = 0
     if ctx.offline:
         log("Offline/demo mode: external APIs are not called.")
@@ -322,7 +324,8 @@ class Job:
 
     def public(self) -> Dict[str, Any]:
         return {"kind": self.kind, "started_at": self.started_at, "finished_at": self.finished_at,
-                "running": self.finished_at is None, "error": self.error, "log": self.lines[-200:]}
+                "running": self.finished_at is None, "error": self.error, "log": self.lines[-200:],
+                "errors": (self.result or {}).get("errors", 0) if isinstance(self.result, dict) else 0}
 
 
 class JobRunner:
