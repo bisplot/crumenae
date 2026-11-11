@@ -88,9 +88,12 @@ def test_binance_data(ctx) -> Dict[str, Any]:
 
 def test_ecb(ctx) -> Dict[str, Any]:
     end = date.today()
+    # The ECB answers in the format of the Accept header, whatever "format" says (see prices/ecb.py).
     text = ctx.http.get_text("https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A",
                              {"startPeriod": (end - timedelta(days=10)).isoformat(), "endPeriod": end.isoformat(),
-                              "format": "csvdata"}, count=False)
+                              "format": "csvdata"}, headers={"Accept": "text/csv"}, count=False)
+    if text.lstrip().startswith(("{", "<")):
+        return _result(False, "ECB answered in an unexpected format (not CSV).", "free")
     rows = [r for r in csv.DictReader(io.StringIO(text)) if r.get("OBS_VALUE")]
     if rows:
         return _result(True, f"ECB answers: USD/EUR {rows[-1]['OBS_VALUE']} on {rows[-1]['TIME_PERIOD']}.", "free")
@@ -151,6 +154,20 @@ def test_provider(ctx, provider_id: str) -> Dict[str, Any]:
         if ledger:
             return _result(True, f"{p['name']} answers: ledger {int(ledger):,}.", "1 call")
         return _result(False, f"{p['name']} answered without a ledger number.", "1 call")
+    if t == "blockbook":
+        data = ctx.http.get_json(base + "/api/v2")
+        info = data if isinstance(data, dict) else {}
+        height = _first(info.get("blockbook"), "bestHeight") or _first(info.get("backend"), "blocks")
+        if height:
+            return _result(True, f"{p['name']} answers: block {int(height):,}.", "1 call")
+        return _result(False, f"{p['name']} answered without a block height.", "1 call")
+    if t == "ark":
+        data = ctx.http.get_json(base + "/blocks", {"limit": 1})
+        rows = (data or {}).get("data") if isinstance(data, dict) else None
+        height = _first(rows[0], "height") if rows else None
+        if height:
+            return _result(True, f"{p['name']} answers: block {int(height):,}.", "1 call")
+        return _result(False, f"{p['name']} answered without a block height.", "1 call")
     return _result(False, "No test available for this provider type.", "none")
 
 
@@ -179,5 +196,9 @@ def run(ctx, service: str) -> Dict[str, Any]:
         return fn(ctx)
     except HttpError as e:
         if e.status in (401, 403):
+            p = providers.get(ctx.settings, service)
+            if p and not ctx.secrets.get(providers.secret_name(service)):
+                return _result(False, f"{p['name']} refused the request ({e.status}) and no key is saved: the "
+                                      "server may block this client or need a key. Try another server URL.", "1 call")
             return _result(False, f"Key refused ({e.status}): check that it is copied in full and active.", "1 call")
         return _result(False, f"No answer: {e}", "?")
