@@ -14,8 +14,8 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **One free key to start**: an [Alchemy](https://dashboard.alchemy.com/signup) key reads every
   EVM chain (Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, BNB Smart Chain, Monad,
   Arc, Ronin, zkSync Era, Scroll, Blast, Mantle, Gnosis, Celo, Sonic, opBNB, Unichain, World Chain,
-  Berachain, Zora) and Solana. Bitcoin, Stellar, Terra, Terra Classic, Tron and Solar (SXP) work with
-  no key at all. An optional Etherscan key gives the most complete history on Ethereum, Polygon,
+  Berachain, Zora) and Solana. Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Terra
+  Classic, Tron and Solar (SXP) work with no key at all. An optional Etherscan key gives the most complete history on Ethereum, Polygon,
   Arbitrum and Linea; optional Helius and TronGrid keys make Solana and Tron faster. Binance
   accounts (with Simple Earn rewards) use a read-only key; manual accounts cover anything else.
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
@@ -60,7 +60,7 @@ The app opens at <http://127.0.0.1:8765>. On Windows use `py -m cryptoledger`, o
 Then get **one free key**: sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup)
 (e-mail or Google), create an app, enable the chains you use (Mainnet), copy the API key and paste
 it in **Settings → API providers → Alchemy** → **Save** → **Test**. That reads every EVM chain and
-Solana; Bitcoin, Stellar, Terra, Tron and Solar need no key. Add your addresses on the
+Solana; Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Tron and Solar need no key. Add your addresses on the
 **Wallets** page and press **Sync now**.
 
 Want to look around first? `python3 -m cryptoledger demo` starts with fictional wallets and
@@ -103,13 +103,15 @@ python3 -m pip install -r requirements-optional.txt
    | Solana (Helius) (optional) | Solana, faster; without it Solana is read with your Alchemy key, or the slow public endpoint | Yes, [dashboard.helius.dev](https://dashboard.helius.dev/) |
    | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
    | mempool.space | Bitcoin | no key |
+   | litecoinspace.org | Litecoin (`L…`, `M…`, `3…`, `ltc1…`) | no key |
+   | Trezor Blockbook | Dogecoin (`D…`), Bitcoin Cash (`bitcoincash:q…` or legacy `1…`) | no key; if Trezor's public server refuses requests, set another Blockbook server for that network in Settings → Networks |
    | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
    | Terra / Terra Classic (PublicNode) | Terra (LUNA) and Terra Classic (LUNC, USTC), staking included | no key |
 
    The Solar API appears once a wallet uses it. Binance account
    keys (read-only) are entered per account on the Wallets page. **+ Add provider** adds any
    other service that speaks a supported type — Etherscan-compatible (Blockscout, Routescan,
-   Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora or Horizon — with its key, limits and Test.
+   Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora, Blockbook or Horizon — with its key, limits and Test.
    No code, no request to anyone.
 
    **Networks**: every blockchain you can track and the provider that reads it. Ethereum,
