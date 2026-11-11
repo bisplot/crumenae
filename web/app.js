@@ -669,7 +669,7 @@
         secretInputs[name], extra || null);
     };
     const serviceRow = ({ limitId, label, hint, secret, testId, keyNote, extra, link, actions }) => {
-      const l = byId[limitId];
+      const l = byId[limitId] || { id: limitId, rate: null, unit: 'second', per_day: null, used_today: 0 };
       const ps = el('input', { type: 'text', inputmode: 'decimal', value: l.rate ?? '', placeholder: 'no limit', style: 'width:80px', 'aria-label': 'Calls' });
       const unit = el('select', { 'aria-label': 'Per' },
         el('option', { value: 'second', text: 'seconds', selected: l.unit === 'second' }),

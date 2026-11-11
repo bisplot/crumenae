@@ -31,6 +31,12 @@ SERVICES: Dict[str, Dict[str, Any]] = {
                  "rate": 10, "unit": "second", "per_day": 100000, "hint": "Free key at trongrid.io: ~15 calls/s, 100,000/day; without a key calls may be refused"},
     "esplora": {"label": "mempool.space / Blockstream (Bitcoin)", "hosts": ["mempool.space", "blockstream.info"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "litecoinspace": {"label": "litecoinspace.org (Litecoin)", "hosts": ["litecoinspace.org"],
+                      "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "blockbook_doge": {"label": "Trezor Blockbook (Dogecoin)", "hosts": ["doge1.trezor.io"],
+                       "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
+    "blockbook_bch": {"label": "Trezor Blockbook (Bitcoin Cash)", "hosts": ["bch1.trezor.io"],
+                      "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "terra_lcd": {"label": "Terra LCD (PublicNode)", "hosts": ["terra-lcd.publicnode.com"],
                   "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "terra_classic_lcd": {"label": "Terra Classic LCD (PublicNode)", "hosts": ["terra-classic-lcd.publicnode.com"],
@@ -71,6 +77,11 @@ def all_services(settings) -> Dict[str, Dict[str, Any]]:
     """Built-in services plus the API providers you added (Settings → API providers)."""
     from . import providers
     out = dict(SERVICES)
+    # Every built-in provider has its limits (the Settings page shows one row per provider).
+    for p in providers.BUILTIN:
+        if p["id"] not in out:
+            out[p["id"]] = {"label": p.get("name") or p["id"], "hosts": providers.hosts(p), "rate": 3,
+                            "unit": "second", "per_day": None, "hint": p.get("hint") or "Public, no key"}
     for p in providers.custom(settings) if settings is not None else []:
         if p.get("id") and p["id"] not in out:
             out[p["id"]] = {"label": p.get("name") or p["id"], "hosts": providers.hosts(p), "rate": 5,
