@@ -150,11 +150,14 @@ class CosmosAdapter(Adapter):
         return AssetInfo(key=key, network=self.network.id, symbol=short[:24], name=denom[:80], decimals=6,
                          contract=denom, status="unmapped")
 
-    def _search(self, query: str, done: int) -> List[Dict[str, Any]]:
-        """All transactions matching `query`, oldest first, skipping the first `done`."""
+    def _search(self, query: str, from_height: int) -> List[Dict[str, Any]]:
+        """All transactions matching `query` from block `from_height` on, oldest first. The cursor
+        is a block height, not a count: a public node that prunes old transactions shrinks the
+        list, and a count would then skip the new ones."""
         out: List[Dict[str, Any]] = []
-        page = done // PAGE + 1
-        skip = done % PAGE
+        if from_height > 0:
+            query = f"{query} AND tx.height>={from_height}"
+        page, skip = 1, 0
         while True:
             data = self._get("/cosmos/tx/v1beta1/txs", {"query": query, "page": page, "limit": PAGE,
                                                        "order_by": "ORDER_BY_ASC"}) or {}
@@ -174,13 +177,15 @@ class CosmosAdapter(Adapter):
         me = wallet["address"]
         log(f"{wallet['label']}: reading {self.network.name} transactions")
         txs: Dict[str, Dict[str, Any]] = {}
-        counts = dict(state.get("counts") or {})
+        # Last block read per query; the block is read again next time (its txs dedupe by uid).
+        # A state from the old count-based cursor starts again from the beginning, once.
+        heights = dict(state.get("heights") or {})
         try:
             for name, query in (("sent", f"message.sender='{me}'"), ("received", f"coin_received.receiver='{me}'")):
-                found = self._search(query, int(counts.get(name) or 0))
-                counts[name] = int(counts.get(name) or 0) + len(found)
+                found = self._search(query, int(heights.get(name) or 0))
                 for r in found:
                     txs[r["txhash"]] = r
+                    heights[name] = max(int(heights.get(name) or 0), int(r.get("height") or 0))
         except AdapterError as e:
             result.warnings.append(f"{self.network.name}: transaction history not available from this API ({e}). "
                                    "Live balances are still read; year-end values need a snapshot near the "
@@ -200,7 +205,8 @@ class CosmosAdapter(Adapter):
                 assets[a.key] = a
         result.movements = moves
         result.assets = list(assets.values())
-        result.state["counts"] = counts
+        result.state["heights"] = heights
+        result.state.pop("counts", None)
         return result
 
     def parse_tx(self, r: Dict[str, Any], me: str) -> List[Movement]:

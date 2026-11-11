@@ -83,12 +83,30 @@ class EvmAdapter(Adapter):
             raise AdapterError(f"{self.network.name} explorer: {message}: {result}")
         raise AdapterError(f"{self.network.name} explorer: rate limit, try again later")
 
-    def _list(self, action: str, address: str, start_block: int) -> List[Dict[str, Any]]:
+    def _head_block(self) -> Optional[int]:
+        """The newest block now, read once per sync: every list is read up to it, so a transaction
+        landing between two lists is not skipped (the next sync starts from this block)."""
+        try:
+            return int(str(self._api({"module": "proxy", "action": "eth_blockNumber"})), 16)
+        except (AdapterError, ValueError, TypeError):
+            return None
+
+    def _token_decimals(self, contract: str) -> Optional[int]:
+        """decimals() of a token the explorer listed without them."""
+        try:
+            raw = self._api({"module": "proxy", "action": "eth_call", "to": contract, "data": "0x313ce567",
+                             "tag": "latest"})
+            return int(str(raw), 16) if raw and raw != "0x" else None
+        except (AdapterError, ValueError, TypeError):
+            return None
+
+    def _list(self, action: str, address: str, start_block: int,
+              end_block: Optional[int] = None) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         page = 1
         while True:
             batch = self._api({"module": "account", "action": action, "address": address,
-                               "startblock": start_block, "endblock": 999999999,
+                               "startblock": start_block, "endblock": end_block or 999999999,
                                "page": page, "offset": PAGE, "sort": "asc"})
             if not isinstance(batch, list):
                 raise AdapterError(f"{self.network.name} explorer: unexpected {action} response")
@@ -114,9 +132,11 @@ class EvmAdapter(Adapter):
         native = assets_mod.native_asset(self.network)
         decimals = native.decimals or 18
         log(f"{wallet['label']}: reading {self.network.name} transactions from block {start}")
-        normal = self._list("txlist", addr, start)
-        internal = self._list("txlistinternal", addr, start)
-        tokens = self._list("tokentx", addr, start)
+        head = self._head_block()
+        normal = self._list("txlist", addr, start, head)
+        internal = self._list("txlistinternal", addr, start, head)
+        tokens = self._list("tokentx", addr, start, head)
+        hold: Optional[int] = None   # a transfer that could not be read: the next sync starts there
         log(f"{wallet['label']}: {len(normal)} txs, {len(internal)} internal, {len(tokens)} token transfers")
 
         moves: List[Movement] = []
@@ -180,14 +200,22 @@ class EvmAdapter(Adapter):
             contract = (t.get("contractAddress") or "").lower()
             frm = (t.get("from") or "").lower()
             to = (t.get("to") or "").lower()
-            try:
-                dec = int(t.get("tokenDecimal") or 0)
-            except ValueError:
-                dec = 0
-            asset = seen_assets.get(f"{self.network.id}:{contract}") or assets_mod.token_asset(
+            known = seen_assets.get(f"{self.network.id}:{contract}") or assets_mod.token_asset(
+                self.ctx, self.network, contract, t.get("tokenSymbol", ""), t.get("tokenName", ""))
+            dec = known.decimals
+            if dec is None:
+                try:
+                    dec = int(t.get("tokenDecimal"))
+                except (TypeError, ValueError):   # listed without decimals: ask the contract
+                    dec = self._token_decimals(contract)
+            if dec is None:
+                block = int(t["blockNumber"])
+                hold = block if hold is None else min(hold, block)
+                result.warnings.append(f"token {contract}: decimals unknown, transfer not read yet (next sync)")
+                continue
+            asset = known if known.decimals is not None else assets_mod.token_asset(
                 self.ctx, self.network, contract, t.get("tokenSymbol", ""), t.get("tokenName", ""), dec)
             seen_assets[asset.key] = asset
-            dec = asset.decimals if asset.decimals is not None else dec
             amount = scaled(t.get("value") or 0, dec)
             if t.get("logIndex") not in (None, ""):
                 base_uid = f"{h}:log:{t['logIndex']}"
@@ -211,7 +239,10 @@ class EvmAdapter(Adapter):
                 "set an archive RPC URL to verify year-end balances against chain state.")
         result.movements = moves
         result.assets = list(seen_assets.values())
-        result.state["last_block"] = max_block
+        last = max(max_block, head or 0)
+        if hold is not None:   # read again from there next time (what was stored dedupes by uid)
+            last = min(last, hold)
+        result.state["last_block"] = last
         result.state["reader"] = "etherscan"
         return result
 

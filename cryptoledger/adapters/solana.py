@@ -205,19 +205,27 @@ class SolanaAdapter(Adapter):
         known = list(dict.fromkeys(list(state.get("token_accounts", [])) + [t["pubkey"] for t in token_accounts]))
         cursors: Dict[str, str] = dict(state.get("until", {}))
         sigs: Dict[str, Dict[str, Any]] = {}
+        # Transactions the RPC did not return last time: asked again (the cursors moved past them).
+        for s in state.get("retry") or []:
+            sigs[s["signature"]] = dict(s, pos=0)
         for account in [owner] + known:
             page = self._signatures(account, cursors.get(account))
             if page:
                 cursors[account] = page[0]["signature"]
-            for s in page:
-                sigs[s["signature"]] = s
+            for pos, s in enumerate(page):
+                # The list is newest first, also within one slot: keep the position to apply the
+                # older transaction first, so the SOL balance after the last one is the anchor.
+                sigs.setdefault(s["signature"], dict(s, pos=pos))
         log(f"{wallet['label']}: {len(sigs)} new Solana transactions to read")
         decimals: Dict[str, int] = {t["mint"]: t["decimals"] for t in token_accounts}
-        ordered = sorted(sigs.values(), key=lambda s: (s.get("blockTime") or 0, s.get("slot") or 0))
+        ordered = sorted(sigs.values(), key=lambda s: (s.get("blockTime") or 0, s.get("slot") or 0, -s["pos"]))
+        retry: List[Dict[str, Any]] = []
         for n, s in enumerate(ordered, 1):
             tx = self.get_transaction(s["signature"])
             if not tx:
-                result.warnings.append(f"transaction {s['signature']} not returned by RPC")
+                retry.append({k: s.get(k) for k in ("signature", "slot", "blockTime")})
+                result.warnings.append(f"transaction {s['signature']} not returned by the RPC: asked again at "
+                                       "the next sync")
                 continue
             moves, decs = self.parse_transaction(tx, s["signature"], owner, known)
             result.movements.extend(moves)
@@ -230,6 +238,7 @@ class SolanaAdapter(Adapter):
         result.assets = assets
         result.state["until"] = cursors
         result.state["token_accounts"] = known
+        result.state["retry"] = retry[-500:]
         return result
 
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],

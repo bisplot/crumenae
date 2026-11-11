@@ -95,6 +95,14 @@ class AlchemyAdapter(EvmAdapter):
 
     _rpc = _call  # balance_at / block_at of the EVM adapter use the same endpoint
 
+    def _head_block(self) -> Optional[int]:  # type: ignore[override]
+        try:
+            return _int(self._call("eth_blockNumber", [])) or None
+        except AdapterError as e:
+            if _key_problem(e):
+                raise
+            return None   # read to "latest" as before; the next sync starts from the last block seen
+
     def block_at(self, ts: int) -> int:
         hi = _int(self._call("eth_blockNumber", []))
         lo = 0
@@ -108,15 +116,18 @@ class AlchemyAdapter(EvmAdapter):
         return lo
 
     # --- history ------------------------------------------------------------------
-    def _transfers(self, address_field: str, address: str, from_block: int) -> List[Dict[str, Any]]:
-        return self._alchemy_transfers(address_field, address, from_block)
+    def _transfers(self, address_field: str, address: str, from_block: int,
+                   to_block: Optional[int] = None) -> List[Dict[str, Any]]:
+        return self._alchemy_transfers(address_field, address, from_block, to_block)
 
-    def _alchemy_transfers(self, address_field: str, address: str, from_block: int) -> List[Dict[str, Any]]:
+    def _alchemy_transfers(self, address_field: str, address: str, from_block: int,
+                           to_block: Optional[int] = None) -> List[Dict[str, Any]]:
         """alchemy_getAssetTransfers, converted to the transfer shape used by sync()."""
         out: List[Dict[str, Any]] = []
         page_key = None
         while True:
-            q: Dict[str, Any] = {"fromBlock": hex(from_block), "toBlock": "latest", address_field: address,
+            q: Dict[str, Any] = {"fromBlock": hex(from_block), "toBlock": hex(to_block) if to_block else "latest",
+                                 address_field: address,
                                  "category": ["external", "erc20"] + (["internal"] if self.network.alchemy_internal else []),
                                  "order": "asc", "withMetadata": True,
                                  "excludeZeroValue": False, "maxCount": "0x3e8"}
@@ -154,8 +165,10 @@ class AlchemyAdapter(EvmAdapter):
         log(f"{wallet['label']}: reading {self.network.name} transfers from block {start} (Alchemy)")
         rows: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
         try:
+            # Both queries end at the same block, so nothing landing between them is skipped.
+            head = self._head_block()
             for field in ("fromAddress", "toAddress"):
-                for t in self._transfers(field, addr, start):
+                for t in self._transfers(field, addr, start, head):
                     k = (str(t.get("hash", "")).lower(), t.get("category"), str(t.get("from", "")).lower(),
                          str(t.get("to", "")).lower(), str(t.get("contractAddress", "")).lower(), str(t.get("value")),
                          t.get("logIndex"), t.get("traceIndex") or t.get("traceAddress"))
@@ -178,7 +191,8 @@ class AlchemyAdapter(EvmAdapter):
         dec_cache: Dict[str, Optional[int]] = {}
         counter: Dict[str, int] = {}
         sent: Dict[str, int] = {}   # tx hash -> timestamp, for the gas fee
-        max_block = start
+        max_block = max(start, head or 0)
+        hold: Optional[int] = None   # a transfer that could not be read: the next sync starts there
         for t in transfers:
             h = str(t.get("hash", "")).lower()
             ts = _int(t.get("blockTimeStamp") or t.get("blockTimestamp"))
@@ -207,7 +221,9 @@ class AlchemyAdapter(EvmAdapter):
                 if dec < 0:
                     dec = self._decimals(contract, dec_cache)
                 if dec is None:
-                    result.warnings.append(f"token {contract}: decimals unknown, transfer skipped")
+                    block = _int(t.get("blockNum"))
+                    hold = block if hold is None else min(hold, block)
+                    result.warnings.append(f"token {contract}: decimals unknown, transfer not read yet (next sync)")
                     continue
                 asset = seen_assets.get(f"{self.network.id}:{contract}") or assets_mod.token_asset(
                     self.ctx, self.network, contract, str(t.get("asset") or ""), "", dec)
@@ -253,7 +269,7 @@ class AlchemyAdapter(EvmAdapter):
 
         result.movements = moves
         result.assets = list(seen_assets.values())
-        result.state["last_block"] = max_block
+        result.state["last_block"] = max_block if hold is None else min(max_block, hold)
         result.state["reader"] = "alchemy"
         return result
 

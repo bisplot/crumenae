@@ -8,6 +8,7 @@ Claimed voting rewards (WithdrawBalanceContract) are TRX received: category "rew
 from __future__ import annotations
 
 import re
+import time
 from collections import defaultdict
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
@@ -222,16 +223,28 @@ class TronAdapter(Adapter):
         addr = wallet["address"]
         result = SyncResult(state=dict(state))
         since = int(state.get("last_ts_ms", 0))
-        common = {"only_confirmed": "true", "order_by": "block_timestamp,asc", "min_timestamp": since}
+        # Both lists end at the same moment (2 minutes ago: confirmed by then), so a transaction
+        # landing between the two calls is not skipped; the next sync starts from the newest one read.
+        until = int(time.time() * 1000) - 120_000
+        common = {"only_confirmed": "true", "order_by": "block_timestamp,asc", "min_timestamp": since,
+                  "max_timestamp": until}
         txs = self._paged(f"/v1/accounts/{addr}/transactions", common)
         trc20 = self._paged(f"/v1/accounts/{addr}/transactions/trc20", common)
         log(f"{wallet['label']}: {len(txs)} Tron transactions, {len(trc20)} TRC-20 transfers")
         moves, warnings, trc10 = self.parse_transactions(txs, addr)
+        hold = None   # a claim whose amount could not be read: the next sync starts there
         for m in moves:   # voting-reward claims whose amount the list did not carry
             if m.info.endswith("(amount pending)"):
-                info = self._post("/wallet/gettransactioninfobyid", {"value": m.tx_hash})
-                m.amount = scaled(int(info.get("withdraw_amount") or 0), 6)
-                m.info = "reward: Tron voting"
+                try:
+                    info = self._post("/wallet/gettransactioninfobyid", {"value": m.tx_hash})
+                    m.amount = scaled(int(info.get("withdraw_amount") or 0), 6)
+                except (AdapterError, ValueError) as e:
+                    warnings.append(f"reward claim {m.tx_hash}: amount not read ({e}), read again next sync")
+                    m.amount = ZERO
+                if m.amount:
+                    m.info = "reward: Tron voting"
+                else:
+                    hold = m.ts * 1000 if hold is None else min(hold, m.ts * 1000)
         moves = [m for m in moves if not (m.uid.endswith(":reward") and not m.amount)]
         tmoves, infos = self.parse_trc20(trc20, addr)
         result.movements = moves + tmoves
@@ -241,7 +254,7 @@ class TronAdapter(Adapter):
                       decimals=0, contract=name) for k, name in trc10.items()]
         stamps = [int(t.get("block_timestamp") or 0) for t in txs + trc20]
         if stamps:
-            result.state["last_ts_ms"] = max(stamps)
+            result.state["last_ts_ms"] = max(stamps) if hold is None else min(max(stamps), hold)
         return result
 
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],
