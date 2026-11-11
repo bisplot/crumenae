@@ -44,10 +44,15 @@ class EcbRates:
             raise AdapterError(f"ECB {currency} rate for {day} not cached (offline)")
         start = day - timedelta(days=LOOKBACK_DAYS)
         try:
+            # The ECB answers in the format of the Accept header (JSON by default for this app),
+            # whatever "format" says: ask for CSV explicitly.
             text = self.ctx.http.get_text(URL.format(cur=currency), {
-                "startPeriod": start.isoformat(), "endPeriod": day.isoformat(), "format": "csvdata"})
+                "startPeriod": start.isoformat(), "endPeriod": day.isoformat(), "format": "csvdata"},
+                headers={"Accept": "text/csv"})
         except HttpError as e:
             raise AdapterError(f"ECB rate {currency}: {e}")
+        if text.lstrip().startswith(("{", "<")):
+            raise AdapterError(f"ECB rate {currency}: unexpected answer (not CSV)")
         rows = list(parse_csv(text))
         with self.ctx.db.tx():
             for d, r in rows:
