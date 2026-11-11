@@ -20,8 +20,9 @@ leave your machine: only public addresses are sent to block explorers, and only 
   Berachain, Zora) and Solana. Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Terra
   Classic, Tron and Solar (SXP) work with no key at all. An optional Etherscan key gives the most
   complete history on Ethereum, Polygon, Arbitrum and Linea; optional Helius and TronGrid keys make
-  Solana and Tron faster. Binance accounts (with Simple Earn rewards) use a read-only key; manual
-  accounts cover anything else (other exchanges, Ledger Live, staking the app does not read).
+  Solana and Tron faster. Binance (with Simple Earn rewards) and Young Platform accounts use a
+  read-only key; manual accounts cover anything else (other exchanges, Ledger Live, staking the app
+  does not read).
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → API providers and Price sources).
 - **Providers and networks you control**: add an API provider (any Etherscan-compatible,
@@ -356,6 +357,23 @@ dashboard shows your account's real limits). Without a key TronGrid may slow dow
 calls. The key is sent in the `TRON-PRO-API-KEY` header; if you restrict it in the TronGrid
 dashboard, do not limit it by Origin (Crumenae calls from your computer, not a website).
 
+### Young Platform
+
+Young Platform accounts are read with a **read-only API key**, no other software needed.
+
+1. On [pro.youngplatform.com](https://pro.youngplatform.com) create an API key with reading
+   only (no trading, no deposits/withdrawals). You get three values: **Key ID**, **Public key**
+   and **Private key** (shown once: copy it then).
+2. In Crumenae: **Wallets** → network **Young Platform (exchange account)** → paste the three
+   values → **Add wallet** → **Sync now**.
+
+The app reads your balances (every vault, summed per coin) and your trades (each fill with its
+fee). Young Platform's API does not list deposits and withdrawals, so a past year-end balance comes
+from the balance read at each sync near the cutoff (keep the app running on 31/12, or schedule the
+snapshot) or from a manual entry on the Year-end page, as for Binance. The key is stored in your
+OS keychain (or `data/secrets.json`) and each request is signed on your computer: the private key
+is never sent.
+
 ## How year-end values are computed
 
 The cutoff for fiscal year *Y* is 23:59:59 local time on the last day of *Y* (Settings → Fiscal
@@ -473,7 +491,7 @@ example); the `CRUMENAE_DATA_DIR` environment variable does the same.
 - Binance trades/Convert import (balances come from snapshots meanwhile); rewards of ETH and
   SOL staking (WBETH, BNSOL) accrue in the token's rate, so they are not imported as rewards.
 - Bitcoin xpub wallets, DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
-- Exchanges other than Binance (Coinbase, Bitpanda, Young Platform…): use a manual account and
+- Exchanges other than Binance and Young Platform (Coinbase, Bitpanda…): use a manual account and
   enter its year-end balance meanwhile.
 - Staking other than what a wallet's own balance reports (see [Staked coins](#staked-coins)).
 

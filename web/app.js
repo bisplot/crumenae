@@ -93,6 +93,8 @@
   const card = (title, right, ...body) =>
     el('div', { class: 'card' }, title || right ? el('div', { class: 'card-head' }, title ? el('h2', { text: title }) : el('span'), right || null) : null, ...body);
   const field = (label, input, help) => el('label', { class: 'field' }, el('span', { text: label }), input, help ? el('span', { class: 'help', text: help }) : null);
+  const CRED_LABELS = { api_key: 'API key (read-only)', api_secret: 'API secret', key_id: 'Key ID',
+    public_key: 'Public key', private_key: 'Private key' };
   const badge = (text, kind) => el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text });
   const flagList = (flags) => (flags && flags.length
     ? el('ul', { class: 'flag-list' }, flags.map((f) => el('li', { class: flagLevel(f) === 'error' ? 'neg' : flagLevel(f) === 'warn' ? '' : 'muted', text: f })))
@@ -453,16 +455,26 @@
     const bollo = el('input', { type: 'checkbox' });
     const evmBox = el('div', { class: 'chips' });
     const evmField = field('Also track this address on', evmBox, 'The same EVM address can hold funds on several chains: one wallet per chain is created.');
-    const keyIn = el('input', { type: 'password', autocomplete: 'off' });
-    const secretIn = el('input', { type: 'password', autocomplete: 'off' });
-    const credField = el('div', { class: 'form-row' }, field('API key (read-only)', keyIn), field('API secret', secretIn,
-      'Create the key with “Enable Reading” only. It is stored in your OS keychain (or data/secrets.json), never in the browser.'));
+    // Exchange keys: one field per credential the exchange needs (Binance: key + secret; Young
+    // Platform: key id + public key + private key). Stored in the OS keychain, never in the browser.
+    const credField = el('div', { class: 'form-row' });
+    let credInputs = {};
     const addrField = field('Address', addr);
+    function refreshCreds(n) {
+      credInputs = {};
+      const names = (n && n.credentials) || [];
+      fill(credField, ...names.map((c, i) => {
+        credInputs[c] = el('input', { type: 'password', autocomplete: 'off' });
+        return field(CRED_LABELS[c] || c.replace(/_/g, ' '), credInputs[c], i === names.length - 1
+          ? 'Create a read-only key (reading only: no trading, no withdrawals). It is stored in your OS keychain (or data/secrets.json), never in the browser.' : undefined);
+      }));
+    }
 
     function refreshForm() {
       const n = byId[netSel.value];
       addrField.classList.toggle('hidden', !n || !n.needs_address);
       credField.classList.toggle('hidden', !n || !(n.credentials || []).length);
+      refreshCreds(n);
       const isEvm = n && n.family === 'evm';
       evmField.classList.toggle('hidden', !isEvm);
       if (isEvm) {
@@ -480,7 +492,7 @@
       const extra = [...evmBox.querySelectorAll('input:checked')].map((i) => i.value);
       const body = { networks: [n.id, ...(n.family === 'evm' ? extra : [])], address: n.needs_address ? addr.value.trim() : '', label: label.value.trim(),
         portfolio: portfolio.value.trim(), platform: platform.value.trim(), rw_slot: slot.value, bollo_applied: bollo.checked };
-      if ((n.credentials || []).length) { body.api_key = keyIn.value.trim(); body.api_secret = secretIn.value.trim(); }
+      Object.entries(credInputs).forEach(([c, input]) => { body[c] = input.value.trim(); });
       try {
         const created = await api.post('/api/wallets', body);
         toast(`${created.length} wallet(s) added`);
@@ -554,7 +566,7 @@
     const creds = {};
     const credFields = ((net && net.credentials) || []).map((c) => {
       creds[c] = el('input', { type: 'password', autocomplete: 'off', placeholder: w.credentials && w.credentials[c] ? 'saved — leave empty to keep' : 'not set' });
-      return field(c.replace('_', ' '), creds[c]);
+      return field(CRED_LABELS[c] || c.replace(/_/g, ' '), creds[c]);
     });
     openModal(el('h2', { text: 'Edit wallet' }),
       el('div', { class: 'muted small mono', text: w.address || w.network_name }),

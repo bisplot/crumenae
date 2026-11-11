@@ -482,6 +482,11 @@
     "adapter": "binance",
     "explorer_api": "https://api.binance.com"
   },
+  "youngplatform": {
+    "name": "Young Platform (exchange account)",
+    "adapter": "youngplatform",
+    "explorer_api": "https://api.youngplatform.com/api/v1/trader"
+  },
   "manual": {
     "name": "Manual / other platform",
     "adapter": "manual"
