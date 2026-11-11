@@ -12,6 +12,7 @@ import mimetypes
 import re
 import secrets as _random
 import shutil
+import sqlite3
 import socketserver
 import threading
 import sys
@@ -382,7 +383,9 @@ class App:
             raise ApiError(400, f"unknown network '{network_id}'")
         adapter = get_adapter(self.ctx, network)
         address = str(body.get("address", existing["address"] if existing else "") or "")
-        if adapter.needs_address or address:
+        if existing and address == existing["address"]:
+            pass           # unchanged: an address saved by an older version stays editable
+        elif adapter.needs_address or address:
             try:
                 address = adapter.validate_address(address)
             except ValueError as e:
@@ -427,33 +430,51 @@ class App:
             for c in cleaned:
                 c["label"] = f"{c['label']} · {self.ctx.networks.get(c['network']).name}" if not body.get("label") \
                     else f"{c['label']} ({self.ctx.networks.get(c['network']).name})"
-        created = []
+        # Every check first, then all the wallets or none (adding on several chains never stops halfway).
         for c in cleaned:
-            exists = self.ctx.db.scalar("SELECT id FROM wallets WHERE network=? AND address=? AND address<>''",
-                                        (c["network"], c["address"]))
-            if exists:
-                raise ApiError(409, f"{c['address']} is already tracked on {c['network']}")
-            cur = self.ctx.db.execute(
-                "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, active,"
-                " notes, lost, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                (c["label"], c["network"], c["address"], c["portfolio"], c["platform"], c["rw_slot"],
-                 c["bollo_applied"], c["active"], c["notes"], c["lost"], now()))
-            self._save_credentials(cur.lastrowid, c["network"], body)
-            created.append(cur.lastrowid)
+            name = self.ctx.networks.get(c["network"]).name
+            if c["address"] and self.ctx.db.scalar("SELECT id FROM wallets WHERE network=? AND address=?",
+                                                   (c["network"], c["address"])):
+                raise ApiError(409, f"{c['address']} is already tracked on {name}")
+            if self.ctx.db.scalar("SELECT id FROM wallets WHERE network=? AND address=? AND label=?",
+                                  (c["network"], c["address"], c["label"])):
+                raise ApiError(409, f"a {name} account named “{c['label']}” already exists: choose another label")
+            cls = ADAPTERS.get(self.ctx.networks.get(c["network"]).adapter)
+            missing = [k for k in (cls.credentials if cls else []) if not str(body.get(k) or "").strip()]
+            if missing:
+                raise ApiError(400, f"{name}: {' and '.join(m.replace('_', ' ') for m in missing)} required")
+        created = []
+        with self.ctx.db.tx():
+            for c in cleaned:
+                cur = self.ctx.db.execute(
+                    "INSERT INTO wallets(label, network, address, portfolio, platform, rw_slot, bollo_applied, active,"
+                    " notes, lost, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (c["label"], c["network"], c["address"], c["portfolio"], c["platform"], c["rw_slot"],
+                     c["bollo_applied"], c["active"], c["notes"], c["lost"], now()))
+                created.append((cur.lastrowid, c["network"]))
+        for wid, network in created:
+            self._save_credentials(wid, network, body)
+        created_ids = [wid for wid, _ in created]
         self._remember_platform(cleaned[0]["platform"])
         self._wallets_changed()
-        return [w for w in views.wallets(self.ctx) if w["id"] in created]
+        return [w for w in views.wallets(self.ctx) if w["id"] in created_ids]
 
     def update_wallet(self, wid: str, body: Any, **_: Any) -> Dict[str, Any]:
         w = self._wallet(wid)
         c = self._clean_wallet(body or {}, w["network"], existing=w)
         if c["address"] != w["address"]:
             raise ApiError(400, "the address cannot change: add a new wallet instead")
-        self.ctx.db.execute(
-            "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?,"
-            " lost=? WHERE id=?",
-            (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
-             c["lost"], w["id"]))
+        try:
+            self.ctx.db.execute(
+                "UPDATE wallets SET label=?, portfolio=?, platform=?, rw_slot=?, bollo_applied=?, active=?, notes=?,"
+                " lost=? WHERE id=?",
+                (c["label"], c["portfolio"], c["platform"], c["rw_slot"], c["bollo_applied"], c["active"], c["notes"],
+                 c["lost"], w["id"]))
+        except sqlite3.IntegrityError:
+            raise ApiError(409, f"another account named “{c['label']}” already exists on this network")
+        # What the year-end report shows for this wallet changed: its files need a recompute.
+        if any(c[k] != w[k] for k in ("label", "portfolio", "platform", "rw_slot", "bollo_applied")):
+            self.ctx.mark_yearend_stale(f"wallet {c['label']} edited")
         self._save_credentials(w["id"], w["network"], body or {})
         self._remember_platform(c["platform"])
         self._wallets_changed()
@@ -465,6 +486,7 @@ class App:
         for cred in (cls.credentials if cls else []):
             self.ctx.secrets.delete(f"wallet:{w['id']}:{cred}")
         self.ctx.db.execute("DELETE FROM wallets WHERE id=?", (w["id"],))
+        self.ctx.mark_yearend_stale(f"wallet {w['label']} deleted")
         self._wallets_changed()
         return {"ok": True}
 
