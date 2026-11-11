@@ -53,7 +53,7 @@ def compare(ctx, wallet: Dict[str, Any], live: Dict[str, Decimal]) -> List[Dict[
 def run(ctx, wallet: Dict[str, Any], adapter, live: Dict[str, Decimal]) -> Dict[str, Any]:
     """Compare and store the result on the wallet."""
     detail: Dict[str, Any] = {}
-    if adapter.kind != "chain" or not adapter.has_history:
+    if adapter.kind == "manual" or not adapter.has_history:
         status = "n/a"
     else:
         diffs = compare(ctx, wallet, live)

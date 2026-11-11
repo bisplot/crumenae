@@ -20,9 +20,9 @@ leave your machine: only public addresses are sent to block explorers, and only 
   Berachain, Zora) and Solana. Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Terra
   Classic, Tron and Solar (SXP) work with no key at all. An optional Etherscan key gives the most
   complete history on Ethereum, Polygon, Arbitrum and Linea; optional Helius and TronGrid keys make
-  Solana and Tron faster. Binance (with Simple Earn rewards) and Young Platform accounts use a
-  read-only key; manual accounts cover anything else (other exchanges, Ledger Live, staking the app
-  does not read).
+  Solana and Tron faster. Binance (with Simple Earn rewards), Coinbase and Young Platform accounts
+  use a read-only key; manual accounts cover anything else (other exchanges, Ledger Live, staking
+  the app does not read).
 - **API call limits you control**: calls per second or per minute, and per day, for each service, so a free plan
   is never exceeded (Settings → API providers and Price sources).
 - **Providers and networks you control**: add an API provider (any Etherscan-compatible,
@@ -357,6 +357,24 @@ dashboard shows your account's real limits). Without a key TronGrid may slow dow
 calls. The key is sent in the `TRON-PRO-API-KEY` header; if you restrict it in the TronGrid
 dashboard, do not limit it by Origin (Crumenae calls from your computer, not a website).
 
+### Coinbase
+
+Coinbase accounts are read with a **read-only API key** from the Coinbase Developer Platform.
+
+1. Sign in at [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com) with your Coinbase
+   account → **API keys** → **Create API key**. Give it the **View** permission only (no trade, no
+   transfer). Either signature algorithm works (ECDSA or Ed25519).
+2. Copy the **API key name** (`organizations/…/apiKeys/…`, or the key id) and the **private key**
+   (the whole block, `-----BEGIN … KEY-----` lines included: pasting it on one line is fine).
+3. In Crumenae: **Wallets** → network **Coinbase (exchange account)** → paste both → **Add wallet**
+   → **Sync now**.
+
+Every account (one per coin) and every completed transaction is read (buys, sells, converts, sends,
+receives, staking rewards as `reward`), so balances at any date are rebuilt from the history and
+the wallet check compares them with the live balances. Each request is signed on your computer
+with your private key (no extra software): the key is never sent and is stored in your OS keychain
+(or `data/secrets.json`).
+
 ### Young Platform
 
 Young Platform accounts are read with a **read-only API key**, no other software needed.
@@ -491,7 +509,7 @@ example); the `CRUMENAE_DATA_DIR` environment variable does the same.
 - Binance trades/Convert import (balances come from snapshots meanwhile); rewards of ETH and
   SOL staking (WBETH, BNSOL) accrue in the token's rate, so they are not imported as rewards.
 - Bitcoin xpub wallets, DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
-- Exchanges other than Binance and Young Platform (Coinbase, Bitpanda…): use a manual account and
+- Exchanges other than Binance, Coinbase and Young Platform (Bitpanda…): use a manual account and
   enter its year-end balance meanwhile.
 - Staking other than what a wallet's own balance reports (see [Staked coins](#staked-coins)).
 

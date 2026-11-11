@@ -487,6 +487,11 @@
     "adapter": "youngplatform",
     "explorer_api": "https://api.youngplatform.com/api/v1/trader"
   },
+  "coinbase": {
+    "name": "Coinbase (exchange account)",
+    "adapter": "coinbase",
+    "explorer_api": "https://api.coinbase.com"
+  },
   "manual": {
     "name": "Manual / other platform",
     "adapter": "manual"
