@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Year-end snapshot for CryptoLedger on macOS.
-  1. Replace every /PATH/TO/cryptoledger with the folder where you cloned the repo.
+  Year-end snapshot for Crumenae on macOS.
+  1. Replace every /PATH/TO/crumenae with the folder where you cloned the repo.
   2. cp this file to ~/Library/LaunchAgents/ and run:
-       launchctl load ~/Library/LaunchAgents/com.cryptoledger.snapshot.plist
+       launchctl load ~/Library/LaunchAgents/com.crumenae.snapshot.plist
   Runs at 23:59 on 31 December and 00:01 on 1 January (local time). The Mac must be awake.
 -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.cryptoledger.snapshot</string>
+  <string>com.crumenae.snapshot</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/python3</string>
     <string>-m</string>
-    <string>cryptoledger</string>
+    <string>crumenae</string>
     <string>snapshot</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/PATH/TO/cryptoledger</string>
+  <string>/PATH/TO/crumenae</string>
   <key>StartCalendarInterval</key>
   <array>
     <dict>
@@ -36,8 +36,8 @@
     </dict>
   </array>
   <key>StandardOutPath</key>
-  <string>/PATH/TO/cryptoledger/data/snapshot.log</string>
+  <string>/PATH/TO/crumenae/data/snapshot.log</string>
   <key>StandardErrorPath</key>
-  <string>/PATH/TO/cryptoledger/data/snapshot.log</string>
+  <string>/PATH/TO/crumenae/data/snapshot.log</string>
 </dict>
 </plist>

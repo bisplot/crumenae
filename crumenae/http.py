@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 
 from . import __version__
 
-USER_AGENT = f"CryptoLedger/{__version__} (+https://github.com/occhinog/cryptoledger)"
+USER_AGENT = f"Crumenae/{__version__} (+https://github.com/bisplot/crumenae)"
 
 # Minimum seconds between two calls to the same host (free-tier friendly).
 HOST_INTERVALS = {

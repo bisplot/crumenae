@@ -6,13 +6,13 @@ import urllib.error
 import urllib.request
 from decimal import Decimal
 
-from cryptoledger import assets as assets_mod
-from cryptoledger import classify, ledger, report, yearend
-from cryptoledger.http import HttpError
-from cryptoledger.models import Movement, Snapshot, SyncResult
-from cryptoledger.prices import PriceService
-from cryptoledger.prices.ecb import parse_csv
-from cryptoledger.scheduler import AutoSnapshot
+from crumenae import assets as assets_mod
+from crumenae import classify, ledger, report, yearend
+from crumenae.http import HttpError
+from crumenae.models import Movement, Snapshot, SyncResult
+from crumenae.prices import PriceService
+from crumenae.prices.ecb import parse_csv
+from crumenae.scheduler import AutoSnapshot
 
 from helpers import FakeHttp, TempContext, add_wallet
 
@@ -214,7 +214,7 @@ class SchedulerTest(unittest.TestCase):
 class ServerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from cryptoledger.server import serve
+        from crumenae.server import serve
         cls.t = TempContext(offline=True)
         ready = threading.Event()
         holder = {}
@@ -243,7 +243,7 @@ class ServerTest(unittest.TestCase):
         cls.t.close()
 
     def call(self, method, path, body=None, headers=None):
-        hdrs = {"X-CryptoLedger": "1"} if method != "GET" else {}
+        hdrs = {"X-Crumenae": "1"} if method != "GET" else {}
         hdrs.update(headers or {})
         data = None
         if body is not None:
@@ -259,13 +259,13 @@ class ServerTest(unittest.TestCase):
     def test_ui_and_status(self):
         status, body = self.call("GET", "/")
         self.assertEqual(status, 200)
-        self.assertIn(b"CryptoLedger", body)
+        self.assertIn(b"Crumenae", body)
         status, body = self.call("GET", "/api/status")
         self.assertEqual(json.loads(body)["timezone"], "Europe/Rome")
 
     def test_wallet_lifecycle_and_protections(self):
         evm = "0x" + "c" * 40
-        status, _ = self.call("POST", "/api/wallets", {"network": "ethereum", "address": evm}, headers={"X-CryptoLedger": ""})
+        status, _ = self.call("POST", "/api/wallets", {"network": "ethereum", "address": evm}, headers={"X-Crumenae": ""})
         self.assertEqual(status, 403)                                        # no custom header
         status, body = self.call("POST", "/api/wallets", {"network": "ethereum", "address": "0x12"})
         self.assertEqual(status, 400)

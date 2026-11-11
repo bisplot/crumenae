@@ -1,4 +1,4 @@
-"""SQLite storage. One file (data/cryptoledger.db) holds everything personal."""
+"""SQLite storage. One file (data/crumenae.db) holds everything personal."""
 from __future__ import annotations
 
 import sqlite3

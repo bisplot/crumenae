@@ -1,8 +1,8 @@
 """The Settings "Test" button: one cheap call per service; free calls are not counted."""
 import unittest
 
-from cryptoledger import apitest
-from cryptoledger.http import HttpError
+from crumenae import apitest
+from crumenae.http import HttpError
 
 from helpers import FakeHttp, TempContext
 
@@ -62,8 +62,8 @@ class ApiTestTest(unittest.TestCase):
         self.assertTrue(apitest.run(self.ctx, "coingecko")["ok"])
 
     def test_free_calls_are_not_counted(self):
-        from cryptoledger.http import HttpClient
-        from cryptoledger.ratelimit import DailyLimitReached, utc_day
+        from crumenae.http import HttpClient
+        from crumenae.ratelimit import DailyLimitReached, utc_day
         client = HttpClient(retries=0)
         client.limiter = self.ctx.limiter
         self.ctx.settings.set("rate_limits", {"coinmarketcap": {"per_day": 1}})

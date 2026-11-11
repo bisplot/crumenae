@@ -1,7 +1,7 @@
 """Solana via JSON-RPC. With a Helius API key (Settings → Blockchain APIs, free plan
 available) the app calls Helius; without one, the public Solana endpoint (slow,
 rate-limited). An explicit "solana_rpc_url" secret (environment variable
-CRYPTOLEDGER_SOLANA_RPC_URL) overrides both, for any other provider.
+CRUMENAE_SOLANA_RPC_URL) overrides both, for any other provider.
 
 Every transaction carries the balances before and after it, so SOL and SPL
 token changes are exact, and the SOL balance after each transaction is stored:

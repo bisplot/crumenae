@@ -1,7 +1,7 @@
 """API keys and secrets.
 
 Lookup order for a secret named e.g. "etherscan_api_key":
-  1. environment variable CRYPTOLEDGER_ETHERSCAN_API_KEY
+  1. environment variable CRUMENAE_ETHERSCAN_API_KEY (or CRYPTOLEDGER_…, the app's former name)
   2. the OS keychain (macOS Keychain, Windows Credential Locker, Secret Service),
      if the optional `keyring` package is installed
   3. data/secrets.json (file permissions 600), only when no keychain is available
@@ -17,7 +17,8 @@ import threading
 from pathlib import Path
 from typing import Dict, Optional
 
-SERVICE = "cryptoledger"
+SERVICE = "crumenae"
+OLD_SERVICE = "cryptoledger"   # keychain entries saved before the app was renamed
 
 # Known global secrets, shown on the Settings page.
 KNOWN = {
@@ -31,8 +32,13 @@ KNOWN = {
 }
 
 
-def env_name(name: str) -> str:
-    return "CRYPTOLEDGER_" + re.sub(r"[^A-Z0-9]", "_", name.upper())
+def env_name(name: str, prefix: str = "CRUMENAE_") -> str:
+    return prefix + re.sub(r"[^A-Z0-9]", "_", name.upper())
+
+
+def _env(name: str) -> Optional[str]:
+    """CRUMENAE_<NAME>, or CRYPTOLEDGER_<NAME> set before the app was renamed."""
+    return os.environ.get(env_name(name)) or os.environ.get(env_name(name, "CRYPTOLEDGER_")) or None
 
 
 class SecretStore:
@@ -50,7 +56,7 @@ class SecretStore:
         return "keychain" if self._keyring is not None else "file"
 
     def get(self, name: str) -> Optional[str]:
-        env = os.environ.get(env_name(name))
+        env = _env(name)
         if env:
             return env
         if self._keyring is not None:
@@ -58,16 +64,23 @@ class SecretStore:
                 value = self._keyring.get_password(SERVICE, name)
                 if value:
                     return value
+                old = self._keyring.get_password(OLD_SERVICE, name)
+                if old:   # saved under the former app name: copy it to the new one
+                    try:
+                        self._keyring.set_password(SERVICE, name, old)
+                    except Exception:
+                        pass
+                    return old
             except Exception:
                 pass
         return self._read_file().get(name) or None
 
     def source(self, name: str) -> Optional[str]:
-        if os.environ.get(env_name(name)):
+        if _env(name):
             return "env"
         if self._keyring is not None:
             try:
-                if self._keyring.get_password(SERVICE, name):
+                if self._keyring.get_password(SERVICE, name) or self._keyring.get_password(OLD_SERVICE, name):
                     return "keychain"
             except Exception:
                 pass
@@ -93,10 +106,11 @@ class SecretStore:
     def delete(self, name: str) -> None:
         self.version += 1
         if self._keyring is not None:
-            try:
-                self._keyring.delete_password(SERVICE, name)
-            except Exception:
-                pass
+            for service in (SERVICE, OLD_SERVICE):
+                try:
+                    self._keyring.delete_password(service, name)
+                except Exception:
+                    pass
         with self._lock:
             data = self._read_file()
             if name in data:

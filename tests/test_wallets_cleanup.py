@@ -2,8 +2,8 @@
 crashes, paused wallets can be synced by themselves, edits and deletes mark the year-end."""
 import unittest
 
-from cryptoledger import sync
-from cryptoledger.server import ApiError, App
+from crumenae import sync
+from crumenae.server import ApiError, App
 
 from helpers import TempContext, add_wallet
 

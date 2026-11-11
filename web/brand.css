@@ -1,9 +1,9 @@
 /* ============================================================================
-   BRAND — the only file to edit to re-brand CryptoLedger (see docs/BRAND.md).
+   BRAND — the only file to edit to re-brand Crumenae (see docs/BRAND.md).
    Colours, font and corner radii are CSS variables used by style.css.
    Logo: web/logo.svg · Favicon: web/favicon.svg (+ PNGs) · Font files: web/fonts/
    ============================================================================ */
-/* CryptoLedger brand: Night #0B0B12, Purple 900 #5B00FF, Purple 600 #8A3FFC, Purple 200 #DCCBFF,
+/* Crumenae brand: Night #0B0B12, Purple 900 #5B00FF, Purple 600 #8A3FFC, Purple 200 #DCCBFF,
    Gold #D4AF37, White. Inter. Dark-first; light theme on request (sidebar toggle). */
 @font-face {
   font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;

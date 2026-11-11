@@ -1,4 +1,7 @@
-# CryptoLedger
+# Crumenae
+
+*Formerly CryptoLedger. Updating keeps your data: the database, saved API keys and
+`CRYPTOLEDGER_*` variables are picked up by Crumenae, and `python3 -m cryptoledger` still starts it.*
 
 A local app for tracking your **own** crypto addresses and exchange accounts in one dashboard,
 with every value in **EUR** at the rate of its time and balances taken at **23:59:59 of each
@@ -34,7 +37,7 @@ leave your machine: only public addresses are sent to block explorers, and only 
 - **Easy to extend**: a new EVM chain is a form in Settings; a new blockchain or exchange API is
   one Python class (see [docs/ADDING_AN_ADAPTER.md](docs/ADDING_AN_ADAPTER.md)).
 
-> CryptoLedger is a record-keeping tool, not tax advice. Check flagged values (⛔ / 🟡) and
+> Crumenae is a record-keeping tool, not tax advice. Check flagged values (⛔ / 🟡) and
 > confirm your tax treatment with a professional.
 
 ## Quick start
@@ -43,18 +46,18 @@ You need **Python 3.9 or newer** (already on macOS; on Windows get it from pytho
 else is required.
 
 ```bash
-git clone https://github.com/occhinog/cryptoledger.git
+git clone https://github.com/bisplot/crumenae.git
 ```
 
 ```bash
-cd cryptoledger
+cd crumenae
 ```
 
 ```bash
-python3 -m cryptoledger
+python3 -m crumenae
 ```
 
-The app opens at <http://127.0.0.1:8765>. On Windows use `py -m cryptoledger`, or double-click
+The app opens at <http://127.0.0.1:8765>. On Windows use `py -m crumenae`, or double-click
 `start.bat` (macOS: `start.command`).
 
 Then get **one free key**: sign up at [dashboard.alchemy.com](https://dashboard.alchemy.com/signup)
@@ -63,7 +66,7 @@ it in **Settings → API providers → Alchemy** → **Save** → **Test**. That
 Solana; Bitcoin, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Terra, Tron and Solar need no key. Add your addresses on the
 **Wallets** page and press **Sync now**.
 
-Want to look around first? `python3 -m cryptoledger demo` starts with fictional wallets and
+Want to look around first? `python3 -m crumenae demo` starts with fictional wallets and
 synthetic prices, fully offline, in a separate `demo-data/` folder.
 
 ### Optional extras
@@ -199,7 +202,7 @@ wallet:
 Settings → **Reset** deletes everything: wallets, transactions, assets, prices, year-end values,
 settings, API keys (keychain and `data/secrets.json`), call counters, exports and reports. A
 window lists what goes and shows a random sentence; **Delete everything** is enabled only once
-you type that sentence exactly. Keys set as `CRYPTOLEDGER_…` environment variables cannot be
+you type that sentence exactly. Keys set as `CRUMENAE_…` environment variables cannot be
 removed by the app: unset them yourself. Back up `data/` first if you may need it.
 
 ### Solana with Helius
@@ -285,14 +288,14 @@ TronGrid is the public Tron API run by the TRON network; its key is free.
 
 1. Sign up at [trongrid.io](https://www.trongrid.io/) (email, no card) and open the dashboard.
 2. Create an API key and copy it.
-3. In CryptoLedger: **Settings → API providers → Tron (TronGrid)**, paste the key, **Save**,
+3. In Crumenae: **Settings → API providers → Tron (TronGrid)**, paste the key, **Save**,
    then **Test**.
 4. Add your Tron address (starts with `T`) on the **Wallets** page and press **Sync now**.
 
 Free plan: about 15 calls per second and 100,000 per day (the defaults in the row; the
 dashboard shows your account's real limits). Without a key TronGrid may slow down or refuse
 calls. The key is sent in the `TRON-PRO-API-KEY` header; if you restrict it in the TronGrid
-dashboard, do not limit it by Origin (CryptoLedger calls from your computer, not a website).
+dashboard, do not limit it by Origin (Crumenae calls from your computer, not a website).
 
 ## How year-end values are computed
 
@@ -313,29 +316,29 @@ day), else CoinGecko, else CoinMarketCap. Details: [docs/METHODOLOGY.md](docs/ME
 ### Snapshots at the cutoff
 
 While the app is running it snapshots every wallet about a minute before and after each cutoff.
-To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot`:
+To do it even when the app is closed, schedule `python3 -m crumenae snapshot`:
 
-- **macOS**: edit and load [scripts/launchd/com.cryptoledger.snapshot.plist](scripts/launchd/com.cryptoledger.snapshot.plist):
+- **macOS**: edit and load [scripts/launchd/com.crumenae.snapshot.plist](scripts/launchd/com.crumenae.snapshot.plist):
 
   ```bash
-  cp scripts/launchd/com.cryptoledger.snapshot.plist ~/Library/LaunchAgents/
+  cp scripts/launchd/com.crumenae.snapshot.plist ~/Library/LaunchAgents/
   ```
 
   ```bash
-  launchctl load ~/Library/LaunchAgents/com.cryptoledger.snapshot.plist
+  launchctl load ~/Library/LaunchAgents/com.crumenae.snapshot.plist
   ```
 
   The Mac must be awake at 23:59 on 31 December.
 - **Linux** (cron uses the system time zone):
 
   ```bash
-  (crontab -l; echo "59 23 31 12 * cd $PWD && python3 -m cryptoledger snapshot") | crontab -
+  (crontab -l; echo "59 23 31 12 * cd $PWD && python3 -m crumenae snapshot") | crontab -
   ```
 
-- **Windows** (from the cryptoledger folder, in Command Prompt):
+- **Windows** (from the crumenae folder, in Command Prompt):
 
   ```bash
-  schtasks /Create /TN CryptoLedgerSnapshot /SC MONTHLY /MO 12 /D 31 /SD 12/31/2026 /ST 23:59 /TR "py -m cryptoledger --data-dir %CD%\data snapshot"
+  schtasks /Create /TN CrumenaeSnapshot /SC MONTHLY /MO 12 /D 31 /SD 12/31/2026 /ST 23:59 /TR "py -m crumenae --data-dir %CD%\data snapshot"
   ```
 
 ## Exports
@@ -343,7 +346,7 @@ To do it even when the app is closed, schedule `python3 -m cryptoledger snapshot
 Kept in `data/exports/`. `wallets.csv` and `transactions_YYYY.csv` are rewritten after every
 sync and when you edit wallets or categories; `balances_YYYY-12-31.csv` when you press
 **Recompute year-end** and right after each 31/12 cutoff (unchanged files are not touched). Download them from the Year-end, Transactions and Wallets pages, or run
-`python3 -m cryptoledger export`.
+`python3 -m crumenae export`.
 
 | File | When | One row per | Columns |
 |---|---|---|---|
@@ -357,7 +360,7 @@ value at the moment of the transaction. Details: [docs/REPORT_CONTRACT.md](docs/
 
 ## Reports
 
-Year-end → **Write report folder** (or `python3 -m cryptoledger report 2025`) creates
+Year-end → **Write report folder** (or `python3 -m crumenae report 2025`) creates
 `data/reports/crypto_report_TY2025/`:
 
 | File | Content |
@@ -371,7 +374,7 @@ The format is described in [docs/REPORT_CONTRACT.md](docs/REPORT_CONTRACT.md).
 
 ## Look and brand
 
-Dark-first design in the CryptoLedger brand (Night, purples, gold; Inter), with a light theme
+Dark-first design in the Crumenae brand (Night, purples, gold; Inter), with a light theme
 from the sidebar. The whole look lives in `web/brand.css` (colours, font, radii), `web/logo.svg`
 and the favicon files: to make it your own, follow [docs/BRAND.md](docs/BRAND.md), which also
 holds the brand guideline. No code change is needed.
@@ -387,7 +390,7 @@ holds the brand guideline. No code change is needed.
 ## Command line
 
 ```bash
-python3 -m cryptoledger --help
+python3 -m crumenae --help
 ```
 
 `serve` (default), `sync [--wallet ID] [--full]`, `snapshot`, `report YEAR`, `demo`, and

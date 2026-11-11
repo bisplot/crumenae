@@ -4,10 +4,10 @@ import json
 import unittest
 from decimal import Decimal
 
-from cryptoledger import classify, sync
-from cryptoledger.adapters import get_adapter
-from cryptoledger.db import Database
-from cryptoledger.server import ApiError, App
+from crumenae import classify, sync
+from crumenae.adapters import get_adapter
+from crumenae.db import Database
+from crumenae.server import ApiError, App
 
 from helpers import FakeHttp, TempContext, add_wallet
 from test_adapters import TRON_ME, solana_handler, tron_handler

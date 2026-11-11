@@ -1,9 +1,9 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import ledger
-from cryptoledger.adapters import AdapterError, get_adapter
-from cryptoledger.adapters.tron import hex_to_base58
+from crumenae import ledger
+from crumenae.adapters import AdapterError, get_adapter
+from crumenae.adapters.tron import hex_to_base58
 
 from helpers import FakeHttp, TempContext, add_wallet, fixture
 

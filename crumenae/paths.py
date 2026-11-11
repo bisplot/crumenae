@@ -11,4 +11,5 @@ WEB_DIR = ROOT_DIR / "web"
 
 def default_data_dir() -> Path:
     """Personal data (database, secrets file, reports). Ignored by git."""
-    return Path(os.environ.get("CRYPTOLEDGER_DATA_DIR") or (ROOT_DIR / "data")).expanduser()
+    return Path(os.environ.get("CRUMENAE_DATA_DIR") or os.environ.get("CRYPTOLEDGER_DATA_DIR")
+                or (ROOT_DIR / "data")).expanduser()

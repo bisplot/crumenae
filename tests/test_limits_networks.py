@@ -1,11 +1,11 @@
 import unittest
 from decimal import Decimal
 
-from cryptoledger import ledger
-from cryptoledger.adapters import get_adapter
-from cryptoledger.b58 import b58check_encode
-from cryptoledger.http import HttpClient, _redact
-from cryptoledger.ratelimit import DailyLimitReached, RateLimiter, utc_day
+from crumenae import ledger
+from crumenae.adapters import get_adapter
+from crumenae.b58 import b58check_encode
+from crumenae.http import HttpClient, _redact
+from crumenae.ratelimit import DailyLimitReached, RateLimiter, utc_day
 
 from helpers import FakeHttp, TempContext, add_wallet
 
@@ -69,7 +69,7 @@ class RateLimiterTest(unittest.TestCase):
             client.get_json("https://api.coingecko.com/api/v3/ping")  # never reaches the network
 
     def test_settings_api_validation(self):
-        from cryptoledger.server import ApiError, App
+        from crumenae.server import ApiError, App
         app = App(self.ctx)
         with self.assertRaises(ApiError):
             app.dispatch("PUT", "/api/settings", {}, {"rate_limits": {"etherscan": {"per_second": "fast"}}})
@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
 class ServiceSyncTest(unittest.TestCase):
     def test_wallets_by_service_and_sync_one_service(self):
-        from cryptoledger import sync
-        from cryptoledger.server import ApiError, App
+        from crumenae import sync
+        from crumenae.server import ApiError, App
         t = TempContext(offline=True)
         try:
             ctx = t.ctx
@@ -227,10 +227,10 @@ class ServiceSyncTest(unittest.TestCase):
 class AssetsClearLoadTest(unittest.TestCase):
     def test_clear_then_rebuild_from_wallets(self):
         from decimal import Decimal as Dec
-        from cryptoledger import assets as assets_mod
-        from cryptoledger import sync
-        from cryptoledger.models import Movement, Snapshot, SyncResult
-        from cryptoledger.server import App
+        from crumenae import assets as assets_mod
+        from crumenae import sync
+        from crumenae.models import Movement, Snapshot, SyncResult
+        from crumenae.server import App
         t = TempContext()
         try:
             ctx = t.ctx

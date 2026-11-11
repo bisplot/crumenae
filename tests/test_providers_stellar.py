@@ -2,10 +2,10 @@ import base64
 import unittest
 from decimal import Decimal
 
-from cryptoledger import apitest, sync
-from cryptoledger.adapters import get_adapter
-from cryptoledger.adapters.stellar import _crc16_xmodem, valid_account_id
-from cryptoledger.server import ApiError, App
+from crumenae import apitest, sync
+from crumenae.adapters import get_adapter
+from crumenae.adapters.stellar import _crc16_xmodem, valid_account_id
+from crumenae.server import ApiError, App
 
 from helpers import FakeHttp, TempContext, add_wallet
 

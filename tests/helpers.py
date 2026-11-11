@@ -13,8 +13,8 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from cryptoledger.context import Context
-from cryptoledger.http import HttpError
+from crumenae.context import Context
+from crumenae.http import HttpError
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -68,7 +68,7 @@ class TempContext:
     """Context in a temporary folder, secrets in a file (never the real keychain)."""
 
     def __init__(self, http: Optional[FakeHttp] = None, offline: bool = False):
-        self.dir = tempfile.mkdtemp(prefix="cryptoledger-test-")
+        self.dir = tempfile.mkdtemp(prefix="crumenae-test-")
         self.http = http or FakeHttp()
         self.ctx = Context(Path(self.dir), http=self.http, secrets_backend="file", offline=offline)
 
@@ -87,4 +87,4 @@ def add_wallet(ctx: Context, network: str, address: str = "", label: str = "W", 
     return ctx.wallet(cur.lastrowid)
 
 
-os.environ.setdefault("CRYPTOLEDGER_TEST", "1")
+os.environ.setdefault("CRUMENAE_TEST", "1")
