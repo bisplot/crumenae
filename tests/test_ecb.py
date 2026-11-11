@@ -4,8 +4,8 @@ import unittest
 from datetime import date
 from decimal import Decimal
 
-from cryptoledger.models import AdapterError
-from cryptoledger.prices.ecb import EcbRates
+from crumenae.models import AdapterError
+from crumenae.prices.ecb import EcbRates
 
 from helpers import TempContext
 
