@@ -28,6 +28,9 @@ KNOWN = {
     "trongrid_api_key": "TronGrid API key",
     "helius_api_key": "Helius API key (Solana, free plan available)",
     "alchemy_api_key": "Alchemy API key (BNB Smart Chain, Monad, Arc…; free plan, sign-up with e-mail or Google)",
+    "blockchair_api_key": "Blockchair API key (optional: Dogecoin and Bitcoin Cash work without one)",
+    "blockbook_doge_api_key": "Blockbook key for Dogecoin (optional, sent in the api-key header)",
+    "blockbook_bch_api_key": "Blockbook key for Bitcoin Cash (optional, sent in the api-key header)",
     "solana_rpc_url": "Solana RPC URL (advanced: only if you use another provider than Helius)",
 }
 

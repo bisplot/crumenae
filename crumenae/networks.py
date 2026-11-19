@@ -31,7 +31,7 @@ def apply_provider(cfg: Dict[str, Any], provider: Optional[Dict[str, Any]]) -> N
         return   # Solana, Tron, Solar: their adapters know their endpoints
     cfg["adapter"] = t["adapter"]
     cfg["explorer_api"] = provider["base_url"]
-    if provider["type"] in ("etherscan", "alchemy"):
+    if provider["type"] in ("etherscan", "alchemy", "blockbook", "blockchair"):
         cfg["explorer_key"] = provider["id"]
     if provider["type"] == "etherscan":
         cfg["chainid_param"] = bool(provider.get("chainid_param"))
