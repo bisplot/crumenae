@@ -156,14 +156,14 @@ python3 -m pip install -r requirements-optional.txt
    | Tron (TronGrid) | Tron (TRX and TRC-20 tokens such as USDT) | Yes, [trongrid.io](https://www.trongrid.io/) |
    | mempool.space | Bitcoin | no key |
    | litecoinspace.org | Litecoin (`L…`, `M…`, `3…`, `ltc1…`) | no key |
-   | Trezor Blockbook | Dogecoin (`D…`), Bitcoin Cash (`bitcoincash:q…` or legacy `1…`) | no key; if Trezor's public server refuses requests, set another Blockbook server for that network in Settings → Networks |
+   | Blockchair | Dogecoin (`D…`), Bitcoin Cash (`bitcoincash:q…` or legacy `1…`) | no key: about 1,440 request units a day per IP address, enough for a few addresses; an optional paid key raises it |
    | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
    | Terra / Terra Classic (PublicNode) | Terra (LUNA) and Terra Classic (LUNC, USTC), staking included | no key |
 
    The Solar API appears once a wallet uses it. Binance account
    keys (read-only) are entered per account on the Wallets page. **+ Add provider** adds any
    other service that speaks a supported type — Etherscan-compatible (Blockscout, Routescan,
-   Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora, Blockbook or Horizon — with its key, limits and Test.
+   Lineascan…), Alchemy-compatible, Cosmos SDK LCD, Esplora, Blockbook, Blockchair or Horizon — with its key, limits and Test.
    No code, no request to anyone.
 
    **Networks**: every blockchain you can track and the provider that reads it. Ethereum,
@@ -326,13 +326,21 @@ valued at €0. Other Cosmos SDK chains (Cosmos Hub, Osmosis…) can be added fr
 ### Bitcoin, Litecoin, Dogecoin and Bitcoin Cash
 
 Read from public explorers, no key: Bitcoin from mempool.space, Litecoin from litecoinspace.org,
-Dogecoin and Bitcoin Cash from Trezor's public Blockbook servers. Add one address per wallet
-(Bitcoin `1…`/`3…`/`bc1…`, Litecoin `L…`/`M…`/`3…`/`ltc1…`, Dogecoin `D…`, Bitcoin Cash
-`bitcoincash:q…` or a legacy `1…`); an address of another coin is refused. The whole history is
-read, so year-end balances are exact, and the fee of a transaction you sent is recorded apart.
-Extended public keys (xpub) are not supported yet: add each address. If Trezor's server refuses
-requests, set another Blockbook server for that network (Settings → Networks, or **+ Add provider**
-with type Blockbook).
+Dogecoin and Bitcoin Cash from Blockchair. Add one address per wallet (Bitcoin `1…`/`3…`/`bc1…`,
+Litecoin `L…`/`M…`/`3…`/`ltc1…`, Dogecoin `D…`, Bitcoin Cash `bitcoincash:q…` or a legacy `1…`);
+an address of another coin is refused. The whole history is read, so year-end balances are exact.
+Bitcoin and Litecoin record the fee of a transaction you sent apart; Blockchair gives one net
+amount per transaction, so for Dogecoin and Bitcoin Cash the fee is inside the amount sent.
+Extended public keys (xpub) are not supported yet: add each address.
+
+Blockchair without a key allows about 1,440 request units a day per IP address (a page of 100
+transactions counts 2, the balance 1): plenty for a few addresses. If it answers "refused (430)",
+the daily limit is used up or your IP is paused for a while: sync again later, or save a
+Blockchair key in Settings → API providers. You can also read Dogecoin or Bitcoin Cash from a
+Blockbook server instead (Settings → Networks): your own, or a hosted one such as NOWNodes (its
+key goes in the provider's key field) or GetBlock/QuickNode (the key is part of the server URL).
+Trezor's public Blockbook servers are listed too, but they usually refuse apps other than Trezor
+Suite (403).
 
 ### Stellar
 

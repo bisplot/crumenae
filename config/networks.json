@@ -450,20 +450,22 @@
   },
   "dogecoin": {
     "name": "Dogecoin",
-    "adapter": "blockbook",
-    "provider": "blockbook_doge",
+    "adapter": "blockchair",
+    "provider": "blockchair",
+    "blockchair_chain": "dogecoin",
     "address_format": "dogecoin",
-    "explorer_api": "https://doge1.trezor.io",
+    "explorer_api": "https://api.blockchair.com",
     "tx_url": "https://blockchair.com/dogecoin/transaction/{tx}",
     "address_url": "https://blockchair.com/dogecoin/address/{address}",
     "native": {"symbol": "DOGE", "name": "Dogecoin", "decimals": 8, "coingecko": "dogecoin", "binance": "DOGE"}
   },
   "bitcoin_cash": {
     "name": "Bitcoin Cash",
-    "adapter": "blockbook",
-    "provider": "blockbook_bch",
+    "adapter": "blockchair",
+    "provider": "blockchair",
+    "blockchair_chain": "bitcoin-cash",
     "address_format": "bitcoin-cash",
-    "explorer_api": "https://bch1.trezor.io",
+    "explorer_api": "https://api.blockchair.com",
     "tx_url": "https://blockchair.com/bitcoin-cash/transaction/{tx}",
     "address_url": "https://blockchair.com/bitcoin-cash/address/{address}",
     "native": {"symbol": "BCH", "name": "Bitcoin Cash", "decimals": 8, "coingecko": "bitcoin-cash", "binance": "BCH"}

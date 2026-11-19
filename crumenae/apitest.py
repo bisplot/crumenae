@@ -155,12 +155,24 @@ def test_provider(ctx, provider_id: str) -> Dict[str, Any]:
             return _result(True, f"{p['name']} answers: ledger {int(ledger):,}.", "1 call")
         return _result(False, f"{p['name']} answered without a ledger number.", "1 call")
     if t == "blockbook":
-        data = ctx.http.get_json(base + "/api/v2")
+        data = ctx.http.get_json(base + "/api/v2", headers={"api-key": key} if key else None)
         info = data if isinstance(data, dict) else {}
         height = _first(info.get("blockbook"), "bestHeight") or _first(info.get("backend"), "blocks")
         if height:
             return _result(True, f"{p['name']} answers: block {int(height):,}.", "1 call")
         return _result(False, f"{p['name']} answered without a block height.", "1 call")
+    if t == "blockchair":
+        net = next((n for n in nets if n.family == "bitcoin"), None)
+        chain = str((net.blockchair_chain or net.id.replace("_", "-")) if net else "bitcoin")
+        data = ctx.http.get_json(f"{base}/{chain}/stats", {"key": key} if key else None)
+        info = data if isinstance(data, dict) else {}
+        code = int((info.get("context") or {}).get("code") or 0)
+        blocks = (info.get("data") or {}).get("blocks") if isinstance(info.get("data"), dict) else None
+        if blocks and code < 400:
+            return _result(True, f"{p['name']} answers{' with your key' if key else ' (no key)'}: "
+                                 f"{net.name if net else 'Bitcoin'} block {int(blocks):,}.", "1 call")
+        return _result(False, f"{p['name']} refused the request ({code or 'no data'}): "
+                              f"{(info.get('context') or {}).get('error') or 'try again later'}", "1 call")
     if t == "ark":
         data = ctx.http.get_json(base + "/blocks", {"limit": 1})
         rows = (data or {}).get("data") if isinstance(data, dict) else None

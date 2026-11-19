@@ -1,4 +1,4 @@
-"""Litecoin (Esplora), Dogecoin and Bitcoin Cash (Blockbook): address checks, history with the
+"""Litecoin (Esplora), Dogecoin and Bitcoin Cash (Blockbook, chosen in Settings): address checks, history with the
 Bitcoin rules, paging, resume, live balance and the wallet check."""
 import unittest
 from decimal import Decimal
@@ -16,6 +16,12 @@ DOGE = b58check_encode(bytes([0x1E]) + bytes(range(20)))     # D…
 OTHER_DOGE = b58check_encode(bytes([0x1E]) + bytes([9] * 20))
 BCH = "bitcoincash:qpm2qsznhks23z7629mms6s4cwef74vcwvy22gdx6a"   # cashaddr spec example
 BTC_LEGACY = b58check_encode(bytes([0x00]) + bytes(range(20)))
+
+
+def use_blockbook(ctx):
+    """Dogecoin and Bitcoin Cash read through Trezor's Blockbook (Settings → Networks)."""
+    ctx.settings.set("network_overrides", {"dogecoin": {"provider": "blockbook_doge"},
+                                           "bitcoin_cash": {"provider": "blockbook_bch"}})
 
 
 class AddressTest(unittest.TestCase):
@@ -99,6 +105,7 @@ class DogecoinTest(unittest.TestCase):
         self.fake = BlockbookFake(DOGE, DOGE_TXS, 29_900_000_000)
         self.t = TempContext(FakeHttp().on("https://doge1.trezor.io", self.fake))
         self.ctx = self.t.ctx
+        use_blockbook(self.ctx)
         self.w = add_wallet(self.ctx, "dogecoin", DOGE, synced=False)
         self.adapter = get_adapter(self.ctx, self.ctx.networks.get("dogecoin"))
 
@@ -129,6 +136,7 @@ class BitcoinCashTest(unittest.TestCase):
         fake = BlockbookFake(BCH, txs, 2_000_000)
         t = TempContext(FakeHttp().on("https://bch1.trezor.io", fake))
         try:
+            use_blockbook(t.ctx)
             w = add_wallet(t.ctx, "bitcoin_cash", BCH, synced=False)
             sync.sync_wallet(t.ctx, t.ctx.wallet(w["id"]), LOG)
             self.assertEqual(t.ctx.db.scalar("SELECT amount FROM movements WHERE uid='b1:coin'"), "0.02")
@@ -144,6 +152,7 @@ class BitcoinCashTest(unittest.TestCase):
             raise HttpError(403, "Forbidden", url)
         t = TempContext(FakeHttp().on("https://bch1.trezor.io", blocked))
         try:
+            use_blockbook(t.ctx)
             w = add_wallet(t.ctx, "bitcoin_cash", BCH)
             with self.assertRaises(AdapterError) as e:
                 get_adapter(t.ctx, t.ctx.networks.get("bitcoin_cash")).sync(w, {}, LOG)

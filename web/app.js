@@ -766,7 +766,7 @@
     const providerRows = provs.filter((p) => !p.builtin || !provNeedsWallets[p.id] || p.wallets).map((p) => serviceRow({
       limitId: p.id, label: p.name,
       hint: [p.hint, p.builtin ? '' : provTypes[p.type], p.networks.length ? 'Reads: ' + p.networks.map((n) => n.name).join(', ') : 'No network uses it yet'].filter(Boolean).join(' · '),
-      secret: p.needs_key || p.secret_source || ['helius', 'trongrid'].includes(p.id) ? p.secret : null, testId: p.id,
+      secret: p.needs_key || p.optional_key || p.secret_source || ['helius', 'trongrid'].includes(p.id) ? p.secret : null, testId: p.id,
       keyNote: 'no key needed', link: p.link,
       actions: p.builtin ? null : [
         el('button', { class: 'btn small ghost', type: 'button', text: 'Edit', onclick: () => providerModal(p) }),

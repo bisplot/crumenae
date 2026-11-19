@@ -1,6 +1,9 @@
-"""Dogecoin and Bitcoin Cash (any Bitcoin-like coin) via a Blockbook API v2 server
-(Trezor's public servers by default: doge1.trezor.io, bch1.trezor.io; any other Blockbook
-instance can be set in Settings → Networks).
+"""Any Bitcoin-like coin (Dogecoin, Bitcoin Cash…) via a Blockbook API v2 server: your own, a
+hosted one (NOWNodes, GetBlock, QuickNode…) or Trezor's public servers (doge1.trezor.io,
+bch1.trezor.io), which often refuse apps other than Trezor Suite. Chosen per network in
+Settings → Networks; Dogecoin and Bitcoin Cash use Blockchair by default. A key saved for the
+provider is sent in the "api-key" header (NOWNodes); services that put the key in the URL
+(GetBlock, QuickNode) take it in the server URL.
 
 One wallet = one address. GET /api/v2/address/{address}?details=txs gives every transaction
 with its inputs and outputs (values in base units, as strings), newest first, in pages. The
@@ -44,12 +47,16 @@ class BlockbookAdapter(Adapter):
         base = (self.network.explorer_api or "").rstrip("/")
         if not base:
             raise AdapterError(f"{self.network.name}: no Blockbook server configured (Settings → Networks)")
+        key = self.secret(f"{self.network.explorer_key}_api_key") if self.network.explorer_key else None
         try:
-            data = self.ctx.http.get_json(base + path, params)
+            data = self.ctx.http.get_json(base + path, params, headers={"api-key": key} if key else None)
         except HttpError as e:
+            if e.status in (401, 403) and key:
+                raise AdapterError(f"{self.network.name} explorer refused the key ({e.status}): check it in "
+                                   "Settings → API providers")
             if e.status in (403, 429, 503):
                 raise AdapterError(f"{self.network.name} explorer refused the request ({e.status}): try again "
-                                   "later, or set another Blockbook server in Settings → Networks")
+                                   "later, or choose Blockchair or another Blockbook server in Settings → Networks")
             raise AdapterError(f"{self.network.name} explorer: {e}")
         if not isinstance(data, dict):
             raise AdapterError(f"{self.network.name} explorer: unexpected answer (not JSON)")
