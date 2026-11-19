@@ -54,6 +54,9 @@ class BlockbookAdapter(Adapter):
             if e.status in (401, 403) and key:
                 raise AdapterError(f"{self.network.name} explorer refused the key ({e.status}): check it in "
                                    "Settings → API providers")
+            if e.status == 403 and "trezor.io" in base:
+                raise AdapterError(f"{self.network.name}: Trezor's public Blockbook server refuses apps other than "
+                                   "Trezor Suite (403). Choose Blockchair for this network in Settings → Networks")
             if e.status in (403, 429, 503):
                 raise AdapterError(f"{self.network.name} explorer refused the request ({e.status}): try again "
                                    "later, or choose Blockchair or another Blockbook server in Settings → Networks")

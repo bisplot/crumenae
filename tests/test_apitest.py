@@ -78,7 +78,7 @@ class ApiTestTest(unittest.TestCase):
         self.t.http.handlers.insert(0, self.t.http.handlers.pop())
         r = apitest.run(self.ctx, "blockbook_doge")
         self.assertFalse(r["ok"])
-        self.assertIn("no key is saved", r["message"])
+        self.assertIn("Trezor Suite", r["message"])                     # Trezor: says to use Blockchair
         self.assertNotIn("copied in full", r["message"])
 
     def test_ecb_asks_for_csv(self):

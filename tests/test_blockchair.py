@@ -165,6 +165,22 @@ class KeysAndTestButtonTest(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn("430", r["message"])
 
+    def test_networks_pinned_to_trezor_go_back_to_blockchair(self):
+        self.ctx.settings.set("network_overrides", {
+            "bitcoin_cash": {"provider": "blockbook_bch", "hidden": False},
+            "dogecoin": {"explorer_api": "https://doge1.trezor.io"},
+            "litecoin": {"hidden": True}})
+        self.ctx.db.execute("DELETE FROM meta WHERE key='blockchair_default_v1'")
+        self.ctx.db._migrate()
+        self.assertEqual(self.ctx.settings.get("network_overrides"),
+                         {"bitcoin_cash": {"hidden": False}, "litecoin": {"hidden": True}})
+        for nid in ("dogecoin", "bitcoin_cash"):
+            net = self.ctx.networks.get(nid)
+            self.assertEqual((net.provider, net.explorer_api), ("blockchair", "https://api.blockchair.com"))
+        self.ctx.settings.set("network_overrides", {"dogecoin": {"provider": "blockbook_doge"}})
+        self.ctx.db._migrate()                                               # once: a later choice is kept
+        self.assertEqual(self.ctx.networks.get("dogecoin").provider, "blockbook_doge")
+
     def test_optional_keys_can_be_saved(self):
         from crumenae.secrets import KNOWN
         for name in ("blockchair_api_key", "blockbook_doge_api_key", "blockbook_bch_api_key"):
