@@ -208,7 +208,37 @@ class Database:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         if self.get_meta("cleanup_staking_v1") is None:
             self._remove_staking()
+        if self.get_meta("blockchair_default_v1") is None:
+            self._leave_trezor()
         self.set_meta("schema_version", str(SCHEMA_VERSION))
+
+    TREZOR_PROVIDERS = ("blockbook_doge", "blockbook_bch")
+
+    def _leave_trezor(self) -> None:
+        """Trezor's public Blockbook servers refuse every app but Trezor Suite: networks pinned to
+        them (or to a trezor.io URL) in Settings go back to their default, Blockchair. Once."""
+        import json
+        with self.tx():
+            row = self.conn.execute("SELECT value FROM settings WHERE key='network_overrides'").fetchone()
+            try:
+                overrides = json.loads(row[0]) if row else {}
+            except ValueError:
+                overrides = {}
+            if isinstance(overrides, dict):
+                changed = False
+                for ov in overrides.values():
+                    if not isinstance(ov, dict):
+                        continue
+                    if ov.get("provider") in self.TREZOR_PROVIDERS:
+                        ov.pop("provider")
+                        changed = True
+                    if "trezor.io" in str(ov.get("explorer_api") or ""):
+                        ov.pop("explorer_api")
+                        changed = True
+                if changed:
+                    self.conn.execute("UPDATE settings SET value=? WHERE key='network_overrides'",
+                                      (json.dumps({k: v for k, v in overrides.items() if v}),))
+            self.set_meta("blockchair_default_v1", "1")
 
     # Keys a staking version of the app kept in each wallet's sync state.
     STAKING_STATE_KEYS = ("staking", "stake_accounts", "stake_epochs", "reward_epoch")

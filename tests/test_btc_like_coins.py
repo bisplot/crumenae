@@ -156,7 +156,7 @@ class BitcoinCashTest(unittest.TestCase):
             w = add_wallet(t.ctx, "bitcoin_cash", BCH)
             with self.assertRaises(AdapterError) as e:
                 get_adapter(t.ctx, t.ctx.networks.get("bitcoin_cash")).sync(w, {}, LOG)
-            self.assertIn("another Blockbook server", str(e.exception))
+            self.assertIn("Choose Blockchair", str(e.exception))   # Trezor's servers refuse apps
         finally:
             t.close()
 

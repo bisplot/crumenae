@@ -209,6 +209,10 @@ def run(ctx, service: str) -> Dict[str, Any]:
     except HttpError as e:
         if e.status in (401, 403):
             p = providers.get(ctx.settings, service)
+            if p and "trezor.io" in str(p.get("base_url") or ""):
+                return _result(False, f"{p['name']} refused the request ({e.status}): Trezor's public servers refuse "
+                                      "apps other than Trezor Suite. Dogecoin and Bitcoin Cash use Blockchair: check "
+                                      "Settings → Networks and press Test on the Blockchair row.", "1 call")
             if p and not ctx.secrets.get(providers.secret_name(service)):
                 return _result(False, f"{p['name']} refused the request ({e.status}) and no key is saved: the "
                                       "server may block this client or need a key. Try another server URL.", "1 call")

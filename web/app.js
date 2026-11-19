@@ -723,6 +723,7 @@
       cosmos: 'https://terra-lcd.publicnode.com', esplora: 'https://mempool.space/api', horizon: 'https://horizon.stellar.org',
     };
     const provNeedsWallets = { solar: true };   // shown only once a wallet uses them
+    const provNeedsNetworks = { blockbook_doge: true, blockbook_bch: true };   // Trezor: shown only if a network still uses it
     const providerModal = (p) => {
       const name = el('input', { type: 'text', value: p ? p.name : '', placeholder: 'e.g. Lineascan, Blockscout Gnosis, My Alchemy' });
       const type = el('select', { disabled: Boolean(p && p.networks.length) }, Object.entries(provTypes).map(([k, l]) => el('option', { value: k, text: l, selected: p ? p.type === k : k === 'etherscan' })));
@@ -763,7 +764,7 @@
             } catch (e) { toast(e.message, true); }
           } })));
     };
-    const providerRows = provs.filter((p) => !p.builtin || !provNeedsWallets[p.id] || p.wallets).map((p) => serviceRow({
+    const providerRows = provs.filter((p) => !p.builtin || ((!provNeedsWallets[p.id] || p.wallets) && (!provNeedsNetworks[p.id] || p.networks.length))).map((p) => serviceRow({
       limitId: p.id, label: p.name,
       hint: [p.hint, p.builtin ? '' : provTypes[p.type], p.networks.length ? 'Reads: ' + p.networks.map((n) => n.name).join(', ') : 'No network uses it yet'].filter(Boolean).join(' · '),
       secret: p.needs_key || p.optional_key || p.secret_source || ['helius', 'trongrid'].includes(p.id) ? p.secret : null, testId: p.id,
