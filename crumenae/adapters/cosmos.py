@@ -34,6 +34,7 @@ from ..util import ZERO, scaled
 from . import register
 from .base import Adapter, AdapterError, AssetInfo, Logger, Movement, SyncResult
 
+MAX_PAGES = 2000
 PAGE = 100
 _CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 _COIN = re.compile(r"(\d+)([a-zA-Z][a-zA-Z0-9/:._-]*)")
@@ -151,25 +152,25 @@ class CosmosAdapter(Adapter):
                          contract=denom, status="unmapped")
 
     def _search(self, query: str, from_height: int) -> List[Dict[str, Any]]:
-        """All transactions matching `query` from block `from_height` on, oldest first. The cursor
-        is a block height, not a count: a public node that prunes old transactions shrinks the
-        list, and a count would then skip the new ones."""
+        """Transactions matching `query`, newest first, down to block `from_height` (that block is
+        read again; its transactions dedupe by hash). No height range in the query: public nodes
+        such as PublicNode refuse "tx.height>=" (only "tx.height=" is allowed). Newest first also
+        copes with nodes that prune old transactions: the newest ones are on every node, and the
+        cursor is a block height, not a count."""
         out: List[Dict[str, Any]] = []
-        if from_height > 0:
-            query = f"{query} AND tx.height>={from_height}"
-        page, skip = 1, 0
-        while True:
+        for page in range(1, MAX_PAGES + 1):
             data = self._get("/cosmos/tx/v1beta1/txs", {"query": query, "page": page, "limit": PAGE,
-                                                       "order_by": "ORDER_BY_ASC"}) or {}
+                                                       "order_by": "ORDER_BY_DESC"}) or {}
             if data.get("error") or data.get("message") and not data.get("tx_responses"):
                 raise AdapterError(f"{self.network.name} API: {data.get('error') or data.get('message')}")
             batch = data.get("tx_responses") or []
-            out.extend(batch[skip:])
-            skip = 0
-            total = int(data.get("total") or 0)
-            if len(batch) < PAGE or page * PAGE >= total:
-                return out
-            page += 1
+            for r in batch:
+                if from_height and int(r.get("height") or 0) < from_height:
+                    return out
+                out.append(r)
+            if len(batch) < PAGE:
+                break
+        return out
 
     # --- sync -------------------------------------------------------------------
     def sync(self, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:
@@ -177,7 +178,7 @@ class CosmosAdapter(Adapter):
         me = wallet["address"]
         log(f"{wallet['label']}: reading {self.network.name} transactions")
         txs: Dict[str, Dict[str, Any]] = {}
-        # Last block read per query; the block is read again next time (its txs dedupe by uid).
+        # Newest block read per query; the next sync reads down to it (its txs dedupe by hash).
         # A state from the old count-based cursor starts again from the beginning, once.
         heights = dict(state.get("heights") or {})
         try:
