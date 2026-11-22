@@ -1,8 +1,10 @@
 import unittest
 from decimal import Decimal
+from unittest import mock
 
 from crumenae import sync
-from crumenae.adapters import get_adapter
+from crumenae.adapters import cosmos, get_adapter
+from crumenae.http import HttpError
 from crumenae.adapters.cosmos import bech32_decode, bech32_encode, module_address
 
 from helpers import FakeHttp, TempContext, add_wallet
@@ -51,13 +53,20 @@ FAILED = tx("DD", 30, "2025-03-01T10:00:00Z", [{"@type": "/cosmos.bank.v1beta1.M
             fee_events("3000uluna"), code=5)
 
 
+def search(params, rows):
+    """Like PublicNode: no height range in the query, newest first, paged."""
+    if "tx.height" in params["query"]:
+        raise HttpError(400, '{"error" : "Please specify tx.height with strict equality."}', "u")
+    assert params["order_by"] == "ORDER_BY_DESC"
+    rows = sorted(rows, key=lambda r: -int(r["height"]))
+    page, limit = int(params["page"]), int(params["limit"])
+    return {"tx_responses": rows[(page - 1) * limit:page * limit], "total": str(len(rows)), "pagination": None}
+
+
 def lcd_handler(method, url, params, payload):
     if url.endswith("/cosmos/tx/v1beta1/txs"):
-        q, _, since = params["query"].partition(" AND tx.height>=")
-        assert params["order_by"] == "ORDER_BY_ASC"
-        rows = [SEND, DELEGATE, FAILED] if q == f"message.sender='{ME}'" else [RECEIVE, DELEGATE]
-        rows = [r for r in rows if int(r["height"]) >= int(since or 0)]
-        return {"tx_responses": rows, "total": str(len(rows)), "pagination": None}
+        sent = params["query"] == f"message.sender='{ME}'"
+        return search(params, [SEND, DELEGATE, FAILED] if sent else [RECEIVE, DELEGATE])
     if url.endswith(f"/cosmos/bank/v1beta1/balances/{ME}"):
         return {"balances": [{"denom": "uluna", "amount": "3138000"}, {"denom": "uusd", "amount": "3000000"},
                              {"denom": "ukrw", "amount": "55000"}, {"denom": "ibc/ABCDEF0123456789", "amount": "7"}],
@@ -74,6 +83,9 @@ class CosmosTest(unittest.TestCase):
     def setUp(self):
         self.t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", lcd_handler))
         self.ctx = self.t.ctx
+        patcher = mock.patch.object(cosmos, "PAGE", 2)    # pages of 2: paging is exercised
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.adapter = get_adapter(self.ctx, self.ctx.networks.get("terra_classic"))
         self.wallet = add_wallet(self.ctx, "terra_classic", ME)
 
@@ -111,19 +123,20 @@ class CosmosTest(unittest.TestCase):
         first = self.adapter.sync(self.wallet, {}, LOG)
         late = tx("EE", 40, "2025-04-01T10:00:00Z", [{"@type": "/cosmos.bank.v1beta1.MsgSend"}],
                   fee_events("2000uluna"))
+        calls = []
 
         def pruned(method, url, params, payload):
             if url.endswith("/cosmos/tx/v1beta1/txs"):
-                q, _, since = params["query"].partition(" AND tx.height>=")
-                rows = [FAILED, late] if q == f"message.sender='{ME}'" else []
-                rows = [r for r in rows if int(r["height"]) >= int(since or 0)]
-                return {"tx_responses": rows, "total": str(len(rows)), "pagination": None}
+                sent = params["query"] == f"message.sender='{ME}'"
+                calls.extend([params["page"]] if sent else [])
+                return search(params, [SEND, DELEGATE, FAILED, late] if sent else [])
             return lcd_handler(method, url, params, payload)
         t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", pruned))
         try:
             again = get_adapter(t.ctx, t.ctx.networks.get("terra_classic")).sync(self.wallet, first.state, LOG)
             self.assertIn("EE:fee:uluna", {m.uid for m in again.movements})
             self.assertEqual(again.state["heights"]["sent"], 40)
+            self.assertEqual(calls, [1, 2])          # page 2 reaches block 20 < 30 (read before): stops there
         finally:
             t.close()
 
