@@ -224,26 +224,28 @@
 
     fill(root, kpis, flags || '', el('div', { class: 'grid two' }, allocation, holdings),
       el('div', { class: 'grid two-even' }, yearsCard, walletsCard));
-    if (state.arrived) animateDashboard(root);
+    if (state.arrived) animatePage(root);
   }
 
   function kpi(label, value, sub, cls, count) {
     const attrs = { class: 'value ' + (cls || ''), text: value };
-    if (Number.isFinite(count)) attrs['data-count'] = String(count);   // counted up on arrival (animateDashboard)
+    if (Number.isFinite(count)) attrs['data-count'] = String(count);   // counted up on arrival (animatePage)
     return el('div', { class: 'card kpi' }, el('div', { class: 'label', text: label }),
       el('div', attrs), el('div', { class: 'sub', text: sub || '' }));
   }
 
   // ---------------------------------------------------------------- motion (anime.js, web/vendor/)
-  // Played once when you open the Dashboard, not on refreshes; never with "reduce motion"; if the
-  // library is missing the page is simply static.
+  // Played when you open a page (or another year), not when it refreshes after a sync; never with
+  // "reduce motion"; if the library is missing the page is simply static.
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  function animateDashboard(root) {
+  function animatePage(root) {
     const A = window.anime;
     if (!A || !A.animate || reduceMotion()) return;
     try {
-      A.animate(root.querySelectorAll(':scope > .grid > .card, :scope > .card, :scope > .grid > .grid > .card'),
-        { opacity: [0, 1], translateY: [10, 0], duration: 450, delay: A.stagger(45), ease: 'outQuad' });
+      const cards = [...root.querySelectorAll('.card')].filter((c) => !c.parentElement.closest('.card'));
+      A.animate(cards, { opacity: [0, 1], translateY: [10, 0], duration: 450, delay: A.stagger(45), ease: 'outQuad' });
+      A.animate(root.querySelectorAll('[data-rows] tbody tr'), { opacity: [0, 1], translateX: [-6, 0], duration: 350,
+        delay: A.stagger(30, { start: 200 }), ease: 'outQuad' });
       const arcs = root.querySelectorAll('.donut-wrap svg [data-seg]');
       if (arcs.length) {
         A.animate(A.svg.createDrawable(arcs), { draw: ['0 0', '0 1'], duration: 650, delay: A.stagger(80, { start: 120 }),
@@ -280,10 +282,13 @@
       st.yearend_stale ? el('div', { class: 'flag', style: 'margin-bottom:12px',
         text: `Out of date: ${st.yearend_stale}. Values below were computed ${st.yearend_computed_at ? 'on ' + when(st.yearend_computed_at) : 'earlier'}; press "Recompute year-end" to update them.` }) : null,
       el('div', { class: 'grid kpis' },
-        kpi('Total at year-end', eur(total), incomplete ? `⚠ ${incomplete} wallet(s) incomplete` : 'all wallets valued'),
-        kpi('Initial values (RW col. 7)', eur(rep.totals.initial_value_eur), 'start of year or first day held'),
-        kpi('Final values (RW col. 8)', eur(rep.totals.final_value_eur), 'end of year or last day held'),
-        kpi('IC estimate', eur(rep.totals.ic_eur), `${Number(rep.ic_rate) * 100}% × days held, where no bollo applies`)));
+        kpi('Total at year-end', eur(total), incomplete ? `⚠ ${incomplete} wallet(s) incomplete` : 'all wallets valued', '', total),
+        kpi('Initial values (RW col. 7)', eur(rep.totals.initial_value_eur), 'start of year or first day held', '',
+          Number(rep.totals.initial_value_eur)),
+        kpi('Final values (RW col. 8)', eur(rep.totals.final_value_eur), 'end of year or last day held', '',
+          Number(rep.totals.final_value_eur)),
+        kpi('IC estimate', eur(rep.totals.ic_eur), `${Number(rep.ic_rate) * 100}% × days held, where no bollo applies`, '',
+          Number(rep.totals.ic_eur))));
 
     const dl = (name, label) => el('a', { class: 'btn small', href: `/api/report/${year}/${name}` + pf(), download: '', text: label });
     const exp = (name) => el('a', { class: 'btn small highlight', href: `/api/exports/${name}` + pf(), download: '', text: name });
@@ -296,7 +301,7 @@
       el('button', { class: 'btn small primary', type: 'button', text: 'Write report folder', onclick: async () => {
         try { const r = await api.post(`/api/report/${year}/write` + pf()); toast('Written to ' + r.folder); } catch (e) { toast(e.message, true); }
       } })),
-    table(['Slot', 'Wallet', '#Days', '#Initial €', '#Final €', '#IC €', 'Notes'],
+    el('div', { 'data-rows': '' }, table(['Slot', 'Wallet', '#Days', '#Initial €', '#Final €', '#IC €', 'Notes'],
       rep.wallets.filter((w) => w.held).sort((a, b) => (a.rw_slot ?? 999) - (b.rw_slot ?? 999)).map((w) => el('tr', {},
         el('td', { text: w.rw_slot ?? '—' }),
         el('td', {}, el('div', { text: w.label }), el('div', { class: 'muted small', text: w.network + (w.bollo_applied ? ' · bollo applied' : '') })),
@@ -304,7 +309,7 @@
         el('td', { class: 'num', text: eur(w.initial_value_eur) }),
         el('td', { class: 'num', text: eur(w.final_value_eur) }),
         el('td', { class: 'num', text: w.ic_eur === null ? '—' : eur(w.ic_eur) }),
-        el('td', { class: 'wrap small' }, flagList(w.notes) || el('span', { class: 'muted', text: 'OK' }))))));
+        el('td', { class: 'wrap small' }, flagList(w.notes) || el('span', { class: 'muted', text: 'OK' })))))));
 
     const walletCards = detail.wallets.map((w) => {
       const canManual = true;
@@ -313,7 +318,7 @@
           el('div', {}, el('h3', {}, w.wallet.label, w.wallet.lost ? [' ', badge('lost', 'lost')] : null),
             el('div', { class: 'muted small' }, `${w.wallet.network_name}${w.wallet.address ? ' · ' + short(w.wallet.address, 8, 6) : ''} · `, sourceBadge(w.source, w.source_label)),
             flagList(w.flags)),
-          el('div', { style: 'text-align:right' }, el('div', { class: 'wallet-value', text: eur(w.value) }),
+          el('div', { style: 'text-align:right' }, el('div', { class: 'wallet-value', text: eur(w.value), 'data-count': String(Number(w.value) || 0) }),
             !w.complete ? el('div', { class: 'small neg', text: 'incomplete' }) : null,
             canManual ? el('button', { class: 'btn small', type: 'button', style: 'margin-top:6px', text: w.source === 'manual' ? 'Edit manual entry' : 'Enter manually',
               onclick: () => manualModal(w, year) }) : null)),
@@ -327,6 +332,7 @@
           : el('p', { class: 'muted small', text: 'No balance at this cutoff.' }));
     });
     fill(root, head, exportsCard, rwCard, ...walletCards);
+    if (state.arrived) animatePage(root);
   }
 
   function manualModal(w, year) {
@@ -1112,7 +1118,8 @@
     const [name, qs] = hash.split('?');
     const page = PAGES[name] ? name : 'dashboard';
     const params = Object.fromEntries(new URLSearchParams(qs || ''));
-    state.arrived = state.page !== page;   // a new page, not a refresh of the same one
+    state.arrived = state.hash !== location.hash;   // a new page or year, not a refresh of the same one
+    state.hash = location.hash;
     state.page = page;
     document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.page === page));
     $('#page-title').textContent = PAGES[page][0];

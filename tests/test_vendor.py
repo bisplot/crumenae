@@ -21,6 +21,7 @@ class VendorTest(unittest.TestCase):
         js = (WEB / "app.js").read_text(encoding="utf-8")
         self.assertIn("if (!A || !A.animate || reduceMotion()) return;", js)     # missing library / reduce motion
         self.assertTrue(re.search(r"prefers-reduced-motion: reduce", js))
+        self.assertEqual(js.count("if (state.arrived) animatePage(root);"), 2)       # Dashboard and Year-end
 
 
 if __name__ == "__main__":
