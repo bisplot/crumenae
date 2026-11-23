@@ -161,8 +161,13 @@ class CosmosAdapter(Adapter):
         cursor is a block height, not a count."""
         out: List[Dict[str, Any]] = []
         for page in range(1, MAX_PAGES + 1):
-            data = self._get("/cosmos/tx/v1beta1/txs", {"query": query, "page": page, "limit": PAGE,
-                                                       "order_by": "ORDER_BY_DESC"}) or {}
+            try:
+                data = self._get("/cosmos/tx/v1beta1/txs", {"query": query, "page": page, "limit": PAGE,
+                                                           "order_by": "ORDER_BY_DESC"}) or {}
+            except AdapterError as e:
+                if page > 1 and "page should be within" in str(e):
+                    break   # past the last page (a full last page, or a node that holds fewer)
+                raise
             if data.get("error") or data.get("message") and not data.get("tx_responses"):
                 raise AdapterError(f"{self.network.name} API: {data.get('error') or data.get('message')}")
             batch = data.get("tx_responses") or []
@@ -170,7 +175,8 @@ class CosmosAdapter(Adapter):
                 if from_height and int(r.get("height") or 0) < from_height:
                     return out
                 out.append(r)
-            if len(batch) < PAGE:
+            total = int(data.get("total") or 0)
+            if len(batch) < PAGE or (total and page * PAGE >= total):
                 break
         return out
 
