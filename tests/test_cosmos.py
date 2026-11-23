@@ -149,6 +149,13 @@ class CosmosTest(unittest.TestCase):
         self.assertEqual(status["terra_classic:ibc/ABCDEF0123456789"], "unmapped")
         self.assertFalse(self.adapter.has_history)   # public node: year-end from snapshots, not a partial history
 
+    def test_wallet_check_says_why_it_is_not_checked(self):
+        from crumenae import views
+        sync.sync_wallet(self.ctx, self.ctx.wallet(self.wallet["id"]), LOG)
+        check = views.wallets(self.ctx)[0]["check"]
+        self.assertEqual(check["status"], "n/a")
+        self.assertIn("keeps only recent transactions", check["reason"])
+
     def test_history_unavailable_keeps_balances(self):
         def broken(method, url, params, payload):
             if url.endswith("/cosmos/tx/v1beta1/txs"):

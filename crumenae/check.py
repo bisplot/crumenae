@@ -55,6 +55,11 @@ def run(ctx, wallet: Dict[str, Any], adapter, live: Dict[str, Decimal]) -> Dict[
     detail: Dict[str, Any] = {}
     if adapter.kind == "manual" or not adapter.has_history:
         status = "n/a"
+        detail["reason"] = (
+            "manual account: there are no transactions to compare" if adapter.kind == "manual" else
+            "this exchange's API gives balances, not every past transaction" if adapter.kind == "exchange" else
+            "the public server keeps only recent transactions, so the history can't be compared with the "
+            "balance; year-end values come from snapshots or the live balance")
     else:
         diffs = compare(ctx, wallet, live)
         detail["assets"] = diffs[:MAX_ITEMS]
