@@ -6,7 +6,7 @@
   const $ = (sel) => document.querySelector(sel);
   const SVGNS = 'http://www.w3.org/2000/svg';
   const COLORS = ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8'];
-  const state = { portfolio: '', status: null, jobTimer: null, page: 'dashboard' };
+  const state = { portfolio: '', status: null, jobTimer: null, page: null };
 
   // ---------------------------------------------------------------- DOM helpers
   function build(node, attrs, children) {
@@ -124,8 +124,8 @@
         const large = a2 - angle > Math.PI ? 1 : 0;
         const p = (a) => `${c + r * Math.cos(a)} ${c + r * Math.sin(a)}`;
         const path = frac >= 0.9999
-          ? svg('circle', { cx: c, cy: c, r, fill: 'none', stroke: it.color, 'stroke-width': stroke })
-          : svg('path', { d: `M ${p(angle)} A ${r} ${r} 0 ${large} 1 ${p(a2)}`, fill: 'none', stroke: it.color, 'stroke-width': stroke },
+          ? svg('circle', { cx: c, cy: c, r, fill: 'none', stroke: it.color, 'stroke-width': stroke, 'data-seg': '' })
+          : svg('path', { d: `M ${p(angle)} A ${r} ${r} 0 ${large} 1 ${p(a2)}`, fill: 'none', stroke: it.color, 'stroke-width': stroke, 'data-seg': '' },
             svg('title', {}, `${it.label}: ${pct(frac)}`));
         g.appendChild(path);
         angle += frac * Math.PI * 2;
@@ -151,9 +151,9 @@
       const x = padL + slot * i + (slot - bw) / 2;
       const y = H - padB - h;
       const complete = s.complete !== false;
-      g.appendChild(svg('rect', { x, y, width: bw, height: Math.max(h, 1), rx: 4, fill: cssVar('--c1'), opacity: complete ? 1 : 0.45 },
+      g.appendChild(svg('rect', { x, y, width: bw, height: Math.max(h, 1), rx: 4, fill: cssVar('--c1'), opacity: complete ? 1 : 0.45, 'data-bar': '' },
         svg('title', {}, `${s.year}: ${eur(s.value)}${complete ? '' : ' (incomplete)'}`)));
-      g.appendChild(svg('text', { x: x + bw / 2, y: y - 7, 'text-anchor': 'middle', class: 'value-label' },
+      g.appendChild(svg('text', { x: x + bw / 2, y: y - 7, 'text-anchor': 'middle', class: 'value-label', 'data-bar-label': '' },
         compactEur(v) + (complete ? '' : ' ⚠')));
       g.appendChild(svg('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle' }, `31/12/${s.year}`));
     });
@@ -178,9 +178,9 @@
     const last = lastSeries ? Number(lastSeries.value) : null;
     const change = last ? (now - last) / last : null;
     const kpis = el('div', { class: 'grid kpis' },
-      kpi('Total value now', eur(d.total_now), d.price_time ? `prices as of ${when(d.price_time)}` : 'no prices yet: run a sync'),
+      kpi('Total value now', eur(d.total_now), d.price_time ? `prices as of ${when(d.price_time)}` : 'no prices yet: run a sync', '', now),
       kpi(d.last_year ? `At 31/12/${d.last_year} 23:59:59` : 'Last year-end', lastSeries ? eur(lastSeries.value) : '—',
-        lastSeries ? (lastSeries.complete ? 'all wallets valued' : '⚠ incomplete: see Year-end') : 'not computed yet'),
+        lastSeries ? (lastSeries.complete ? 'all wallets valued' : '⚠ incomplete: see Year-end') : 'not computed yet', '', last === null ? undefined : last),
       kpi('Change since year-end', change === null ? '—' : (change >= 0 ? '+' : '') + pct(change), last ? `${eur(now - last)}` : '', change === null ? '' : change >= 0 ? 'pos' : 'neg'),
       kpi('Wallets', String(d.wallets.length), `last sync ${when(d.last_sync)}` + (d.lost_hidden ? ` · ${d.lost_hidden} lost not shown` : '')));
 
@@ -224,11 +224,43 @@
 
     fill(root, kpis, flags || '', el('div', { class: 'grid two' }, allocation, holdings),
       el('div', { class: 'grid two-even' }, yearsCard, walletsCard));
+    if (state.arrived) animateDashboard(root);
   }
 
-  function kpi(label, value, sub, cls) {
+  function kpi(label, value, sub, cls, count) {
+    const attrs = { class: 'value ' + (cls || ''), text: value };
+    if (Number.isFinite(count)) attrs['data-count'] = String(count);   // counted up on arrival (animateDashboard)
     return el('div', { class: 'card kpi' }, el('div', { class: 'label', text: label }),
-      el('div', { class: 'value ' + (cls || ''), text: value }), el('div', { class: 'sub', text: sub || '' }));
+      el('div', attrs), el('div', { class: 'sub', text: sub || '' }));
+  }
+
+  // ---------------------------------------------------------------- motion (anime.js, web/vendor/)
+  // Played once when you open the Dashboard, not on refreshes; never with "reduce motion"; if the
+  // library is missing the page is simply static.
+  const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function animateDashboard(root) {
+    const A = window.anime;
+    if (!A || !A.animate || reduceMotion()) return;
+    try {
+      A.animate(root.querySelectorAll(':scope > .grid > .card, :scope > .card, :scope > .grid > .grid > .card'),
+        { opacity: [0, 1], translateY: [10, 0], duration: 450, delay: A.stagger(45), ease: 'outQuad' });
+      const arcs = root.querySelectorAll('.donut-wrap svg [data-seg]');
+      if (arcs.length) {
+        A.animate(A.svg.createDrawable(arcs), { draw: ['0 0', '0 1'], duration: 650, delay: A.stagger(80, { start: 120 }),
+          ease: 'inOutQuad' });
+      }
+      A.animate(root.querySelectorAll('.chart rect[data-bar]'), { scaleY: [0, 1], duration: 700,
+        delay: A.stagger(70, { start: 200 }), ease: 'outExpo' });
+      A.animate(root.querySelectorAll('.chart text.value-label[data-bar-label]'), { opacity: [0, 1], duration: 400,
+        delay: A.stagger(70, { start: 500 }), ease: 'outQuad' });
+      A.animate(root.querySelectorAll('.share-bar span'), { scaleX: [0, 1], duration: 800,
+        delay: A.stagger(35, { start: 250 }), ease: 'outExpo' });
+      root.querySelectorAll('[data-count]').forEach((node) => {
+        const end = Number(node.dataset.count), final = node.textContent, o = { v: 0 };
+        A.animate(o, { v: end, duration: 900, ease: 'outExpo', onUpdate: () => { node.textContent = eur(o.v); },
+          onComplete: () => { node.textContent = final; } });
+      });
+    } catch (_) { /* motion only: the page is already complete without it */ }
   }
 
   async function pageYearEnd(root, params) {
@@ -1080,6 +1112,7 @@
     const [name, qs] = hash.split('?');
     const page = PAGES[name] ? name : 'dashboard';
     const params = Object.fromEntries(new URLSearchParams(qs || ''));
+    state.arrived = state.page !== page;   // a new page, not a refresh of the same one
     state.page = page;
     document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.page === page));
     $('#page-title').textContent = PAGES[page][0];
