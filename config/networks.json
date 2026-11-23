@@ -390,6 +390,7 @@
     "adapter": "cosmos",
     "provider": "terra_classic_lcd",
     "explorer_api": "https://terra-classic-lcd.publicnode.com",
+    "fcd_api": "https://terra-classic-fcd.publicnode.com",
     "bech32_prefix": "terra",
     "native_denom": "uluna",
     "denoms": {

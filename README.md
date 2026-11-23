@@ -158,7 +158,7 @@ python3 -m pip install -r requirements-optional.txt
    | litecoinspace.org | Litecoin (`L…`, `M…`, `3…`, `ltc1…`) | no key |
    | Blockchair | Dogecoin (`D…`), Bitcoin Cash (`bitcoincash:q…` or legacy `1…`) | no key: about 1,440 request units a day per IP address, enough for a few addresses; an optional paid key raises it |
    | Stellar Horizon | Stellar (XLM and issued assets such as Circle's USDC) | no key |
-   | Terra / Terra Classic (PublicNode) | Terra (LUNA) and Terra Classic (LUNC, USTC), staking included | no key |
+   | Terra / Terra Classic (PublicNode) | Terra (LUNA) and Terra Classic (LUNC, USTC), staking included; Terra Classic with its full history (FCD, as Terra Finder) | no key |
 
    The Solar API appears once a wallet uses it. Binance account
    keys (read-only) are entered per account on the Wallets page. **+ Add provider** adds any
@@ -316,10 +316,17 @@ yield, and the year-end value from a snapshot or the chain state includes it.
 Terra (LUNA) and Terra Classic (LUNC, USTC) are read from PublicNode's public APIs, no key: add
 your `terra1…` address on the Wallets page (the same address works on both chains: add it once
 per chain). The live balance includes staked and unbonding coins (still yours); claimed staking
-rewards are imported as `reward`. Public nodes keep only recent transactions, so the
-year-end balance of these chains comes from the balance read at each sync, a snapshot near the
-cutoff, or a manual entry (Year-end → Enter manually), never from a partial history. Terra
-Classic's old fiat stablecoins (KRTC, EUTC… the dust left by staking rewards) are ghost assets
+rewards are imported as `reward`.
+
+- **Terra Classic**: the whole history, back to the first Terra chain (2021), comes from
+  PublicNode's FCD, the indexer Terra Finder reads. Year-end balances are rebuilt from it and the
+  wallet check compares it with the live balance. Coins lost to a validator slash leave no
+  transaction, so a slashed delegation shows as a small difference (history higher than live).
+- **Terra (LUNA)**: the public node keeps only recent transactions, so the year-end balance comes
+  from the balance read at each sync, a snapshot near the cutoff, or a manual entry (Year-end →
+  Enter manually), never from a partial history; the wallet shows "not checked".
+
+Terra Classic's old fiat stablecoins (KRTC, EUTC… the dust left by staking rewards) are ghost assets
 valued at €0. Other Cosmos SDK chains (Cosmos Hub, Osmosis…) can be added from Settings: a
 "Cosmos SDK LCD" provider and a network with its address prefix and native denom.
 

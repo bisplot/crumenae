@@ -113,7 +113,9 @@ class CosmosAdapter(Adapter):
 
     @property
     def has_history(self) -> bool:  # type: ignore[override]
-        return bool(self.network.history_complete)
+        if getattr(self, "_history_failed", False):
+            return False
+        return bool(self.network.history_complete or self.network.fcd_api)
 
     @property
     def prefix(self) -> str:
@@ -172,6 +174,100 @@ class CosmosAdapter(Adapter):
                 break
         return out
 
+    # --- FCD (full history, as Terra Finder reads it) ----------------------------
+    SIGNER_FIELDS = ("from_address", "delegator_address", "sender", "voter", "depositor", "proposer", "granter",
+                     "owner", "trader", "signer", "validator_address")
+
+    def _fcd(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        base = str(self.network.fcd_api).rstrip("/")
+        try:
+            data = self.ctx.http.get_json(base + "/v1/txs", params)
+        except HttpError as e:
+            raise AdapterError(f"{self.network.name} FCD: {e}")
+        if not isinstance(data, dict) or ("txs" not in data and data.get("message")):
+            raise AdapterError(f"{self.network.name} FCD: {(data or {}).get('message') or 'unexpected answer'}")
+        return data
+
+    def fcd_to_lcd(self, t: Dict[str, Any]) -> Dict[str, Any]:
+        """An FCD transaction (amino tx, events in logs) in the LCD shape parse_tx reads. Recent
+        transactions carry the LCD events as they are (fee events, msg_index); older ones get
+        msg_index from their log, and the fee (tax included) from the transaction, paid by its
+        first signer."""
+        tx = t.get("tx") or {}
+        value = tx.get("value") or {}
+        msgs = value.get("msg") or []
+        events: List[Dict[str, Any]] = []
+        new_format = any(str(a.get("key")) in ("msg_index", "fee_payer")
+                         for lg in t.get("logs") or [] for e in lg.get("events") or [] for a in e.get("attributes") or [])
+        for pos, lg in enumerate(t.get("logs") or []):
+            idx = str(lg.get("msg_index", pos))
+            for e in lg.get("events") or []:
+                attrs = list(e.get("attributes") or [])
+                if new_format:
+                    events.append({"type": e.get("type"), "attributes": attrs})
+                    continue
+                # Older blocks merge every event of a type into one, keys repeated
+                # (receiver, amount, receiver, amount…): split it back, one event per repeat.
+                chunk: List[Dict[str, Any]] = []
+                for a in attrs + [None]:
+                    if a is None or any(c.get("key") == a.get("key") for c in chunk):
+                        if chunk:
+                            events.append({"type": e.get("type"),
+                                           "attributes": chunk + [{"key": "msg_index", "value": idx}]})
+                        chunk = []
+                    if a is not None:
+                        chunk.append(a)
+            if not new_format:
+                events.extend(self._coin_events_of_old_log(events, idx))
+        if not any(e["type"] == "tx" and any(a.get("key") == "fee_payer" for a in e["attributes"]) for e in events):
+            payer = next((str(m.get("value", {}).get(f)) for m in msgs[:1] for f in self.SIGNER_FIELDS
+                          if (m.get("value") or {}).get(f)), "")
+            fee = ",".join(f"{c.get('amount')}{c.get('denom')}" for c in (value.get("fee") or {}).get("amount") or []
+                           if c.get("amount") and c.get("denom"))
+            if payer and fee:
+                events.append({"type": "tx", "attributes": [{"key": "fee", "value": fee},
+                                                            {"key": "fee_payer", "value": payer}]})
+        return {"txhash": t.get("txhash"), "height": str(t.get("height") or 0), "timestamp": t.get("timestamp"),
+                "code": t.get("code") or 0, "events": events,
+                "tx": {"body": {"messages": [{"@type": str(m.get("type", "")).rsplit("/", 1)[-1]} for m in msgs]}}}
+
+    @staticmethod
+    def _coin_events_of_old_log(events: List[Dict[str, Any]], idx: str) -> List[Dict[str, Any]]:
+        """Blocks of the first Terra chain (before September 2021) have no coin_spent/coin_received
+        events: rebuild them from its transfers (sender → recipient)."""
+        mine = [e for e in events if any(a.get("key") == "msg_index" and str(a.get("value")) == idx
+                                         for a in e["attributes"])]
+        if any(e["type"] in ("coin_spent", "coin_received") for e in mine):
+            return []
+        out: List[Dict[str, Any]] = []
+
+        def coin(kind: str, who_key: str, who: str, amount: str) -> None:
+            if who and amount:
+                out.append({"type": kind, "attributes": [{"key": who_key, "value": who}, {"key": "amount", "value": amount},
+                                                         {"key": "msg_index", "value": idx}]})
+        for e in mine:
+            a = {str(x.get("key")): str(x.get("value")) for x in e["attributes"]}
+            if e["type"] == "transfer":   # market swaps move their coins with transfers too
+                coin("coin_spent", "spender", a.get("sender", ""), a.get("amount", ""))
+                coin("coin_received", "receiver", a.get("recipient", ""), a.get("amount", ""))
+        return out
+
+    def _fcd_search(self, me: str, from_height: int) -> List[Dict[str, Any]]:
+        """Every transaction of the address, newest first, down to block `from_height`."""
+        out: List[Dict[str, Any]] = []
+        params: Dict[str, Any] = {"account": me, "limit": 100}
+        for _ in range(MAX_PAGES):
+            data = self._fcd(params)
+            for t in data.get("txs") or []:
+                if from_height and int(t.get("height") or 0) < from_height:
+                    return out
+                out.append(self.fcd_to_lcd(t))
+            nxt = data.get("next")
+            if not nxt or not data.get("txs"):
+                break
+            params["offset"] = nxt
+        return out
+
     # --- sync -------------------------------------------------------------------
     def sync(self, wallet: Dict[str, Any], state: Dict[str, Any], log: Logger) -> SyncResult:
         result = SyncResult(state=dict(state))
@@ -182,12 +278,19 @@ class CosmosAdapter(Adapter):
         # A state from the old count-based cursor starts again from the beginning, once.
         heights = dict(state.get("heights") or {})
         try:
-            for name, query in (("sent", f"message.sender='{me}'"), ("received", f"coin_received.receiver='{me}'")):
-                found = self._search(query, int(heights.get(name) or 0))
-                for r in found:
+            if self.network.fcd_api:     # full history (Terra Classic), like Terra Finder
+                for r in self._fcd_search(me, int(heights.get("fcd") or 0)):
                     txs[r["txhash"]] = r
-                    heights[name] = max(int(heights.get(name) or 0), int(r.get("height") or 0))
+                    heights["fcd"] = max(int(heights.get("fcd") or 0), int(r.get("height") or 0))
+            else:
+                for name, query in (("sent", f"message.sender='{me}'"),
+                                    ("received", f"coin_received.receiver='{me}'")):
+                    found = self._search(query, int(heights.get(name) or 0))
+                    for r in found:
+                        txs[r["txhash"]] = r
+                        heights[name] = max(int(heights.get(name) or 0), int(r.get("height") or 0))
         except AdapterError as e:
+            self._history_failed = True
             result.warnings.append(f"{self.network.name}: transaction history not available from this API ({e}). "
                                    "Live balances are still read; year-end values need a snapshot near the "
                                    "cutoff or a manual entry.")
