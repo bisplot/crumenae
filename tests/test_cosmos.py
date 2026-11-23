@@ -199,6 +199,27 @@ class CosmosTest(unittest.TestCase):
         self.assertTrue(self.adapter.has_history)    # Terra Classic: full history from the FCD
         self.assertFalse(get_adapter(self.ctx, self.ctx.networks.get("terra")).has_history)   # Terra: pruned node
 
+    def test_terra_full_last_page_and_page_out_of_range(self):
+        """PublicNode answers HTTP 500 "page should be within [1, N] range" past the last page: a
+        full last page (or a node holding fewer transactions) ends the list, it is not an error."""
+        def strict(method, url, params, payload):
+            if url.endswith("/cosmos/tx/v1beta1/txs"):
+                rows = [SEND, DELEGATE] if params["query"] == f"message.sender='{ME}'" else []
+                pages = max(1, (len(rows) + int(params["limit"]) - 1) // int(params["limit"]))
+                if int(params["page"]) > pages:
+                    raise HttpError(500, f'{{"code":2,"message":"failed to search for txs: page should be within '
+                                         f'[1, {pages}] range, given {params["page"]}"}}', url)
+                lying = dict(search(params, rows), total="5")     # another node counts more
+                return lying
+            return lcd_handler(method, url, params, payload)
+        t = TempContext(FakeHttp().on("https://terra-lcd.publicnode.com", strict))
+        try:
+            res = get_adapter(t.ctx, t.ctx.networks.get("terra")).sync(self.wallet, {}, LOG)
+            self.assertFalse(res.warnings)
+            self.assertEqual({m.uid.split(":")[0] for m in res.movements}, {"AA", "CC"})
+        finally:
+            t.close()
+
     def test_classic_full_history_from_fcd_and_wallet_check(self):
         """Terra Classic reads every transaction from the FCD, like Terra Finder: the history
         matches the live balance (8.138 LUNC, delegated and unbonding included)."""
