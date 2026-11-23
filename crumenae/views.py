@@ -9,6 +9,7 @@ from . import check as check_mod
 from . import yearend
 from .adapters import ADAPTERS
 from .classify import CATEGORIES
+from .icons import icon_for
 from .prices import PriceService
 from .util import D, ZERO, dstr
 
@@ -65,7 +66,8 @@ def dashboard(ctx, portfolio: Optional[str] = None) -> Dict[str, Any]:
             continue
         pr = prices.latest(a) if assets_mod.is_priced(a) else None
         g = assets_mod.group_key(a)
-        h = holdings.setdefault(g, {"symbol": a["symbol"], "name": a.get("name") or a["symbol"], "amount": ZERO,
+        h = holdings.setdefault(g, {"symbol": a["symbol"], "name": a.get("name") or a["symbol"], "icon": icon_for(a),
+                                    "amount": ZERO,
                                     "value": ZERO, "price": None, "price_source": None, "price_ts": None,
                                     "wallets": [], "priced": True})
         h["amount"] += amount
@@ -156,6 +158,7 @@ def wallets(ctx) -> List[Dict[str, Any]]:
 
 def year_detail(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, Any]:
     ids = {w["id"]: w for w in ctx.wallets(portfolio=portfolio)}
+    all_assets = assets_mod.all_assets(ctx)
     by_wallet: Dict[int, Dict[str, Any]] = {}
     for r in yearend.rows_for_year(ctx, year):
         if r["wallet_id"] not in ids:
@@ -167,8 +170,10 @@ def year_detail(ctx, year: int, portfolio: Optional[str] = None) -> Dict[str, An
             w["source_label"] = yearend.SOURCE_LABELS.get(r["balance_source"], r["balance_source"])
             w["flags"] = r["flags"]
             continue
-        w["assets"].append({k: r[k] for k in ("asset_key", "symbol", "name", "amount", "price_eur", "price_source",
-                                               "price_ts", "value_eur", "flags", "asset_status")})
+        row = {k: r[k] for k in ("asset_key", "symbol", "name", "amount", "price_eur", "price_source",
+                                 "price_ts", "value_eur", "flags", "asset_status")}
+        row["icon"] = icon_for(all_assets.get(r["asset_key"]))
+        w["assets"].append(row)
     for w in by_wallet.values():
         w["value"] = dstr(sum((D(a["value_eur"]) for a in w["assets"] if a["value_eur"]), ZERO))
         w["complete"] = (w["source"] != "missing" and all(a["value_eur"] is not None for a in w["assets"])
@@ -212,10 +217,13 @@ def transactions(ctx, wallet_id: Optional[int] = None, year: Optional[int] = Non
         params += [f"%{q}%"] * 4
     total = ctx.db.scalar("SELECT COUNT(*)" + sql, params)
     rows = ctx.db.query(
-        "SELECT m.*, w.label AS wallet_label, w.network, a.symbol, a.status AS asset_status" + sql +
+        "SELECT m.*, w.label AS wallet_label, w.network, a.symbol, a.status AS asset_status,"
+        " a.coingecko_id AS asset_cg, a.binance_symbol AS asset_ticker, a.fiat AS asset_fiat" + sql +
         " ORDER BY m.ts DESC, m.id DESC LIMIT ? OFFSET ?", params + [min(limit, 1000), offset])
     cal = ctx.calendar
     for r in rows:
+        r["icon"] = icon_for({"status": r["asset_status"], "coingecko_id": r.pop("asset_cg"),
+                              "binance_symbol": r.pop("asset_ticker"), "fiat": r.pop("asset_fiat")})
         r["time_local"] = cal.iso_local(r["ts"])
         try:
             r["tx_url"] = (ctx.networks.get(r["network"]).tx_url or "").format(tx=r["tx_hash"]) if r["tx_hash"] else ""
@@ -246,6 +254,7 @@ def asset_list(ctx) -> List[Dict[str, Any]]:
                           " UNION SELECT wallet_id, asset_key FROM current_balances"):
         linked[c["asset_key"]].add(c["wallet_id"])
     for r in rows:
+        r["icon"] = icon_for(r)
         # "held" counts the wallets you can use; what lost wallets hold is apart ("held_lost").
         r["held"] = dstr(sum((D(x) for x in (r["held"] or "").split(",") if x), ZERO) - held_lost[r["key"]])
         r["held_lost"] = dstr(held_lost[r["key"]])

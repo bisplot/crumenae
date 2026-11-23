@@ -185,12 +185,12 @@
       kpi('Wallets', String(d.wallets.length), `last sync ${when(d.last_sync)}` + (d.lost_hidden ? ` · ${d.lost_hidden} lost not shown` : '')));
 
     const items = d.holdings.filter((h) => Number(h.value) > 0);
-    const top = items.slice(0, 7).map((h, i) => ({ label: h.symbol, value: Number(h.value), color: cssVar(COLORS[i]) }));
+    const top = items.slice(0, 7).map((h, i) => ({ label: h.symbol, icon: h.icon, value: Number(h.value), color: cssVar(COLORS[i]) }));
     const rest = items.slice(7).reduce((s, h) => s + Number(h.value), 0);
     if (rest > 0) top.push({ label: 'Other', value: rest, color: cssVar('--c8') });
     const allocation = card('Allocation', null, top.length ? el('div', { class: 'donut-wrap' }, donut(top),
       el('div', { class: 'legend' }, top.map((t) => el('div', { class: 'legend-row' },
-        el('span', {}, el('span', { class: 'dot', style: `background:${t.color}` }), t.label),
+        el('span', {}, el('span', { class: 'dot', style: `background:${t.color}` }), t.icon ? coinMark(t.icon) : null, t.label),
         el('span', { class: 'num muted' }, pct(t.value / now)))))) : el('p', { class: 'muted', text: 'No priced holdings yet.' }));
 
     const colorOf = new Map(top.map((t) => [t.label, t.color]));
@@ -200,7 +200,7 @@
       d.lost_hidden ? el('span', {}, ' · ', el('a', { href: '#/assets?filter=lost', text: `${d.lost_hidden} lost wallet${d.lost_hidden > 1 ? 's' : ''} hidden` })) : null);
     const holdings = card('Holdings', holdingsNote,
       table(['Asset', '#Quantity', '#Price', '#Value', '#Share'], d.holdings.map((h) => el('tr', {},
-        el('td', {}, el('span', { class: 'dot', style: `background:${colorOf.get(h.symbol) || cssVar('--c8')}` }), el('strong', { text: h.symbol }),
+        el('td', {}, coinMark(h.icon, colorOf.get(h.symbol)), el('strong', { text: h.symbol }),
           ' ', el('span', { class: 'muted small', text: h.name !== h.symbol ? h.name : '' })),
         el('td', { class: 'num', text: qty(h.amount) }),
         el('td', { class: 'num', text: h.priced ? eur(h.price) : '—' }),
@@ -287,7 +287,7 @@
               onclick: () => manualModal(w, year) }) : null)),
         w.assets.length ? el('div', { style: 'margin-top:10px' }, table(['Asset', '#Quantity', '#Price €', '#Value €', 'Price source'],
           w.assets.map((a) => el('tr', {},
-            el('td', {}, el('strong', { text: a.symbol || a.asset_key }), flagList(a.flags)),
+            el('td', {}, coinMark(a.icon), el('strong', { text: a.symbol || a.asset_key }), flagList(a.flags)),
             el('td', { class: 'num', text: qty(a.amount) }),
             el('td', { class: 'num', text: a.price_eur === null ? '—' : eur(a.price_eur) }),
             el('td', { class: 'num', text: eur(a.value_eur) }),
@@ -392,7 +392,7 @@
     return el('tr', { class: m.failed ? 'muted' : '' },
       el('td', { class: 'mono', text: time.slice(0, 16), title: time }),
       el('td', {}, el('span', { class: 'clip', text: m.wallet_label, title: `${m.wallet_label} · ${m.network}` })),
-      el('td', {}, el('strong', { text: m.symbol || m.asset_key }), m.kind === 'fee' ? el('span', { class: 'muted', text: ' fee' }) : null,
+      el('td', {}, coinMark(m.icon), el('strong', { text: m.symbol || m.asset_key }), m.kind === 'fee' ? el('span', { class: 'muted', text: ' fee' }) : null,
         m.failed ? badge('failed', 'err') : null),
       el('td', { class: 'num ' + (amount >= 0 ? 'pos' : 'neg'), text: (amount > 0 ? '+' : '') + qty(m.amount) }),
       el('td', { class: 'num', text: eur(m.value_eur), title: m.price_source || '' }),
@@ -403,6 +403,12 @@
   }
 
   // --- wallet check: live balance vs the balance rebuilt from the transactions -------------------
+  // Coin icon (bundled in web/icons/, chosen on the server by CoinGecko id) or, without one, a dot.
+  function coinMark(icon, color) {
+    return icon ? el('img', { class: 'coin-icon', src: icon, alt: '', loading: 'lazy' })
+      : el('span', { class: 'dot', style: `background:${color || cssVar('--c8')}` });
+  }
+
   function statusBadge(w) {
     if (w.last_error) return badge('error', 'err');
     if (!w.active) return badge('paused');
@@ -623,7 +629,7 @@
           } catch (e) { toast(e.message, true); }
         };
         return el('tr', {},
-          el('td', {}, el('strong', { text: a.symbol }), el('div', { class: 'muted small', text: a.name || '' }),
+          el('td', {}, coinMark(a.icon), el('strong', { text: a.symbol }), el('div', { class: 'muted small', text: a.name || '' }),
             a.contract ? el('div', { class: 'mono small muted', text: short(a.contract, 8, 6), title: a.contract }) : null),
           el('td', { class: 'small', text: a.network }),
           el('td', { class: 'small wrap', style: 'max-width:220px' }, (a.wallets || []).length
