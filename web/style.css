@@ -85,6 +85,7 @@ select.mini { padding: 1px 4px; font-size: 12px; border-radius: 6px; }
 .share-bar { width: 60px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .share-bar span { display: block; height: 100%; background: var(--gradient); }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+.coin-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: middle; object-fit: cover; box-shadow: 0 0 0 1px var(--border); }
 
 /* forms */
 input, select, textarea, button { font: inherit; color: inherit; }
