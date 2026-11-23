@@ -63,6 +63,53 @@ def search(params, rows):
     return {"tx_responses": rows[(page - 1) * limit:page * limit], "total": str(len(rows)), "pagination": None}
 
 
+FCD_PAGE = 2
+
+
+def to_fcd(r, old=False):
+    """An LCD test transaction as the FCD returns it: amino tx, events in logs. `old`: the format
+    of older blocks (no msg_index, fee not in the events)."""
+    mtype = r["tx"]["body"]["messages"][0]["@type"].rsplit(".", 1)[-1]
+    module = "staking" if "Delegate" in mtype else "bank"
+    fee = next((a["value"] for e in r["events"] if e["type"] == "tx" for a in e["attributes"] if a["key"] == "fee"), "")
+    signer = ME if fee else PEER
+    events = r["events"]
+    if old:   # one event per type, attributes of all events of that type concatenated, no msg_index
+        merged = {}
+        for e in events:
+            if e["type"] != "tx" and any(a["key"] == "msg_index" for a in e["attributes"]):
+                merged.setdefault(e["type"], []).extend(a for a in e["attributes"] if a["key"] != "msg_index")
+        events = [{"type": k, "attributes": v} for k, v in merged.items()]
+    amount = [{"denom": "uluna", "amount": fee.replace("uluna", "")}] if fee else []
+    return {"id": int(r["height"]), "txhash": r["txhash"], "height": r["height"], "timestamp": r["timestamp"],
+            "code": r["code"] or None, "chainId": "columbus-5",
+            "logs": [] if r["code"] else [{"msg_index": 0, "log": "", "events": events}],
+            "tx": {"type": "core/StdTx", "value": {"fee": {"amount": amount, "gas": "1"},
+                                                    "msg": [{"type": f"{module}/{mtype}",
+                                                             "value": {"from_address": signer,
+                                                                       "delegator_address": signer}}]}}}
+
+
+def fcd_handler(rows, old=False):
+    rows = sorted(rows, key=lambda r: -int(r["height"]))
+
+    def handler(method, url, params, payload):
+        if not url.endswith("/v1/txs"):
+            return None
+        assert params["account"] == ME and int(params["limit"]) in (10, 100)
+        ids = [int(r["height"]) for r in rows]
+        start = ids.index(int(params["offset"])) + 1 if params.get("offset") else 0
+        page = rows[start:start + FCD_PAGE]
+        more = start + FCD_PAGE < len(rows)
+        return {"next": int(page[-1]["height"]) if more else None, "limit": int(params["limit"]),
+                "txs": [to_fcd(r, old) for r in page]}
+    return handler
+
+
+FCD = "https://terra-classic-fcd.publicnode.com"
+ALL_TXS = [SEND, RECEIVE, DELEGATE, FAILED]
+
+
 def lcd_handler(method, url, params, payload):
     if url.endswith("/cosmos/tx/v1beta1/txs"):
         sent = params["query"] == f"message.sender='{ME}'"
@@ -81,7 +128,8 @@ def lcd_handler(method, url, params, payload):
 
 class CosmosTest(unittest.TestCase):
     def setUp(self):
-        self.t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", lcd_handler))
+        self.t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", lcd_handler)
+                             .on("https://terra-lcd.publicnode.com", lcd_handler).on(FCD, fcd_handler(ALL_TXS)))
         self.ctx = self.t.ctx
         patcher = mock.patch.object(cosmos, "PAGE", 2)    # pages of 2: paging is exercised
         patcher.start()
@@ -114,13 +162,14 @@ class CosmosTest(unittest.TestCase):
         ]))
         reward = next(m for m in res.movements if m.uid.endswith(":reward"))
         self.assertTrue(reward.info.startswith("reward:"))
-        self.assertEqual(set(res.state["heights"]), {"sent", "received"})
+        self.assertEqual(set(res.state["heights"]), {"fcd"})          # Terra Classic: one FCD cursor
         ustc = next(a for a in res.assets if a.key == "terra_classic:uusd")
         self.assertEqual((ustc.symbol, ustc.binance_symbol), ("USTC", "USTC"))
 
     def test_pruned_node_does_not_hide_new_transactions(self):
         """The node drops old transactions between two syncs: the next sync still reads the new one."""
-        first = self.adapter.sync(self.wallet, {}, LOG)
+        luna = get_adapter(self.ctx, self.ctx.networks.get("terra"))
+        first = luna.sync(self.wallet, {}, LOG)
         late = tx("EE", 40, "2025-04-01T10:00:00Z", [{"@type": "/cosmos.bank.v1beta1.MsgSend"}],
                   fee_events("2000uluna"))
         calls = []
@@ -131,9 +180,9 @@ class CosmosTest(unittest.TestCase):
                 calls.extend([params["page"]] if sent else [])
                 return search(params, [SEND, DELEGATE, FAILED, late] if sent else [])
             return lcd_handler(method, url, params, payload)
-        t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", pruned))
+        t = TempContext(FakeHttp().on("https://terra-lcd.publicnode.com", pruned))
         try:
-            again = get_adapter(t.ctx, t.ctx.networks.get("terra_classic")).sync(self.wallet, first.state, LOG)
+            again = get_adapter(t.ctx, t.ctx.networks.get("terra")).sync(self.wallet, first.state, LOG)
             self.assertIn("EE:fee:uluna", {m.uid for m in again.movements})
             self.assertEqual(again.state["heights"]["sent"], 40)
             self.assertEqual(calls, [1, 2])          # page 2 reaches block 20 < 30 (read before): stops there
@@ -147,21 +196,53 @@ class CosmosTest(unittest.TestCase):
         status = {i.key: i.status for i in infos}
         self.assertEqual(status["terra_classic:ukrw"], "ghost")
         self.assertEqual(status["terra_classic:ibc/ABCDEF0123456789"], "unmapped")
-        self.assertFalse(self.adapter.has_history)   # public node: year-end from snapshots, not a partial history
+        self.assertTrue(self.adapter.has_history)    # Terra Classic: full history from the FCD
+        self.assertFalse(get_adapter(self.ctx, self.ctx.networks.get("terra")).has_history)   # Terra: pruned node
+
+    def test_classic_full_history_from_fcd_and_wallet_check(self):
+        """Terra Classic reads every transaction from the FCD, like Terra Finder: the history
+        matches the live balance (8.138 LUNC, delegated and unbonding included)."""
+        from crumenae import views
+        sync.sync_wallet(self.ctx, self.ctx.wallet(self.wallet["id"]), LOG)
+        check = views.wallets(self.ctx)[0]["check"]
+        self.assertEqual(check["status"], "diff")      # the fake balance holds 2 tokens never received:
+        self.assertEqual({a["asset_key"] for a in check["assets"]},     # LUNC and USTC match their history
+                         {"terra_classic:ukrw", "terra_classic:ibc/ABCDEF0123456789"})
+        fcd_calls = [c for c in self.t.http.calls if c[1].startswith(FCD)]
+        self.assertEqual(len(fcd_calls), 2)                                  # 4 transactions, pages of 2
+        self.assertFalse([c for c in self.t.http.calls if c[1].endswith("/cosmos/tx/v1beta1/txs")])
+        state = self.ctx.sync_state(self.wallet["id"])
+        self.t.http.calls.clear()
+        again = self.adapter.sync(self.wallet, state, LOG)
+        self.assertEqual(len(self.t.http.calls), 1)                          # stops at the block already read
+        self.assertEqual({m.uid for m in again.movements}, {"DD:fee:uluna"})   # that block, deduped on store
+
+    def test_classic_old_blocks_format(self):
+        """Older blocks: events of a type merged into one (keys repeated), no msg_index, no fee
+        events (the fee comes from the tx): same movements as the recent format."""
+        expected = sorted((m.uid, m.amount) for m in self.adapter.sync(self.wallet, {}, LOG).movements)
+        t = TempContext(FakeHttp().on(FCD, fcd_handler(ALL_TXS, old=True)))
+        try:
+            old = get_adapter(t.ctx, t.ctx.networks.get("terra_classic")).sync(self.wallet, {}, LOG)
+            self.assertEqual(sorted((m.uid, m.amount) for m in old.movements), expected)
+        finally:
+            t.close()
 
     def test_wallet_check_says_why_it_is_not_checked(self):
         from crumenae import views
-        sync.sync_wallet(self.ctx, self.ctx.wallet(self.wallet["id"]), LOG)
+        luna = add_wallet(self.ctx, "terra", ME, label="Luna")
+        sync.sync_wallet(self.ctx, self.ctx.wallet(luna["id"]), LOG)
+        self.ctx.db.execute("DELETE FROM wallets WHERE id=?", (self.wallet["id"],))
         check = views.wallets(self.ctx)[0]["check"]
         self.assertEqual(check["status"], "n/a")
         self.assertIn("keeps only recent transactions", check["reason"])
 
     def test_history_unavailable_keeps_balances(self):
         def broken(method, url, params, payload):
-            if url.endswith("/cosmos/tx/v1beta1/txs"):
-                return {"error": "node error"}
-            return lcd_handler(method, url, params, payload)
-        t = TempContext(FakeHttp().on("https://terra-classic-lcd.publicnode.com", broken))
+            if url.endswith("/v1/txs"):
+                return {"type": "INVALID_REQUEST_ERROR", "message": "node error", "code": 400}
+            return None
+        t = TempContext(FakeHttp().on(FCD, broken).on("https://terra-classic-lcd.publicnode.com", lcd_handler))
         try:
             w = add_wallet(t.ctx, "terra_classic", ME)
             sync.sync_wallet(t.ctx, w, LOG)

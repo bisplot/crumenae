@@ -42,7 +42,7 @@ SERVICES: Dict[str, Dict[str, Any]] = {
                       "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "terra_lcd": {"label": "Terra LCD (PublicNode)", "hosts": ["terra-lcd.publicnode.com"],
                   "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
-    "terra_classic_lcd": {"label": "Terra Classic LCD (PublicNode)", "hosts": ["terra-classic-lcd.publicnode.com"],
+    "terra_classic_lcd": {"label": "Terra Classic LCD (PublicNode)", "hosts": ["terra-classic-lcd.publicnode.com", "terra-classic-fcd.publicnode.com"],
                           "rate": 2, "unit": "second", "per_day": None, "hint": "Public, no key"},
     "horizon": {"label": "Stellar Horizon", "hosts": ["horizon.stellar.org"],
                 "rate": 3, "unit": "second", "per_day": None, "hint": "Public, no key"},
