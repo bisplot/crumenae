@@ -418,6 +418,7 @@
     if (c.status === 'ok') return el('div', { class: 'small pos', title: 'Each asset\'s live balance equals the balance rebuilt from the synced transactions.', text: '✓ matches the transactions' });
     if (c.status === 'diff') return el('a', { href: '#', class: 'small warn-text', text: `⚠ ${c.count} asset(s) differ from the transactions`, onclick: (e) => { e.preventDefault(); showCheck(w); } });
     if (c.status === 'partial') return el('a', { href: '#', class: 'small warn-text', text: '⚠ live balance incomplete', onclick: (e) => { e.preventDefault(); showCheck(w); } });
+    if (c.status === 'n/a') return el('div', { class: 'small muted', title: c.reason ? 'Not checked: ' + c.reason + '.' : 'No transaction history to compare.', text: '– not checked (no full history)' });
     return null;
   }
 

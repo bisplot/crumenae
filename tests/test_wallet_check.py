@@ -84,7 +84,9 @@ class PartialAndManualTest(unittest.TestCase):
         ledger.store_sync_result(self.ctx, w, SyncResult(snapshots=[]))
         sync.sync_wallet(self.ctx, self.ctx.wallet(w["id"]), LOG)
         self.assertEqual(self.snapshots(w["id"]), 0)
-        self.assertEqual(views.wallets(self.ctx)[0]["check"]["status"], "n/a")
+        check = views.wallets(self.ctx)[0]["check"]
+        self.assertEqual(check["status"], "n/a")
+        self.assertIn("manual account", check["reason"])                  # the Wallets page says why
 
 
 class YearEndHonestyTest(unittest.TestCase):
