@@ -17,6 +17,7 @@ CATEGORIES: Dict[str, str] = {
     "swap_taxable": "Swap to/from stablecoin/EMT or NFT: taxable",
     "internal_transfer": "Between your own wallets/accounts: neutral, cost carried over",
     "reward": "Reward, staking, Earn interest: income at value on receipt, which becomes its cost",
+    "staking": "Coins moved into or out of staking: still yours, neutral",
     "airdrop": "Airdrop: income at value on receipt, which becomes its cost",
     "payment": "Paid goods/services with crypto: taxable",
     "fee": "Network or exchange fee",
@@ -64,6 +65,8 @@ def _category(r, own, linked, legs) -> str:
         return "fee"
     if r["status"] in ("spam", "ignored") or D(r["amount"]) == 0:
         return "spam"
+    if (r["info"] or "").startswith("staking:"):
+        return "staking"  # coins moved into or out of staking: still yours
     if r["kind"] == "in" and (r["info"] or "").startswith("reward:"):
         return "reward"   # e.g. Binance Simple Earn rewards
     cp = (r["counterparty"] or "").lower()

@@ -73,7 +73,7 @@ class AutomaticProviderTest(unittest.TestCase):
         self.ctx.secrets.set("alchemy_api_key", "A")
         w = add_wallet(self.ctx, "ethereum", ADDR)
         a = get_adapter(self.ctx, self.ctx.networks.get("ethereum"))
-        res = a.sync(w, {"last_block": 100, "reader": "etherscan"}, LOG)
+        res = a.sync(w, {"last_block": 100, "reader": "etherscan", "balance_check": 1}, LOG)
         q = [p["params"][0] for _, p in self.calls if p["method"] == "alchemy_getAssetTransfers"]
         self.assertEqual({x["fromBlock"] for x in q}, {hex(101)})
         self.assertIn("internal", q[0]["category"])                                        # Ethereum: internal too

@@ -52,7 +52,12 @@ def alchemy_handler(method, url, params, payload):
         assert p == [CAKE]
         return ok({"name": "PancakeSwap Token", "symbol": "Cake", "decimals": 18})
     if m == "eth_getBalance":
-        return ok(hex(15 * 10 ** 17))
+        # as an archive node: 0 before block 0x10, 2 BNB after it, 1.5 − gas after block 0x13
+        tag = p[1] if len(p) > 1 else "latest"
+        if tag == "latest":
+            return ok(hex(15 * 10 ** 17))
+        b = int(tag, 16)
+        return ok(hex(0 if b < 0x10 else 2 * 10 ** 18 if b < 0x13 else 15 * 10 ** 17 - 21000 * 10 ** 9))
     return None
 
 

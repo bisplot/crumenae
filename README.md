@@ -230,6 +230,15 @@ too: sync again (a transaction made during a sync can show once), then check the
 that asset. Exchanges, manual accounts and chains read from live balances only (Terra) have no
 history to compare. Warnings of the last sync are shown under the sync time.
 
+**Coins moved by contracts.** On Ronin, BNB Smart Chain and the other chains where Alchemy lists no
+internal transfers, coins a contract pays you in the chain's own coin (staking rewards you claim,
+unstaking, unwrapping WBNB/WRON, swaps and bridges paying out RON/BNB…) appear in no transfer list.
+Crumenae finds them by comparing the wallet's balance before and after every block where it made or
+received a transaction, and records the difference as "paid by a contract". The same check finds
+wrapping and unwrapping (WETH, WBNB, WRON…), which do not show up as token transfers. It needs the
+node's balances of past blocks, which Alchemy provides; the first sync after updating checks every
+past block once, so it takes longer. A failed transaction now costs only its gas.
+
 ### Lost wallets
 
 A wallet whose keys or access you lost (an old phone, a forgotten seed phrase, a closed
