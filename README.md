@@ -338,7 +338,18 @@ Litecoin `L…`/`M…`/`3…`/`ltc1…`, Dogecoin `D…`, Bitcoin Cash `bitcoinc
 an address of another coin is refused. The whole history is read, so year-end balances are exact.
 Bitcoin and Litecoin record the fee of a transaction you sent apart; Blockchair gives one net
 amount per transaction, so for Dogecoin and Bitcoin Cash the fee is inside the amount sent.
-Extended public keys (xpub) are not supported yet: add each address.
+
+**A whole Bitcoin account at once.** Instead of an address you can paste the account's extended
+public key (xpub, ypub or zpub), as Ledger Live, Trezor Suite, Sparrow, Electrum or BlueWallet show
+it (account → advanced / "extended public key"). Crumenae derives the receive and change addresses
+on your computer, reads every one in use (it stops after 20 unused in a row, the usual wallet "gap
+limit") and nets each transaction over the whole account, so coins sent to your own change
+address are not counted as a payment. A zpub means native SegWit (bc1q…), a ypub wrapped SegWit
+(3…); an xpub can be any type (legacy 1…, 3…, bc1q…, Taproot bc1p…) and the type in use is found
+automatically. The key lets anyone *see* the account but not spend from it; never paste a
+private key (xprv/yprv/zprv), which is refused. Keep in mind that the explorer (mempool.space)
+then sees which addresses belong together. Multisig keys (Ypub/Zpub) and other coins' extended
+keys are not supported: add those addresses one by one.
 
 Blockchair without a key allows about 1,440 request units a day per IP address (a page of 100
 transactions counts 2, the balance 1): plenty for a few addresses. If it answers "refused (430)",
@@ -523,7 +534,7 @@ example); the `CRUMENAE_DATA_DIR` environment variable does the same.
   categories are ready for it.
 - Binance trades/Convert import (balances come from snapshots meanwhile); rewards of ETH and
   SOL staking (WBETH, BNSOL) accrue in the token's rate, so they are not imported as rewards.
-- Bitcoin xpub wallets, DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
+- Multisig Bitcoin keys (Ypub/Zpub), DeFi positions, NFTs, rebasing tokens (use snapshots or manual entries).
 - Exchanges other than Binance, Coinbase and Young Platform (Bitpanda…): use a manual account and
   enter its year-end balance meanwhile.
 - Staking other than what a wallet's own balance reports (see [Staked coins](#staked-coins)).
