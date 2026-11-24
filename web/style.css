@@ -149,6 +149,12 @@ input[type=checkbox] { accent-color: var(--primary-2); }
 
 /* charts */
 .chart svg { width: 100%; height: auto; display: block; }
+.value-chart { position: relative; }
+.value-chart .ye-dot { cursor: pointer; transform-box: fill-box; transform-origin: center; }
+.chart-tip { position: absolute; top: 4px; transform: translateX(-50%); pointer-events: none; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.25); white-space: nowrap; }
+.chart-tip.hidden { display: none; }
+.small-tabs .tab { padding: 3px 10px; font-size: 12px; }
 .chart text { fill: var(--muted); font-size: 11px; }
 .chart .value-label { fill: var(--text); font-weight: 600; }
 .donut-wrap { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: center; }
