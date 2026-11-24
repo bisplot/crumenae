@@ -492,7 +492,7 @@
     const platforms = [...platformMap.values()].sort((a, b) => a.localeCompare(b));
     const group = (kind, label) => el('optgroup', { label }, nets.filter((n) => n.kind === kind && !n.hidden).map((n) => el('option', { value: n.id, text: n.name })));
     const netSel = el('select', { required: true }, el('option', { value: '', text: 'Choose a network…' }), group('chain', 'Blockchains'), group('exchange', 'Exchanges'), group('manual', 'Other'));
-    const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… / G… / terra1… / Solana address', autocomplete: 'off', spellcheck: 'false' });
+    const addr = el('input', { type: 'text', placeholder: '0x… / ronin:… / T… / bc1… or xpub/zpub… / G… / terra1… / Solana address', autocomplete: 'off', spellcheck: 'false' });
     const label = el('input', { type: 'text', placeholder: 'e.g. Main wallet, Savings' });
     const platform = el('input', { type: 'text', placeholder: platforms.length ? 'choose or type a new one' : 'e.g. MetaMask, Ledger, Binance', list: 'platform-list', autocomplete: 'off' });
     const portfolios = [...new Set(wallets.map((w) => w.portfolio))];
