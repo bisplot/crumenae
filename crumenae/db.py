@@ -146,6 +146,15 @@ CREATE TABLE IF NOT EXISTS prices (
     PRIMARY KEY (price_key, ts)
 );
 
+-- EUR value of each wallet at the end of every day (history.py), for the Dashboard chart.
+CREATE TABLE IF NOT EXISTS value_history (
+    wallet_id INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+    day       TEXT NOT NULL,
+    value_eur TEXT NOT NULL,
+    unpriced  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (wallet_id, day)
+);
+
 -- ECB reference rates: units of `currency` per 1 EUR.
 CREATE TABLE IF NOT EXISTS fx_rates (
     currency TEXT NOT NULL,

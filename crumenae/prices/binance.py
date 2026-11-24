@@ -9,6 +9,7 @@ converted to EUR with the ECB rate of that day (or EUR/USDT, per settings).
 """
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Dict, Optional, Set, Tuple
 
@@ -78,6 +79,58 @@ class BinancePrices:
                 return usd / r[0], f"binance EUR{quote}"
         eur, note = self.fx.usd_to_eur(usd, self.ctx.calendar.local_date(ts))
         return eur, note
+
+    def _daily(self, symbol: str, start: date, end: date) -> Dict[date, Decimal]:
+        """Daily closes (UTC day, close at 23:59:59.999) of a pair, 1000 days per request."""
+        if symbol in self._invalid:
+            return {}
+        out: Dict[date, Decimal] = {}
+        t = int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()) * 1000
+        stop = int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()) * 1000
+        while t <= stop:
+            try:
+                rows = self.ctx.http.get_json(BASE + "/api/v3/klines", {
+                    "symbol": symbol, "interval": "1d", "startTime": t, "endTime": stop, "limit": 1000})
+            except HttpError as e:
+                if e.status == 400 and "-1121" in e.body:
+                    self._invalid.add(symbol)
+                    return {}
+                raise AdapterError(f"Binance daily klines {symbol}: {e}")
+            if not rows:
+                break
+            for r in rows:
+                out[datetime.fromtimestamp(int(r[0]) // 1000, tz=timezone.utc).date()] = Decimal(str(r[4]))
+            if len(rows) < 1000:
+                break
+            t = int(rows[-1][0]) + 86_400_000
+        return out
+
+    def daily_closes(self, asset: Dict, start: date, end: date) -> Tuple[Dict[date, Decimal], str]:
+        """EUR daily closes for [start, end] and their source: <SYM>EUR, EUR<SYM> inverted, or a USD
+        stablecoin pair × the ECB USD rate of each day (or EUR/USDT when settings say so)."""
+        sym = asset["binance_symbol"].upper()
+        if sym == "EUR":
+            return {}, ""
+        got = self._daily(sym + "EUR", start, end)
+        if got:
+            return got, f"binance {sym}EUR daily close"
+        got = self._daily("EUR" + sym, start, end)
+        if got:
+            return {d: Decimal(1) / v for d, v in got.items() if v}, f"binance 1/EUR{sym} daily close"
+        for quote in USD_QUOTES:
+            if quote == sym:
+                continue
+            got = self._daily(sym + quote, start, end)
+            if not got:
+                continue
+            if self.ctx.settings.get("usd_to_eur") == "binance" and quote in ("USDT", "USDC", "FDUSD"):
+                eur_q = self._daily("EUR" + quote, start, end)
+                return ({d: v / eur_q[d] for d, v in got.items() if eur_q.get(d)},
+                        f"binance {sym}{quote} daily close × binance EUR{quote}")
+            usd = self.fx.rates_range("USD", min(got), max(got))
+            return ({d: v / usd[d] for d, v in got.items() if usd.get(d)},
+                    f"binance {sym}{quote} daily close × ECB USD/EUR")
+        return {}, ""
 
     def current(self, assets: Dict[str, Dict], now_ts: int) -> Dict[str, PriceResult]:
         """Live prices of every asset from ONE call (/api/v3/ticker/price, all pairs), instead of

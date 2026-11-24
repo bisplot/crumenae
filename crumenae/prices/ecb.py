@@ -10,7 +10,7 @@ import csv
 import io
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from ..http import HttpError
 from ..models import AdapterError
@@ -77,6 +77,47 @@ class EcbRates:
         if exact or (checked and recent):
             return Decimal(row["rate"]), row["day"]
         return None
+
+    def rates_range(self, currency: str, start: date, end: date) -> Dict[date, Decimal]:
+        """Units of `currency` per EUR for every day of [start, end] (weekends and holidays take
+        the last published rate), from ONE request; already stored days are not asked again."""
+        currency = currency.upper()
+        if currency == "EUR":
+            return {}
+        have = self.ctx.db.query("SELECT day, rate FROM fx_rates WHERE currency=? AND day BETWEEN ? AND ? ORDER BY day",
+                                 (currency, (start - timedelta(days=LOOKBACK_DAYS)).isoformat(), end.isoformat()))
+        checked = self.ctx.db.get_meta(f"fx_range:{currency}") or ""
+        if not self.ctx.offline and (not checked or checked < end.isoformat()):
+            first = start - timedelta(days=LOOKBACK_DAYS)
+            if checked:
+                first = max(first, date.fromisoformat(checked) - timedelta(days=LOOKBACK_DAYS))
+            try:
+                text = self.ctx.http.get_text(URL.format(cur=currency), {
+                    "startPeriod": first.isoformat(), "endPeriod": end.isoformat(), "format": "csvdata"},
+                    headers={"Accept": "text/csv"})
+            except HttpError as e:
+                raise AdapterError(f"ECB rates {currency}: {e}")
+            if text.lstrip().startswith(("{", "<")):
+                raise AdapterError(f"ECB rates {currency}: unexpected answer (not CSV)")
+            with self.ctx.db.tx():
+                for d, r in parse_csv(text):
+                    self.ctx.db.execute("INSERT OR REPLACE INTO fx_rates(currency, day, rate) VALUES(?,?,?)",
+                                        (currency, d, str(r)))
+                self.ctx.db.set_meta(f"fx_range:{currency}", max(checked, end.isoformat()))
+            have = self.ctx.db.query("SELECT day, rate FROM fx_rates WHERE currency=? AND day BETWEEN ? AND ? ORDER BY day",
+                                     (currency, (start - timedelta(days=LOOKBACK_DAYS)).isoformat(), end.isoformat()))
+        known = [(date.fromisoformat(r["day"]), Decimal(r["rate"])) for r in have]
+        out: Dict[date, Decimal] = {}
+        i, last = 0, None
+        d = start
+        while d <= end:
+            while i < len(known) and known[i][0] <= d:
+                last = known[i]
+                i += 1
+            if last and (d - last[0]).days <= LOOKBACK_DAYS:
+                out[d] = last[1]
+            d += timedelta(days=1)
+        return out
 
     def usd_to_eur(self, usd: Decimal, day: date) -> Tuple[Decimal, str]:
         rate, used = self.rate("USD", day)

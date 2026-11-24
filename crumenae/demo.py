@@ -134,3 +134,5 @@ def seed(ctx: Context) -> None:
     refresh_prices(ctx, prices, lambda m: None)
     value_movements(ctx, prices, lambda m: None)
     write_exports(ctx, lambda m: None)
+    from . import history
+    history.compute(ctx, prices)      # after the live prices: the chart ends on the Dashboard total

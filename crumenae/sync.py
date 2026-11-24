@@ -147,6 +147,7 @@ def run_sync(ctx, log: Callable[[str], None], wallet_ids: Optional[List[int]] = 
     if ctx.settings.get("value_transactions"):
         value_movements(ctx, prices, log)
     write_exports(ctx, log)
+    _value_history(ctx, prices, log)
     for e in prices.errors[:5]:
         log(f"price provider: {e}")
     log(f"Done: {errors} wallet error(s).")
@@ -159,10 +160,22 @@ def recompute(ctx, log: Callable[[str], None]) -> List[int]:
     """The "Recompute year-end" button: classification, balances and EUR values at every
     fiscal-year cutoff, then the exports."""
     classify.run(ctx)
-    years = yearend.compute_all(ctx, PriceService(ctx), log)
+    prices = PriceService(ctx)
+    years = yearend.compute_all(ctx, prices, log)
     write_exports(ctx, log)
+    _value_history(ctx, prices, log)
     log(f"Year-end values recomputed for {years[0] - 1}–{years[-1]}.")
     return years
+
+
+def _value_history(ctx, prices: PriceService, log: Callable[[str], None]) -> None:
+    """The Dashboard's value-over-time chart; a failure never fails the sync."""
+    from . import history
+    try:
+        history.compute(ctx, prices, log)
+    except Exception as e:  # noqa: BLE001 - a chart must not break a sync
+        ctx.log(traceback.format_exc(), "error")
+        log(f"Value over time not updated: {e}")
 
 
 def wallet_service(ctx, wallet: Dict[str, Any]) -> Optional[str]:

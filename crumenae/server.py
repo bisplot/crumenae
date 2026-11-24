@@ -55,6 +55,7 @@ class App:
         r = self._route
         r("GET", r"/api/status", self.status)
         r("GET", r"/api/dashboard", self.dashboard)
+        r("GET", r"/api/history", self.history)
         r("GET", r"/api/networks", self.networks)
         r("POST", r"/api/networks", self.add_network)
         r("PUT", r"/api/networks/(?P<nid>[a-z0-9_-]+)", self.update_network)
@@ -688,6 +689,10 @@ class App:
 
     def dashboard(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
         return views.dashboard(self.ctx, query.get("portfolio") or None)
+
+    def history(self, query: Dict[str, str], **_: Any) -> Dict[str, Any]:
+        from . import history
+        return history.series(self.ctx, query.get("portfolio") or None)
 
     # --- reset -----------------------------------------------------------------------
     def reset_phrase(self, **_: Any) -> Dict[str, Any]:
