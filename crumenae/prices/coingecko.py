@@ -3,6 +3,7 @@ Demo key raises the limits but historical data is restricted to the past 365
 days; a Pro key gives full history."""
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 
@@ -58,6 +59,26 @@ class CoinGeckoPrices:
         gap = ts - best[0]
         note = f"nearest CoinGecko point {abs(gap) // 60} min {'before' if gap >= 0 else 'after'}" if abs(gap) > 300 else ""
         return PriceResult(Decimal(str(best[1])), f"coingecko {cg} EUR", best[0], note)
+
+    def daily_closes(self, asset: Dict, start: date, end: date) -> Tuple[Dict[date, Decimal], str]:
+        """EUR daily prices for [start, end] from one range request (CoinGecko returns one point per
+        day at 00:00 UTC for ranges over 90 days: the point of day D+1 is the close of day D). Without
+        a Pro key only the last 365 days are available."""
+        cg = asset["coingecko_id"]
+        if not (self.ctx.secrets.get("coingecko_api_key") and self.ctx.settings.get("coingecko_plan") == "pro"):
+            start = max(start, date.today() - timedelta(days=364))
+        if start > end:
+            return {}, ""
+        lo = int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp()) + 60
+        hi = int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp()) + 86400 + 3600
+        lo = min(lo, hi - 91 * 86400)          # always over 90 days: daily points
+        data = self._get(f"/coins/{cg}/market_chart/range", {"vs_currency": "eur", "from": lo, "to": hi})
+        out: Dict[date, Decimal] = {}
+        for ms, price in (data or {}).get("prices") or []:
+            d = datetime.fromtimestamp(int(ms) // 1000 - 1, tz=timezone.utc).date()
+            if start <= d <= end and price is not None:
+                out[d] = Decimal(str(price))
+        return out, f"coingecko {cg} EUR daily"
 
     def current(self, assets: Dict[str, Dict], now_ts: int) -> Dict[str, PriceResult]:
         ids = sorted({a["coingecko_id"] for a in assets.values() if self.can_price(a)})
