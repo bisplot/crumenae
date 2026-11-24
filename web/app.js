@@ -161,9 +161,93 @@
   }
   const compactEur = (v) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', notation: 'compact', maximumFractionDigits: 1 }).format(v);
 
+  // Portfolio value over time (GET /api/history): area with a gradient, faded where some wallets
+  // are not covered yet, a dot on each fiscal-year end (official value, links to Year-end),
+  // hover tooltip, 1Y / 3Y / All.
+  function valueChart(hist, yearEnds) {
+    const all = (hist.points || []).map((p) => ({ day: p.day, v: Number(p.value) || 0, partial: p.partial, unpriced: p.unpriced }));
+    const wrap = el('div', { class: 'chart value-chart' });
+    if (all.length < 2) {
+      wrap.appendChild(el('p', { class: 'muted', text: 'Run a sync to build the history.' }));
+      return { node: wrap, controls: null };
+    }
+    const spanDays = (a, b) => (Date.parse(b) - Date.parse(a)) / 864e5;
+    const ranges = [['1Y', 365], ['3Y', 1095], ['All', Infinity]].filter(([, n], i, a) => n < spanDays(all[0].day, all[all.length - 1].day) || i === a.length - 1);
+    let current = ranges.length > 1 ? '1Y' : 'All';
+    const official = new Map((yearEnds || []).map((s) => [`${s.year}-12-31`, s]));
+    const W = 560, H = 230, padL = 8, padR = 8, padT = 22, padB = 24;
+    const draw = (animate) => {
+      const n = (ranges.find(([k]) => k === current) || ['All', Infinity])[1];
+      const lastDay = all[all.length - 1].day;
+      const pts = all.filter((p) => spanDays(p.day, lastDay) <= n);
+      const max = Math.max(...pts.map((p) => p.v), 1);
+      const x = (i) => padL + (i / Math.max(pts.length - 1, 1)) * (W - padL - padR);
+      const y = (v) => padT + (1 - v / max) * (H - padT - padB);
+      const id = 'vg' + Math.random().toString(36).slice(2, 8);
+      const g = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Portfolio value over time' });
+      g.appendChild(svg('defs', {}, svg('linearGradient', { id, x1: 0, y1: 0, x2: 0, y2: 1 },
+        svg('stop', { offset: '0%', 'stop-color': cssVar('--c1'), 'stop-opacity': 0.38 }),
+        svg('stop', { offset: '100%', 'stop-color': cssVar('--c1'), 'stop-opacity': 0 }))));
+      g.appendChild(svg('line', { x1: padL, x2: W - padR, y1: H - padB, y2: H - padB, stroke: cssVar('--border') }));
+      const split = pts.findIndex((p) => !p.partial);
+      const segs = split > 0 ? [[0, split, true], [split - 1, pts.length - 1, false]] : [[0, pts.length - 1, split < 0]];
+      segs.forEach(([a, b, faded]) => {
+        const line = pts.slice(a, b + 1).map((p, i) => `${i ? 'L' : 'M'}${x(a + i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(' ');
+        g.appendChild(svg('path', { d: `${line} L${x(b).toFixed(1)} ${H - padB} L${x(a).toFixed(1)} ${H - padB} Z`,
+          fill: `url(#${id})`, opacity: faded ? 0.4 : 1, 'data-area': '' }));
+        g.appendChild(svg('path', { d: line, fill: 'none', stroke: cssVar('--c1'), 'stroke-width': 2, 'stroke-linejoin': 'round',
+          'stroke-dasharray': faded ? '4 4' : null, opacity: faded ? 0.55 : 1, 'data-line': '' }));
+      });
+      const dots = [];
+      pts.forEach((p, i) => {
+        const ye = official.get(p.day);
+        if (!ye) return;
+        const dot = svg('circle', { cx: x(i), cy: y(p.v), r: 4.5, fill: cssVar('--surface'), stroke: cssVar('--c2'), 'stroke-width': 2,
+          class: 'ye-dot', 'data-dot': '' }, svg('title', {}, `31/12/${ye.year}: year-end ${eur(ye.value)}${ye.complete === false ? ' (incomplete)' : ''} → Year-end`));
+        dot.addEventListener('click', () => { location.hash = `#/year-end?year=${ye.year}`; });
+        dots.push(dot);
+      });
+      g.appendChild(svg('text', { x: padL, y: 12, class: 'value-label' }, compactEur(max)));
+      const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString(locale, { day: '2-digit', month: 'short', year: '2-digit' });
+      g.appendChild(svg('text', { x: padL, y: H - 7 }, fmt(pts[0].day)));
+      g.appendChild(svg('text', { x: W - padR, y: H - 7, 'text-anchor': 'end' }, fmt(pts[pts.length - 1].day)));
+      // hover: nearest day
+      const guide = svg('line', { y1: padT, y2: H - padB, stroke: cssVar('--muted'), 'stroke-dasharray': '3 3', opacity: 0 });
+      const mark = svg('circle', { r: 4, fill: cssVar('--c1'), opacity: 0 });
+      g.appendChild(guide); g.appendChild(mark);
+      const tip = el('div', { class: 'chart-tip hidden' });
+      const hit = svg('rect', { x: padL, y: 0, width: W - padL - padR, height: H, fill: 'transparent' });
+      const at = (evt) => {
+        const box = g.getBoundingClientRect();
+        const vx = ((evt.clientX - box.left) / box.width) * W;
+        const i = Math.max(0, Math.min(pts.length - 1, Math.round(((vx - padL) / (W - padL - padR)) * (pts.length - 1))));
+        const p = pts[i];
+        guide.setAttribute('x1', x(i)); guide.setAttribute('x2', x(i)); guide.setAttribute('opacity', 0.6);
+        mark.setAttribute('cx', x(i)); mark.setAttribute('cy', y(p.v)); mark.setAttribute('opacity', 1);
+        fill(tip, el('div', { class: 'muted small', text: fmt(p.day) }), el('strong', { text: eur(p.v) }),
+          p.partial ? el('div', { class: 'small warn-text', text: 'partial: some wallets not covered yet' }) : null,
+          p.unpriced ? el('div', { class: 'small warn-text', text: `${p.unpriced} coin(s) without a price left out` }) : null);
+        tip.classList.remove('hidden');
+        const left = (x(i) / W) * box.width;
+        tip.style.left = `${Math.min(Math.max(left, 60), box.width - 60)}px`;
+      };
+      hit.addEventListener('mousemove', at);
+      hit.addEventListener('mouseleave', () => { tip.classList.add('hidden'); guide.setAttribute('opacity', 0); mark.setAttribute('opacity', 0); });
+      g.appendChild(hit);
+      dots.forEach((dot) => g.appendChild(dot));   // above the hover layer: clickable
+      fill(wrap, g, tip);
+      if (animate) animateChart(wrap);
+    };
+    const controls = ranges.length > 1 ? el('div', { class: 'tabs small-tabs' }, ranges.map(([k]) => el('a', {
+      class: 'tab' + (k === current ? ' active' : ''), href: '#', text: k,
+      onclick: (e) => { e.preventDefault(); current = k; controls.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.textContent === k)); draw(true); } }))) : null;
+    draw(false);
+    return { node: wrap, controls };
+  }
+
   // ---------------------------------------------------------------- pages
   async function pageDashboard(root) {
-    const d = await api.get('/api/dashboard' + pf());
+    const [d, hist] = await Promise.all([api.get('/api/dashboard' + pf()), api.get('/api/history' + pf()).catch(() => ({ points: [] }))]);
     fillPortfolios(d.portfolios);
     if (!d.wallets.length && !d.lost_hidden) {
       fill(root, card(null, null, el('div', { class: 'empty' },
@@ -222,8 +306,13 @@
     const flags = d.flags.length ? card('Needs attention', null, el('div', { class: 'flags' },
       d.flags.map((f) => el('div', { class: 'flag' + (f.level === 'error' ? ' error' : ''), text: f.text })))) : null;
 
+    const vc = valueChart(hist, d.series);
+    const notes = [(hist.points || []).some((p) => p.partial) ? 'faded: some wallets have no recorded balance yet' : '',
+      (hist.uncovered || []).length ? `not included: ${hist.uncovered.join(', ')} (no balance recorded yet)` : '',
+      'daily closes · dots: official 31/12 values'].filter(Boolean).join(' · ');
+    const valueCard = card('Value over time', vc.controls, vc.node, el('p', { class: 'muted small', style: 'margin:6px 0 0', text: notes }));
     fill(root, kpis, flags || '', el('div', { class: 'grid two' }, allocation, holdings),
-      el('div', { class: 'grid two-even' }, yearsCard, walletsCard));
+      el('div', { class: 'grid two-even' }, valueCard, yearsCard), walletsCard);
     if (state.arrived) animatePage(root);
   }
 
@@ -238,6 +327,16 @@
   // Played when you open a page (or another year), not when it refreshes after a sync; never with
   // "reduce motion"; if the library is missing the page is simply static.
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function animateChart(wrap) {
+    const A = window.anime;
+    if (!A || !A.animate || reduceMotion()) return;
+    try {
+      const lines = wrap.querySelectorAll('[data-line]');
+      if (lines.length) A.animate(A.svg.createDrawable(lines), { draw: ['0 0', '0 1'], duration: 900, ease: 'inOutQuad' });
+      A.animate(wrap.querySelectorAll('[data-area]'), { opacity: [0, (el) => el.getAttribute('opacity') || 1], duration: 700, delay: 250, ease: 'outQuad' });
+      A.animate(wrap.querySelectorAll('[data-dot]'), { scale: [0, 1], duration: 400, delay: A.stagger(80, { start: 600 }), ease: 'outBack' });
+    } catch (_) { /* motion only */ }
+  }
   function animatePage(root) {
     const A = window.anime;
     if (!A || !A.animate || reduceMotion()) return;
@@ -246,6 +345,7 @@
       A.animate(cards, { opacity: [0, 1], translateY: [10, 0], duration: 450, delay: A.stagger(45), ease: 'outQuad' });
       A.animate(root.querySelectorAll('[data-rows] tbody tr'), { opacity: [0, 1], translateX: [-6, 0], duration: 350,
         delay: A.stagger(30, { start: 200 }), ease: 'outQuad' });
+      root.querySelectorAll('.value-chart').forEach((c) => animateChart(c));
       const arcs = root.querySelectorAll('.donut-wrap svg [data-seg]');
       if (arcs.length) {
         A.animate(A.svg.createDrawable(arcs), { draw: ['0 0', '0 1'], duration: 650, delay: A.stagger(80, { start: 120 }),
