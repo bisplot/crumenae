@@ -16,12 +16,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .. import assets as assets_mod
 from ..http import HttpError
-from ..util import scaled
+from ..util import ZERO, scaled
 from . import register
 from .base import AdapterError, AssetInfo, Logger, Movement, SyncResult
 from .evm import BALANCE_OF, EvmAdapter, resume_block
 
 DECIMALS = "0x313ce567"    # decimals()
+BALANCE_CHECK = 1          # version of the contract-payout check: a new one reads every block again
 looks_like_spam = assets_mod.looks_like_spam
 ALCHEMY_TEMPLATE = "https://{network}.g.alchemy.com/v2"
 
@@ -160,6 +161,8 @@ class AlchemyAdapter(EvmAdapter):
         result = SyncResult(state=dict(state))
         addr = wallet["address"].lower()
         start = resume_block(state, "alchemy")
+        if self._reconciles() and state.get("balance_check") != BALANCE_CHECK:
+            start = 0   # once: check every past block for coins paid by contracts
         native = assets_mod.native_asset(self.network)
         nat_dec = native.decimals or 18
         log(f"{wallet['label']}: reading {self.network.name} transfers from block {start} (Alchemy)")
@@ -252,6 +255,7 @@ class AlchemyAdapter(EvmAdapter):
                                       kind="in", counterparty=frm, info=info, from_address=frm, to_address=to))
 
         # Gas fees of the transactions you sent (one receipt each).
+        failed: set = set()
         for h, ts in sent.items():
             try:
                 rc = self._call("eth_getTransactionReceipt", [h]) or {}
@@ -261,17 +265,108 @@ class AlchemyAdapter(EvmAdapter):
             if str(rc.get("from") or "").lower() != addr:
                 continue   # a contract moved your tokens: the gas was paid by someone else
             fee = scaled(_int(rc.get("gasUsed")) * _int(rc.get("effectiveGasPrice") or rc.get("gasPrice")), nat_dec)
+            if _int(rc.get("status"), 1) == 0:
+                failed.add(h)
             if fee:
                 moves.append(Movement(uid=f"{h}:fee", tx_hash=h, ts=ts, asset_key=native.key, amount=-fee,
                                       kind="fee", counterparty=str(rc.get("to") or "").lower(),
                                       failed=_int(rc.get("status"), 1) == 0, from_address=addr,
                                       to_address=str(rc.get("to") or "").lower()))
 
+        # A failed transaction moved nothing: only its gas is kept.
+        moves = [m for m in moves if m.kind == "fee" or m.tx_hash not in failed]
+        if self._reconciles():
+            moves += self._reconcile(addr, transfers, moves, native, seen_assets, result, log)
+            result.state["balance_check"] = BALANCE_CHECK
         result.movements = moves
         result.assets = list(seen_assets.values())
         result.state["last_block"] = max_block if hold is None else min(max_block, hold)
         result.state["reader"] = "alchemy"
         return result
+
+    # --- coins moved by contracts -------------------------------------------------
+    def _reconciles(self) -> bool:
+        """Chains where Alchemy gives no internal transfers, or with a WETH-style wrapper."""
+        return not self.network.alchemy_internal or bool(self.network.wrapped_native)
+
+    def _balance(self, addr: str, block: int, contract: Optional[str], cache: Dict[Tuple[Optional[str], int], int]) -> int:
+        k = (contract, block)
+        if k not in cache:
+            if contract:
+                raw = self._call("eth_call", [{"to": contract, "data": BALANCE_OF + addr[2:].rjust(64, "0")}, hex(block)])
+                cache[k] = _int(raw) if raw and raw != "0x" else 0
+            else:
+                cache[k] = _int(self._call("eth_getBalance", [addr, hex(block)]))
+        return cache[k]
+
+    def _reconcile(self, addr: str, transfers: List[Dict[str, Any]], moves: List[Movement], native: AssetInfo,
+                   seen_assets: Dict[str, AssetInfo], result: SyncResult, log: Logger) -> List[Movement]:
+        """Coins a contract paid to (or took from) the wallet, which no transfer list shows: the native
+        coin on chains where Alchemy has no internal transfers (staking rewards and unstaking,
+        unwrapping WBNB/WRON, swaps and bridges paying out the coin), and the wrapped coin, whose
+        wrapping emits Deposit/Withdrawal instead of Transfer. For every block where the wallet had a
+        transaction, the balance before and after the block (archive state) is compared with the
+        movements recorded in it; what is left becomes one movement for that block."""
+        block_of: Dict[str, int] = {}
+        tx_to: Dict[str, str] = {}
+        blocks: Dict[int, str] = {}
+        wrapper = str(self.network.wrapped_native or "").lower()
+        wrap_blocks = set()
+        for t in transfers:
+            b, h = _int(t.get("blockNum")), str(t.get("hash", "")).lower()
+            block_of[h], blocks[b] = b, h
+            if str(t.get("from") or "").lower() == addr and t.get("category") == "external":
+                tx_to[h] = str(t.get("to") or "").lower()
+            if wrapper and (str(t.get("to") or "").lower() == wrapper or str(t.get("from") or "").lower() == wrapper
+                            or str(t.get("contractAddress") or "").lower() == wrapper):
+                wrap_blocks.add(b)
+        checks: List[Tuple[Optional[str], AssetInfo, set]] = []
+        if not self.network.alchemy_internal:
+            checks.append((None, native, set(blocks)))
+        if wrapper and wrap_blocks:
+            asset = seen_assets.get(f"{self.network.id}:{wrapper}") or assets_mod.token_asset(
+                self.ctx, self.network, wrapper, "W" + str(native.symbol), "", 18)
+            seen_assets[asset.key] = asset
+            checks.append((wrapper, asset, wrap_blocks))
+        out: List[Movement] = []
+        cache: Dict[Tuple[Optional[str], int], int] = {}
+        for contract, asset, todo in checks:
+            dec = asset.decimals if asset.decimals is not None else 18
+            recorded: Dict[int, Decimal] = {}
+            for m in moves:
+                if m.asset_key == asset.key and m.tx_hash in block_of:
+                    b = block_of[m.tx_hash]
+                    recorded[b] = recorded.get(b, ZERO) + m.amount
+            try:
+                for b in sorted(todo):
+                    change = scaled(self._balance(addr, b, contract, cache) - self._balance(addr, b - 1, contract, cache), dec)
+                    diff = change - recorded.get(b, ZERO)
+                    if not diff:
+                        continue
+                    h = blocks[b]
+                    label = ("wrapped" if diff > 0 else "unwrapped") if contract else (
+                        "paid by a contract" if diff > 0 else "taken by a contract")
+                    cp = tx_to.get(h, "")
+                    out.append(Movement(uid=f"blk{b}:{'wrap' if contract else 'native'}", tx_hash=h,
+                                        ts=next((m.ts for m in moves if m.tx_hash == h), 0) or self._block_ts(b),
+                                        asset_key=asset.key, amount=diff, kind="in" if diff > 0 else "out",
+                                        counterparty=cp, info=label, from_address=cp if diff > 0 else addr,
+                                        to_address=addr if diff > 0 else cp))
+            except AdapterError as e:
+                if _key_problem(e):
+                    raise
+                result.warnings.append(f"{asset.symbol} paid or taken by contracts not checked: this node has no "
+                                       f"balances of past blocks ({e})")
+                log(f"⚠ {asset.symbol}: coins moved by contracts not checked ({e})")
+        if out:
+            log(f"{len(out)} block(s) with coins moved by contracts (staking rewards, unwrapping, swaps…)")
+        return out
+
+    def _block_ts(self, block: int) -> int:
+        try:
+            return _int((self._call("eth_getBlockByNumber", [hex(block), False]) or {}).get("timestamp"))
+        except AdapterError:
+            return 0
 
     # --- live balances ------------------------------------------------------------
     def current_balances(self, wallet: Dict[str, Any], known_assets: List[str],

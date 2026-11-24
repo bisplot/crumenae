@@ -22,6 +22,17 @@ def native_asset(network) -> AssetInfo:
     )
 
 
+def staked_asset(network) -> AssetInfo:
+    """The coins of a wallet staked on its chain ("RON (staked)"): same price and Dashboard group as
+    the coin, shown apart on Year-end and Assets. One per wallet and network, whatever the pools."""
+    n = network.native or {}
+    return AssetInfo(
+        key=f"{network.id}:staked", network=network.id, symbol=f"{n.get('symbol', '?')} (staked)",
+        name=f"{n.get('name', '')} staked".strip(), decimals=n.get("decimals"), coingecko_id=n.get("coingecko"),
+        binance_symbol=n.get("binance"), status="known",
+    )
+
+
 def token_asset(ctx, network, contract: str, symbol: str = "", name: str = "",
                 decimals: Optional[int] = None) -> AssetInfo:
     known = (ctx.tokens.get(network.id) or {}).get(contract)

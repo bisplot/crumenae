@@ -28,8 +28,9 @@ def rpc(method, url, params, payload):
                                       "rawContract": {"value": hex(3 * 10 ** 18), "decimal": "0x12"},
                                       "metadata": {"blockTimestamp": "2025-01-01T00:00:00.000Z"}}]})
         return ok({"transfers": []})
-    if m == "eth_getBalance":
-        return ok(hex(3 * 10 ** 18))
+    if m == "eth_getBalance":   # as an archive node: 3 received at block 0x10
+        tag = payload["params"][1] if len(payload["params"]) > 1 else "latest"
+        return ok(hex(0 if tag != "latest" and int(tag, 16) < 0x10 else 3 * 10 ** 18))
     if m == "alchemy_getTokenBalances":
         return ok({"address": ME, "tokenBalances": [{"contractAddress": CELO_TOKEN, "tokenBalance": hex(3 * 10 ** 18)}]})
     return None

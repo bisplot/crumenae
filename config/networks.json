@@ -2,6 +2,7 @@
   "_comment": "Built-in networks. Each names the API provider that reads it (\"provider\", see crumenae/providers.py); \"auto_providers\" = when you have not chosen a provider in Settings, the first of these whose API key is saved is used, else \"provider\"; change the provider, hide a network or add new ones from Settings → Networks without touching this file. Other fields: adapter = module in crumenae/adapters (set by the provider's type); explorer_key = the provider whose key is used (<id>_api_key); bech32_prefix / native_denom / denoms = Cosmos SDK chains; chainid_param = send chainid (Etherscan V2 multichain); alchemy_network = the chain's name at Alchemy; ignore_tokens = token contracts that mirror the native coin.",
   "ethereum": {
     "name": "Ethereum",
+    "wrapped_native": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     "adapter": "evm",
     "chain_id": 1,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -19,6 +20,7 @@
   },
   "bsc": {
     "name": "BNB Smart Chain (BSC)",
+    "wrapped_native": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
     "adapter": "alchemy",
     "provider": "alchemy",
     "chain_id": 56,
@@ -33,6 +35,7 @@
   },
   "polygon": {
     "name": "Polygon PoS",
+    "wrapped_native": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
     "adapter": "evm",
     "chain_id": 137,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -50,6 +53,7 @@
   },
   "arbitrum": {
     "name": "Arbitrum One",
+    "wrapped_native": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     "adapter": "evm",
     "chain_id": 42161,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -67,6 +71,7 @@
   },
   "optimism": {
     "name": "OP Mainnet",
+    "wrapped_native": "0x4200000000000000000000000000000000000006",
     "adapter": "evm",
     "chain_id": 10,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -84,6 +89,7 @@
   },
   "base": {
     "name": "Base",
+    "wrapped_native": "0x4200000000000000000000000000000000000006",
     "adapter": "evm",
     "chain_id": 8453,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -102,6 +108,7 @@
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
+    "wrapped_native": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
     "adapter": "evm",
     "chain_id": 43114,
     "explorer_api": "https://api.etherscan.io/v2/api",
@@ -164,6 +171,7 @@
   },
   "ronin": {
     "name": "Ronin",
+    "wrapped_native": "0xe514d9deb7966c8be0ca922de8a064264ea6bcd4",
     "adapter": "alchemy",
     "provider": "alchemy",
     "chain_id": 2020,
